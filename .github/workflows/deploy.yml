@@ -19,7 +19,7 @@ jobs:
         run: npm ci
 
       - name: Build for Cloudflare
-        run: npx @opennextjs/cloudflare
+        run: npx @opennextjs/cloudflare --skipWranglerConfigCheck
         env:
           NODE_ENV: production
 
