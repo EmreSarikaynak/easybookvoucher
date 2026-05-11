@@ -6,7 +6,7 @@ import { formatDbError } from "@/lib/error-messages";
 import type { Agency, CurrencyType } from "@/lib/types";
 
 export async function uploadTourImages(formData: FormData): Promise<{ urls?: string[]; error?: string }> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const files = formData.getAll("files") as File[];
 
   if (!files?.length) {
@@ -63,7 +63,7 @@ interface TourPayload {
 }
 
 export async function createTour(payload: TourPayload) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.from("tours").insert({
     name: payload.name,
@@ -92,7 +92,7 @@ export async function createTour(payload: TourPayload) {
 }
 
 export async function updateTour(id: string, payload: TourPayload) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase
     .from("tours")
@@ -123,11 +123,23 @@ export async function updateTour(id: string, payload: TourPayload) {
   return { success: true };
 }
 
+export interface AgencyTourPriceRow {
+  id?: string;
+  agency_id: string;
+  currency: CurrencyType;
+  /** legacy single price, kept so old UI still works */
+  price: number;
+  price_adult: number | null;
+  price_child: number;
+  cost_adult: number | null;
+  cost_child: number | null;
+}
+
 export async function getTourPricesData(
   tourId: string,
   agencyId?: string | null
-): Promise<{ agencies: Agency[]; pricesData: Array<{ agency_id: string; currency: string; price: number; id?: string }> }> {
-  const supabase = createServerSupabaseClient();
+): Promise<{ agencies: Agency[]; pricesData: AgencyTourPriceRow[] }> {
+  const supabase = await createServerSupabaseClient();
 
   let agencyQuery = supabase
     .from("agencies")
@@ -148,27 +160,49 @@ export async function getTourPricesData(
   return {
     agencies: agenciesList,
     pricesData: (pricesData ?? []).map((p) => ({
+      id: p.id,
       agency_id: p.agency_id,
       currency: p.currency,
-      price: p.price,
-      id: p.id,
+      price: p.price ?? p.price_adult ?? 0,
+      price_adult: p.price_adult ?? p.price ?? null,
+      price_child: p.price_child ?? 0,
+      cost_adult: p.cost_adult ?? null,
+      cost_child: p.cost_child ?? null,
     })),
   };
 }
 
 export async function saveAgencyTourPrices(
   tourId: string,
-  rows: Array<{ id?: string; agency_id: string; price: number; currency: CurrencyType }>
+  rows: Array<{
+    id?: string;
+    agency_id: string;
+    currency: CurrencyType;
+    // Either pass `price` (legacy, mirrored to price_adult) or new fields.
+    price?: number;
+    price_adult?: number | null;
+    price_child?: number;
+    cost_adult?: number | null;
+    cost_child?: number | null;
+  }>
 ) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
-  const upsertData = rows.map((r) => ({
-    id: r.id,
-    agency_id: r.agency_id,
-    tour_id: tourId,
-    price: r.price,
-    currency: r.currency,
-  }));
+  const upsertData = rows.map((r) => {
+    const adult = r.price_adult ?? r.price ?? 0;
+    return {
+      ...(r.id ? { id: r.id } : {}),
+      agency_id: r.agency_id,
+      tour_id: tourId,
+      currency: r.currency,
+      // Mirror to legacy `price` so old readers keep working.
+      price: adult,
+      price_adult: adult,
+      price_child: r.price_child ?? 0,
+      cost_adult: r.cost_adult ?? null,
+      cost_child: r.cost_child ?? null,
+    };
+  });
 
   const { error } = await supabase
     .from("agency_tour_prices")
@@ -179,11 +213,13 @@ export async function saveAgencyTourPrices(
     return { error: formatDbError(error) };
   }
   revalidatePath("/tours");
+  revalidatePath("/agencies");
+  revalidatePath("/tour-costs");
   return { success: true };
 }
 
 export async function deleteTour(id: string) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase
     .from("tours")

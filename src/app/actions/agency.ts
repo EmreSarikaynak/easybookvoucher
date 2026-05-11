@@ -3,6 +3,7 @@
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
 import { formatDbError } from "@/lib/error-messages";
+import type { CurrencyType, Tour } from "@/lib/types";
 
 interface AgencyPayload {
   name: string;
@@ -20,7 +21,7 @@ interface CreateAgencyWithUserPayload extends AgencyPayload {
 /**
  * Bir sonraki acente kodunu üretir (2026001, 2026002, ...)
  */
-async function generateNextAgencyCode(supabase: ReturnType<typeof createServerSupabaseClient>): Promise<string> {
+async function generateNextAgencyCode(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>): Promise<string> {
   const { data } = await supabase
     .from("agencies")
     .select("agency_code")
@@ -40,7 +41,7 @@ async function generateNextAgencyCode(supabase: ReturnType<typeof createServerSu
 }
 
 export async function createAgency(payload: AgencyPayload) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const agencyCode = payload.agency_code || await generateNextAgencyCode(supabase);
 
   const { error } = await supabase.from("agencies").insert({
@@ -59,7 +60,7 @@ export async function createAgency(payload: AgencyPayload) {
 }
 
 export async function createAgencyWithUser(payload: CreateAgencyWithUserPayload) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   try {
     const serviceClient = createServiceRoleClient();
@@ -132,7 +133,7 @@ export async function createAgencyWithUser(payload: CreateAgencyWithUserPayload)
 }
 
 export async function updateAgency(id: string, payload: AgencyPayload) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase
     .from("agencies")
@@ -149,7 +150,7 @@ export async function updateAgency(id: string, payload: AgencyPayload) {
 }
 
 export async function deleteAgency(id: string) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase
     .from("agencies")
@@ -162,5 +163,103 @@ export async function deleteAgency(id: string) {
   }
 
   revalidatePath("/agencies");
+  return { success: true };
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Per-agency tour pricing matrix
+// ──────────────────────────────────────────────────────────────────────────
+
+export interface AgencyTourPricingCell {
+  /** Existing row id (if any) for this (tour, currency) */
+  id?: string;
+  tour_id: string;
+  currency: CurrencyType;
+  cost_adult: number | null;
+  cost_child: number | null;
+  price_adult: number | null;
+  price_child: number;
+}
+
+export interface AgencyTourPricingMatrix {
+  tours: Tour[];
+  cells: AgencyTourPricingCell[];
+}
+
+/**
+ * Returns all active tours plus this agency's saved price/cost cells
+ * (one row per tour × currency). Missing combinations are simply absent
+ * from `cells` — the UI fills them with fallbacks from tours.base_price_*.
+ */
+export async function getAgencyTourPricingMatrix(
+  agencyId: string
+): Promise<{ data?: AgencyTourPricingMatrix; error?: string }> {
+  const supabase = await createServerSupabaseClient();
+
+  const [{ data: tours, error: toursError }, { data: rows, error: rowsError }] =
+    await Promise.all([
+      supabase
+        .from("tours")
+        .select("*")
+        .eq("is_active", true)
+        .order("name"),
+      supabase
+        .from("agency_tour_prices")
+        .select("*")
+        .eq("agency_id", agencyId),
+    ]);
+
+  if (toursError) return { error: formatDbError(toursError) };
+  if (rowsError) return { error: formatDbError(rowsError) };
+
+  const cells: AgencyTourPricingCell[] = (rows ?? []).map((r) => ({
+    id: r.id,
+    tour_id: r.tour_id,
+    currency: r.currency,
+    cost_adult: r.cost_adult ?? null,
+    cost_child: r.cost_child ?? null,
+    price_adult: r.price_adult ?? r.price ?? null,
+    price_child: r.price_child ?? 0,
+  }));
+
+  return { data: { tours: tours ?? [], cells } };
+}
+
+export async function saveAgencyTourPricingMatrix(
+  agencyId: string,
+  cells: AgencyTourPricingCell[]
+) {
+  if (!cells.length) return { success: true };
+
+  const supabase = await createServerSupabaseClient();
+
+  const upsertData = cells.map((c) => {
+    const adult = c.price_adult ?? 0;
+    return {
+      ...(c.id ? { id: c.id } : {}),
+      agency_id: agencyId,
+      tour_id: c.tour_id,
+      currency: c.currency,
+      // Keep legacy `price` mirrored so old readers don't break.
+      price: adult,
+      price_adult: adult,
+      price_child: c.price_child ?? 0,
+      cost_adult: c.cost_adult,
+      cost_child: c.cost_child,
+    };
+  });
+
+  const { error } = await supabase
+    .from("agency_tour_prices")
+    .upsert(upsertData, { onConflict: "agency_id,tour_id,currency" });
+
+  if (error) {
+    console.error("Agency tour pricing save error:", error);
+    return { error: formatDbError(error) };
+  }
+
+  revalidatePath("/agencies");
+  revalidatePath("/tours");
+  revalidatePath("/tour-costs");
   return { success: true };
 }

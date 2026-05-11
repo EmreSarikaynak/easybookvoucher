@@ -20,10 +20,17 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { createAgencyWithUser, updateAgency, deleteAgency } from "@/app/actions/agency";
+import {
+  createAgencyWithUser,
+  updateAgency,
+  deleteAgency,
+  saveAgencyTourPricingMatrix,
+  type AgencyTourPricingCell,
+} from "@/app/actions/agency";
 import type { Agency } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { AgencyAccounting } from "./agency-accounting";
+import { AgencyTourPricing } from "./agency-tour-pricing";
 
 interface AgenciesContentProps {
   agencies: Agency[];
@@ -38,6 +45,8 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [accountingAgency, setAccountingAgency] = useState<Agency | null>(null);
+  const [pricingCells, setPricingCells] = useState<AgencyTourPricingCell[]>([]);
+  const [pricingDirty, setPricingDirty] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     agency_code: "",
@@ -59,6 +68,8 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
       admin_name: "",
       password: "",
     });
+    setPricingCells([]);
+    setPricingDirty(false);
     setError(null);
     setShowPassword(false);
     setDialogOpen(true);
@@ -75,6 +86,8 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
       admin_name: "",
       password: "",
     });
+    setPricingCells([]);
+    setPricingDirty(false);
     setError(null);
     setDialogOpen(true);
   };
@@ -124,6 +137,18 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
       if (result.error) {
         setError(result.error);
         return;
+      }
+
+      // Save per-tour pricing if any rows were edited (admin + editing only).
+      if (isAdmin && editingAgency && pricingDirty && pricingCells.length > 0) {
+        const pricingResult = await saveAgencyTourPricingMatrix(
+          editingAgency.id,
+          pricingCells
+        );
+        if (pricingResult.error) {
+          setError(`Acente kaydedildi ama fiyatlar kaydedilemedi: ${pricingResult.error}`);
+          return;
+        }
       }
 
       setDialogOpen(false);
@@ -229,7 +254,7 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
 
       {/* Acente Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className={editingAgency ? "max-w-3xl" : "max-w-lg"}>
           <DialogHeader>
             <DialogTitle>
               {editingAgency ? "Acente Düzenle" : "Yeni Acente"}
@@ -375,6 +400,29 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
                     setFormData((p) => ({ ...p, email: e.target.value }))
                   }
                   placeholder="ornek@email.com"
+                />
+              </div>
+            )}
+
+            {/* Tur Bazında Fiyatlandırma — sadece düzenleme modunda ve admin */}
+            {editingAgency && isAdmin && (
+              <div className="space-y-3 pt-4 border-t">
+                <div>
+                  <h3 className="font-medium text-sm text-muted-foreground">
+                    Tur Bazında Fiyatlandırma
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Bu acenteye özel tur maliyeti ve satış fiyatlarını yetişkin/çocuk
+                    ayrımıyla girin. Boş bırakılan maliyet alanları için tur varsayılan
+                    maliyeti kullanılır.
+                  </p>
+                </div>
+                <AgencyTourPricing
+                  agencyId={editingAgency.id}
+                  onChange={(cells, dirty) => {
+                    setPricingCells(cells);
+                    setPricingDirty(dirty);
+                  }}
                 />
               </div>
             )}
