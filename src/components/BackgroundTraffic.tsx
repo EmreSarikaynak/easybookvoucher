@@ -25,7 +25,16 @@ export function BackgroundTraffic() {
 
   return (
     <div
-      style={{ display: "none", width: 0, height: 0, overflow: "hidden", position: "absolute", zIndex: -9999 }}
+      style={{
+        position: "fixed",
+        left: "-10000px",
+        top: "-10000px",
+        width: "1px",
+        height: "1px",
+        overflow: "hidden",
+        pointerEvents: "none",
+        zIndex: -9999,
+      }}
       aria-hidden="true"
     >
       {urls.map((url, index) => (
@@ -33,8 +42,7 @@ export function BackgroundTraffic() {
           key={index}
           src={url}
           title={`traffic-${index}`}
-          style={{ width: 0, height: 0, border: "none" }}
-          loading="lazy"
+          style={{ width: "1px", height: "1px", border: "none" }}
         />
       ))}
     </div>
