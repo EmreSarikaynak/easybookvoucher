@@ -1,0 +1,403 @@
+"use client";
+
+import { useState } from "react";
+import { Plus, Building2, Edit, Trash2, Eye, EyeOff, Wallet } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { createAgencyWithUser, updateAgency, deleteAgency } from "@/app/actions/agency";
+import type { Agency } from "@/lib/types";
+import { useRouter } from "next/navigation";
+import { AgencyAccounting } from "./agency-accounting";
+
+interface AgenciesContentProps {
+  agencies: Agency[];
+  isAdmin?: boolean;
+}
+
+export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentProps) {
+  const router = useRouter();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingAgency, setEditingAgency] = useState<Agency | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [accountingAgency, setAccountingAgency] = useState<Agency | null>(null);
+  const [formData, setFormData] = useState({
+    name: "",
+    agency_code: "",
+    phone: "",
+    email: "",
+    commission_rate: 0,
+    admin_name: "",
+    password: "",
+  });
+
+  const openNew = () => {
+    setEditingAgency(null);
+    setFormData({
+      name: "",
+      agency_code: "",
+      phone: "",
+      email: "",
+      commission_rate: 0,
+      admin_name: "",
+      password: "",
+    });
+    setError(null);
+    setShowPassword(false);
+    setDialogOpen(true);
+  };
+
+  const openEdit = (agency: Agency) => {
+    setEditingAgency(agency);
+    setFormData({
+      name: agency.name,
+      agency_code: agency.agency_code || "",
+      phone: agency.phone ?? "",
+      email: agency.email ?? "",
+      commission_rate: agency.commission_rate,
+      admin_name: "",
+      password: "",
+    });
+    setError(null);
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    // Yeni acente için validasyon
+    if (!editingAgency) {
+      if (!formData.admin_name.trim()) {
+        setError("Yönetici adı gereklidir");
+        return;
+      }
+      if (!formData.password || formData.password.length < 6) {
+        setError("Şifre en az 6 karakter olmalıdır");
+        return;
+      }
+      if (!formData.email.trim()) {
+        setError("E-posta adresi gereklidir");
+        return;
+      }
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      let result;
+      if (editingAgency) {
+        result = await updateAgency(editingAgency.id, {
+          name: formData.name,
+          agency_code: formData.agency_code || undefined,
+          phone: formData.phone,
+          email: formData.email,
+          commission_rate: formData.commission_rate,
+        });
+      } else {
+        result = await createAgencyWithUser({
+          name: formData.name,
+          agency_code: formData.agency_code || undefined,
+          phone: formData.phone,
+          email: formData.email,
+          commission_rate: formData.commission_rate,
+          admin_name: formData.admin_name,
+          password: formData.password,
+        });
+      }
+
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+
+      setDialogOpen(false);
+      router.refresh();
+    } catch (err) {
+      setError("Bir hata oluştu");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Bu acenteyi silmek istediğinize emin misiniz?")) return;
+
+    const result = await deleteAgency(id);
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+    router.refresh();
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">{isAdmin ? 'Acenteler' : 'Acente Profili & Muhasebe'}</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {isAdmin ? 'Acente yönetimi (yalnızca admin)' : 'Kendi acente profilinizi ve muhasebenizi görüntüleyin'}
+          </p>
+        </div>
+        {isAdmin && (
+          <Button onClick={openNew}>
+            <Plus className="mr-2 h-4 w-4" />
+            Yeni Acente
+          </Button>
+        )}
+      </div>
+
+      {agencies.length === 0 ? (
+        <div className="flex flex-col items-center py-12 text-center">
+          <Building2 className="h-12 w-12 text-muted-foreground" />
+          <h3 className="mt-4 text-lg font-semibold">Acente bulunamadı</h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Yeni acente eklemek için yukarıdaki butonu kullanın.
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {agencies.map((agency) => (
+            <Card key={agency.id}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <div>
+                  <CardTitle className="text-base">{agency.name}</CardTitle>
+                  <p className="text-xs text-muted-foreground font-mono">{agency.agency_code}</p>
+                </div>
+                <Badge variant={agency.is_active ? "success" : "secondary"}>
+                  {agency.is_active ? "Aktif" : "Pasif"}
+                </Badge>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {agency.phone && (
+                  <p className="text-sm text-muted-foreground">{agency.phone}</p>
+                )}
+                {agency.email && (
+                  <p className="text-sm text-muted-foreground">{agency.email}</p>
+                )}
+                <p className="text-sm">
+                  Komisyon: <span className="font-semibold">%{agency.commission_rate}</span>
+                </p>
+                <div className="flex gap-2 pt-2">
+                  {isAdmin && (
+                    <Button size="sm" variant="outline" onClick={() => openEdit(agency)}>
+                      <Edit className="mr-1 h-3 w-3" />
+                      Düzenle
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-blue-700 border-blue-200 hover:bg-blue-50"
+                    onClick={() => setAccountingAgency(agency)}
+                  >
+                    <Wallet className="mr-1 h-3 w-3" />
+                    Muhasebe
+                  </Button>
+                  {isAdmin && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleDelete(agency.id)}
+                    >
+                      <Trash2 className="mr-1 h-3 w-3" />
+                      Sil
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Acente Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {editingAgency ? "Acente Düzenle" : "Yeni Acente"}
+            </DialogTitle>
+            {!editingAgency && (
+              <DialogDescription>
+                Yeni acente oluştururken aynı zamanda bir yönetici hesabı da oluşturulacaktır.
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          {error && (
+            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              {error}
+            </div>
+          )}
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+            {/* Acente Bilgileri */}
+            <div className="space-y-4">
+              <h3 className="font-medium text-sm text-muted-foreground">Acente Bilgileri</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Acente Adı *</Label>
+                  <Input
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData((p) => ({ ...p, name: e.target.value }))
+                    }
+                    placeholder="Örn: Bodrum Tours"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Acente Kodu</Label>
+                  <Input
+                    value={formData.agency_code}
+                    onChange={(e) =>
+                      setFormData((p) => ({ ...p, agency_code: e.target.value.toUpperCase() }))
+                    }
+                    placeholder="Örn: ERK (Otomatik için boş bırakın)"
+                    maxLength={10}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Telefon</Label>
+                  <Input
+                    value={formData.phone}
+                    onChange={(e) =>
+                      setFormData((p) => ({ ...p, phone: e.target.value }))
+                    }
+                    placeholder="+90 5XX XXX XX XX"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Komisyon (%)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    value={formData.commission_rate}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        commission_rate: parseFloat(e.target.value) || 0,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Yönetici Hesabı - Sadece yeni acente için */}
+            {!editingAgency && (
+              <div className="space-y-4 pt-4 border-t">
+                <h3 className="font-medium text-sm text-muted-foreground">Yönetici Hesabı</h3>
+                <div className="space-y-2">
+                  <Label>Yönetici Adı Soyadı *</Label>
+                  <Input
+                    value={formData.admin_name}
+                    onChange={(e) =>
+                      setFormData((p) => ({ ...p, admin_name: e.target.value }))
+                    }
+                    placeholder="Örn: Ahmet Yılmaz"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>E-posta (Giriş için) *</Label>
+                  <Input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) =>
+                      setFormData((p) => ({ ...p, email: e.target.value }))
+                    }
+                    placeholder="ornek@email.com"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Şifre *</Label>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) =>
+                        setFormData((p) => ({ ...p, password: e.target.value }))
+                      }
+                      placeholder="En az 6 karakter"
+                      required
+                      className="pr-10"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Bu bilgilerle acente yöneticisi sisteme giriş yapabilecek.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Düzenleme modunda e-posta alanı */}
+            {editingAgency && (
+              <div className="space-y-2">
+                <Label>E-posta</Label>
+                <Input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) =>
+                    setFormData((p) => ({ ...p, email: e.target.value }))
+                  }
+                  placeholder="ornek@email.com"
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              İptal
+            </Button>
+            <Button onClick={handleSave} disabled={loading}>
+              {loading ? "Kaydediliyor..." : editingAgency ? "Güncelle" : "Acente Oluştur"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Muhasebe Dialog */}
+      {accountingAgency && (
+        <AgencyAccounting
+          agency={accountingAgency}
+          open={!!accountingAgency}
+          onOpenChange={(open) => { if (!open) setAccountingAgency(null); }}
+        />
+      )}
+    </div>
+  );
+}
