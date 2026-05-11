@@ -39,6 +39,7 @@ export default function robots(): MetadataRoute.Robots {
       { userAgent: "Applebot-Extended", allow: "/" },
       { userAgent: "CCBot", allow: "/" },
       { userAgent: "FacebookBot", allow: "/" },
+      { userAgent: "facebookexternalhit", allow: "/" },
       { userAgent: "Twitterbot", allow: "/" },
       { userAgent: "LinkedInBot", allow: "/" },
     ],
