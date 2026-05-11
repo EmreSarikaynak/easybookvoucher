@@ -54,7 +54,14 @@ export interface AgencyTourPrice {
   id: string;
   agency_id: string;
   tour_id: string;
+  /** @deprecated use price_adult / price_child */
   price: number;
+  price_adult: number | null;
+  price_child: number;
+  /** NULL => fallback to tours.base_price_adult_* */
+  cost_adult: number | null;
+  /** NULL => fallback to tours.base_price_child_* */
+  cost_child: number | null;
   currency: CurrencyType;
   created_at: string;
   updated_at: string;
