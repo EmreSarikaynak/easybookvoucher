@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -44,6 +44,12 @@ export function AgencyTourPricing({ agencyId, onChange }: AgencyTourPricingProps
   const [tours, setTours] = useState<Tour[]>([]);
   const [drafts, setDrafts] = useState<Record<CellKey, DraftCell>>({});
   const [activeCurrency, setActiveCurrency] = useState<CurrencyType>("EUR");
+  // Keep latest onChange in a ref so the dirty-propagation effect below
+  // only depends on `drafts` (otherwise inline callbacks cause an infinite loop).
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
 
   const cellKey = (tourId: string, currency: CurrencyType): CellKey =>
     `${tourId}_${currency}` as CellKey;
@@ -90,8 +96,8 @@ export function AgencyTourPricing({ agencyId, onChange }: AgencyTourPricingProps
     const dirtyCells: AgencyTourPricingCell[] = Object.values(drafts)
       .filter((d) => d.dirty)
       .map(({ dirty: _dirty, ...rest }) => rest);
-    onChange(dirtyCells, dirtyCells.length > 0);
-  }, [drafts, onChange]);
+    onChangeRef.current(dirtyCells, dirtyCells.length > 0);
+  }, [drafts]);
 
   const updateCell = (
     key: CellKey,
