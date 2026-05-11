@@ -104,6 +104,9 @@ export const metadata: Metadata = {
     },
   },
   referrer: "origin-when-cross-origin",
+  verification: {
+    google: "aZMX1CBKlRGFzaviDLqS1D8-2-9W3HCpa8t4gv0Fr3w",
+  },
   other: {
     "google": "notranslate",
     "format-detection": "telephone=no",
