@@ -218,6 +218,51 @@ export async function saveAgencyTourPrices(
   return { success: true };
 }
 
+export interface TourBasePriceUpdate {
+  tour_id: string;
+  base_price_adult_eur: number;
+  base_price_child_eur: number;
+  base_price_adult_try: number;
+  base_price_child_try: number;
+}
+
+/**
+ * Admin: bulk-update standard base prices for multiple tours at once.
+ * Used by the Tour Costs page editor.
+ */
+export async function updateTourBasePrices(updates: TourBasePriceUpdate[]) {
+  if (!updates.length) return { success: true };
+
+  const supabase = await createServerSupabaseClient();
+  const errors: string[] = [];
+
+  for (const u of updates) {
+    const { error } = await supabase
+      .from("tours")
+      .update({
+        base_price_adult_eur: u.base_price_adult_eur,
+        base_price_child_eur: u.base_price_child_eur,
+        base_price_adult_try: u.base_price_adult_try,
+        base_price_child_try: u.base_price_child_try,
+      })
+      .eq("id", u.tour_id);
+
+    if (error) {
+      console.error("Tour base price update error:", error);
+      errors.push(formatDbError(error));
+    }
+  }
+
+  revalidatePath("/tour-costs");
+  revalidatePath("/tours");
+  revalidatePath("/agencies");
+
+  if (errors.length > 0) {
+    return { error: errors.join("; ") };
+  }
+  return { success: true };
+}
+
 export async function deleteTour(id: string) {
   const supabase = await createServerSupabaseClient();
 

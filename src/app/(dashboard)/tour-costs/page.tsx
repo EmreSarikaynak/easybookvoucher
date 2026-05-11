@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getCurrentUser, isAdmin } from "@/lib/auth-helpers";
+import { TourCostsEditor } from "@/components/tour/tour-costs-editor";
 import type { Tour } from "@/lib/types";
 
 interface TourRow {
@@ -61,10 +62,37 @@ async function getTourCosts(agencyId: string | null): Promise<TourRow[]> {
   });
 }
 
+async function getActiveTours(): Promise<Tour[]> {
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase
+    .from("tours")
+    .select("*")
+    .eq("is_active", true)
+    .order("name");
+  return data ?? [];
+}
+
 export default async function TourCostsPage() {
   const profile = await getCurrentUser();
   const admin = isAdmin(profile);
   const agencyId = !admin && profile?.agency_id ? profile.agency_id : null;
+
+  if (admin) {
+    const tours = await getActiveTours();
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Tur Maliyetleri</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            EasyBook tur standart taban fiyatları. Buradan girdiğiniz değerler acente
+            düzenle ekranında varsayılan olarak görünür.
+          </p>
+        </div>
+        <TourCostsEditor tours={tours} />
+      </div>
+    );
+  }
+
   const rows = await getTourCosts(agencyId);
 
   return (
@@ -72,9 +100,7 @@ export default async function TourCostsPage() {
       <div>
         <h1 className="text-2xl font-bold">Tur Maliyetleri</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          {admin
-            ? "EasyBook tur taban fiyatları (sadece okuma)"
-            : "Size özel tanımlanmış tur maliyetleri. Özel fiyat yoksa varsayılan maliyet gösterilir."}
+          Size özel tanımlanmış tur maliyetleri. Özel fiyat yoksa varsayılan maliyet gösterilir.
         </p>
       </div>
 
