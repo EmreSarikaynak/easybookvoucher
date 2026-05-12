@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MessageSquare, RefreshCw, AlertCircle, CheckCircle2, Clock } from "lucide-react";
+import { MessageSquare, RefreshCw, Send, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
-import type { WhatsAppLog } from "@/lib/types";
+import type { WhatsAppLog, Profile } from "@/lib/types";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
 import {
@@ -16,10 +16,20 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { resendVoucherWhatsApp } from "@/app/actions/voucher";
+
+const RESENDABLE_STATUSES = new Set([
+  "failed",
+  "undelivered",
+  "queued",
+]);
 
 export default function WhatsAppLogsPage() {
   const [logs, setLogs] = useState<WhatsAppLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [resendingFor, setResendingFor] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   const fetchLogs = async () => {
     setLoading(true);
@@ -41,6 +51,43 @@ export default function WhatsAppLogsPage() {
   useEffect(() => {
     fetchLogs();
   }, []);
+
+  // Load profile (for admin check) once
+  useEffect(() => {
+    (async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+      setProfile(data as Profile | null);
+    })();
+  }, []);
+
+  const isAdmin = profile?.role === "super_admin" || profile?.role === "admin";
+
+  const handleResend = async (log: WhatsAppLog) => {
+    if (!log.voucher_no) {
+      setFeedback({ kind: "error", text: "Bu kayıtta bilet numarası yok, yeniden gönderilemez" });
+      return;
+    }
+    setResendingFor(log.id);
+    setFeedback(null);
+    try {
+      const res = await resendVoucherWhatsApp(log.voucher_no);
+      if (res.error) {
+        setFeedback({ kind: "error", text: res.error });
+      } else {
+        setFeedback({ kind: "success", text: `${log.voucher_no} için tekrar gönderildi` });
+        await fetchLogs();
+      }
+    } finally {
+      setResendingFor(null);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -81,6 +128,18 @@ export default function WhatsAppLogsPage() {
         </Button>
       </div>
 
+      {feedback && (
+        <div
+          className={`rounded-md p-3 text-sm ${
+            feedback.kind === "success"
+              ? "bg-green-50 text-green-800 border border-green-200"
+              : "bg-red-50 text-red-800 border border-red-200"
+          }`}
+        >
+          {feedback.text}
+        </div>
+      )}
+
       <div className="rounded-md border bg-white shadow-sm">
         <Table>
           <TableHeader>
@@ -91,35 +150,64 @@ export default function WhatsAppLogsPage() {
               <TableHead>Bilet No</TableHead>
               <TableHead>Mesaj (Özet)</TableHead>
               <TableHead>Durum</TableHead>
+              {isAdmin && <TableHead className="text-right">İşlem</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {logs.length === 0 && !loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={isAdmin ? 7 : 6} className="text-center py-8 text-muted-foreground">
                   Kayıt bulunamadı.
                 </TableCell>
               </TableRow>
             ) : (
-              logs.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell className="whitespace-nowrap">
-                    {format(new Date(log.created_at), "dd MMM HH:mm", { locale: tr })}
-                  </TableCell>
-                  <TableCell>{getDirectionIcon(log.direction)}</TableCell>
-                  <TableCell>{log.phone_number}</TableCell>
-                  <TableCell>{log.voucher_no || "-"}</TableCell>
-                  <TableCell className="max-w-xs truncate" title={log.body}>
-                    {log.body}
-                    {log.error_message && (
-                      <div className="text-xs text-red-500 mt-1 truncate" title={log.error_message}>
-                        Hata: {log.error_message}
-                      </div>
+              logs.map((log) => {
+                const canResend =
+                  isAdmin &&
+                  log.direction === "outbound" &&
+                  log.voucher_no &&
+                  RESENDABLE_STATUSES.has(log.status);
+                return (
+                  <TableRow key={log.id}>
+                    <TableCell className="whitespace-nowrap">
+                      {format(new Date(log.created_at), "dd MMM HH:mm", { locale: tr })}
+                    </TableCell>
+                    <TableCell>{getDirectionIcon(log.direction)}</TableCell>
+                    <TableCell>{log.phone_number}</TableCell>
+                    <TableCell>{log.voucher_no || "-"}</TableCell>
+                    <TableCell className="max-w-xs truncate" title={log.body}>
+                      {log.body}
+                      {log.error_message && (
+                        <div className="text-xs text-red-500 mt-1 truncate" title={log.error_message}>
+                          Hata: {log.error_message}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>{getStatusBadge(log.status)}</TableCell>
+                    {isAdmin && (
+                      <TableCell className="text-right">
+                        {canResend ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={resendingFor === log.id}
+                            onClick={() => handleResend(log)}
+                          >
+                            {resendingFor === log.id ? (
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                            ) : (
+                              <Send className="mr-1 h-3 w-3" />
+                            )}
+                            Tekrar Gönder
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                     )}
-                  </TableCell>
-                  <TableCell>{getStatusBadge(log.status)}</TableCell>
-                </TableRow>
-              ))
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
