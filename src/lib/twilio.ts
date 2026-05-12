@@ -8,6 +8,11 @@ const twilioNumber = process.env.TWILIO_WHATSAPP_NUMBER;
 const statusCallbackUrl =
     process.env.TWILIO_STATUS_CALLBACK_URL
     || "https://bodrumdayiz.com.tr/api/webhooks/twilio";
+// Once you have an approved WhatsApp template, set this env to its
+// Content SID (HX…). When set, voucher messages are sent via the
+// template; otherwise we fall back to free-form text (kept for dev /
+// for sandbox-opted-in numbers only).
+const voucherTemplateSid = process.env.TWILIO_VOUCHER_TEMPLATE_SID;
 
 const client = accountSid && authToken ? twilio(accountSid, authToken) : null;
 
@@ -56,20 +61,45 @@ export async function sendWhatsAppMessage(opts: TwilioMessageOptions): Promise<{
 
     try {
         const to = formatWhatsAppNumber(opts.to);
-        
-        // WhatsApp Business onaylı şablon gerektirir.
-        // Sandbox modunda veya onaylanmış şablon kullandığınızı varsayıyoruz.
+        const formattedDate = format(new Date(opts.tourDate), "dd MMMM yyyy EEEE", { locale: tr });
+
+        // Plain-text body kept around so we can also log a human-readable
+        // version of the message in whatsapp_logs (independent of template).
         const messageBody = `Merhaba ${opts.customerName},\n\n` +
             `${opts.voucherNo} numaralı ${opts.tourName} biletiniz başarıyla oluşturulmuştur.\n` +
-            `Tarih: ${format(new Date(opts.tourDate), "dd MMMM yyyy EEEE", { locale: tr })}\n\n` +
+            `Tarih: ${formattedDate}\n\n` +
             `Bizi tercih ettiğiniz için teşekkür ederiz.`;
 
-        const message = await client.messages.create({
-            body: messageBody,
+        const baseParams: Record<string, unknown> = {
             from: twilioNumber,
             to: to,
             statusCallback: statusCallbackUrl,
-        });
+        };
+
+        // If a WhatsApp-approved template SID is configured, send via the
+        // template (this is required for business-initiated WhatsApp messages
+        // outside the 24h customer-service window). Variables are positional:
+        //   {{1}} = customer name
+        //   {{2}} = voucher number
+        //   {{3}} = tour name
+        //   {{4}} = tour date (formatted, Turkish locale)
+        // The template body in Twilio MUST use these four placeholders in
+        // this order, or the variables won't line up.
+        if (voucherTemplateSid) {
+            baseParams.contentSid = voucherTemplateSid;
+            baseParams.contentVariables = JSON.stringify({
+                "1": opts.customerName,
+                "2": opts.voucherNo,
+                "3": opts.tourName,
+                "4": formattedDate,
+            });
+        } else {
+            baseParams.body = messageBody;
+        }
+
+        const message = await client.messages.create(
+            baseParams as unknown as Parameters<typeof client.messages.create>[0]
+        );
 
         console.log(`WhatsApp mesajı gönderildi: ${message.sid}`);
 

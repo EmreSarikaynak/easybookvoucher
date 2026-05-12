@@ -25,7 +25,7 @@ interface VoucherPayload {
 }
 
 export async function createVoucher(payload: VoucherPayload) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   // Kullanıcı bilgisini al
   const {
@@ -145,7 +145,7 @@ export async function createVoucher(payload: VoucherPayload) {
 }
 
 export async function updateVoucher(id: string, payload: VoucherPayload) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase
     .from("vouchers")
@@ -167,8 +167,53 @@ export async function updateVoucher(id: string, payload: VoucherPayload) {
   return { success: true };
 }
 
+/**
+ * Admin: re-send the WhatsApp voucher confirmation for a given voucher.
+ * Pulls voucher + tour data fresh from the DB and goes through the same
+ * Twilio path as createVoucher does, so the new send shows up in
+ * whatsapp_logs and gets a statusCallback.
+ */
+export async function resendVoucherWhatsApp(voucherNo: string) {
+  const supabase = await createServerSupabaseClient();
+
+  const { data: voucher, error } = await supabase
+    .from("vouchers")
+    .select("*, tour:tours(name)")
+    .eq("voucher_no", voucherNo)
+    .single();
+
+  if (error || !voucher) {
+    return { error: "Bilet bulunamadı" };
+  }
+
+  if (!voucher.customer_phone) {
+    return { error: "Müşteri telefonu kayıtlı değil" };
+  }
+
+  try {
+    const { sendWhatsAppMessage } = await import("@/lib/twilio");
+    const result = await sendWhatsAppMessage({
+      to: voucher.customer_phone,
+      voucherNo: voucher.voucher_no,
+      tourName: voucher.tour?.name || "Tur",
+      tourDate: voucher.tour_date,
+      customerName: voucher.customer_name,
+    });
+
+    if (!result.success) {
+      return { error: result.error || "Gönderim başarısız" };
+    }
+
+    revalidatePath("/whatsapp-logs");
+    return { success: true, messageId: result.messageId };
+  } catch (err: any) {
+    console.error("Resend WhatsApp error:", err);
+    return { error: err?.message || "Beklenmeyen hata" };
+  }
+}
+
 export async function updateVoucherPaymentStatus(id: string, isPaid: boolean) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const statusStr = isPaid ? "paid" : "pending";
   const dateStr = isPaid ? new Date().toISOString() : null;
