@@ -5,6 +5,9 @@ import { tr } from "date-fns/locale";
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioNumber = process.env.TWILIO_WHATSAPP_NUMBER;
+const statusCallbackUrl =
+    process.env.TWILIO_STATUS_CALLBACK_URL
+    || "https://bodrumdayiz.com.tr/api/webhooks/twilio";
 
 const client = accountSid && authToken ? twilio(accountSid, authToken) : null;
 
@@ -65,6 +68,7 @@ export async function sendWhatsAppMessage(opts: TwilioMessageOptions): Promise<{
             body: messageBody,
             from: twilioNumber,
             to: to,
+            statusCallback: statusCallbackUrl,
         });
 
         console.log(`WhatsApp mesajı gönderildi: ${message.sid}`);
