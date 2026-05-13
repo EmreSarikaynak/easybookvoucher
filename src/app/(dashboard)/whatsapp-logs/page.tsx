@@ -81,7 +81,13 @@ export default function WhatsAppLogsPage() {
       if (res.error) {
         setFeedback({ kind: "error", text: res.error });
       } else {
-        setFeedback({ kind: "success", text: `${log.voucher_no} için tekrar gönderildi` });
+        const sent = res.sent ?? 0;
+        const failed = res.failed ?? 0;
+        const text =
+          failed > 0
+            ? `${log.voucher_no}: ${sent} gönderildi, ${failed} başarısız`
+            : `${log.voucher_no}: tüm alıcılara (${sent}) tekrar gönderildi`;
+        setFeedback({ kind: failed > 0 ? "error" : "success", text });
         await fetchLogs();
       }
     } finally {
