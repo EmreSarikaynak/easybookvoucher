@@ -36,26 +36,30 @@ export async function createVoucher(payload: VoucherPayload) {
     return { error: "Oturum açmanız gerekiyor" };
   }
 
-  // Kullanıcının profil bilgisini al
+  // Kullanıcının profil bilgisini al (sales person tarafı için phone de lazım)
   const { data: profile } = await supabase
     .from("profiles")
-    .select("agency_id")
+    .select("agency_id, phone, full_name")
     .eq("id", user.id)
     .single();
 
   const targetAgencyId = profile?.agency_id;
   let agencyPrefix = "EBook";
+  let agencyName: string | null = null;
+  let agencyPhone: string | null = null;
 
   if (targetAgencyId) {
     const { data: targetAgency } = await supabase
       .from("agencies")
-      .select("agency_code")
+      .select("agency_code, name, phone")
       .eq("id", targetAgencyId)
       .single();
 
     if (targetAgency?.agency_code) {
       agencyPrefix = targetAgency.agency_code;
     }
+    agencyName = targetAgency?.name ?? null;
+    agencyPhone = targetAgency?.phone ?? null;
   }
 
   let finalVoucherNo = payload.voucher_no;
@@ -105,39 +109,34 @@ export async function createVoucher(payload: VoucherPayload) {
     return { error: formatDbError(error) };
   }
 
-  // Bilet başarıyla oluşturulduktan sonra WhatsApp mesajı gönder
-  if (payload.customer_phone) {
-    let tourName = "Belirtilmemiş Tur";
-    
-    // Tur adını getir
-    if (payload.tour_id) {
-      const { data: tourData } = await supabase
-        .from("tours")
-        .select("name")
-        .eq("id", payload.tour_id)
-        .single();
-        
-      if (tourData?.name) {
-        tourName = tourData.name;
-      }
-    }
+  // Bilet kaydedildikten sonra ilgili herkese WhatsApp bildirimi gönder.
+  // Sıra: müşteri (TR/EN, prefix'e göre) + EasyBook + acente + sales person.
+  let tourName = "Belirtilmemiş Tur";
+  if (payload.tour_id) {
+    const { data: tourData } = await supabase
+      .from("tours")
+      .select("name")
+      .eq("id", payload.tour_id)
+      .single();
+    if (tourData?.name) tourName = tourData.name;
+  }
 
-    try {
-      const { sendWhatsAppMessage } = await import("@/lib/twilio");
-      const result = await sendWhatsAppMessage({
-        to: payload.customer_phone,
+  try {
+    const { sendVoucherNotifications } = await import("@/lib/twilio");
+    await sendVoucherNotifications({
+      customerPhone: payload.customer_phone ?? null,
+      agencyPhone: agencyPhone,
+      salesPersonPhone: profile?.phone ?? null,
+      voucher: {
         voucherNo: finalVoucherNo,
-        tourName: tourName,
+        tourName,
         tourDate: payload.tour_date,
-        customerName: payload.customer_name
-      });
-      
-      if (!result.success) {
-        console.warn("WhatsApp mesajı gönderilemedi:", result.error);
-      }
-    } catch (waError) {
-      console.error("WhatsApp modülü yüklenirken/çalışırken hata:", waError);
-    }
+        customerName: payload.customer_name,
+        agencyName,
+      },
+    });
+  } catch (waError) {
+    console.error("WhatsApp bildirimleri gönderilirken hata:", waError);
   }
 
   revalidatePath("/vouchers");
@@ -168,17 +167,18 @@ export async function updateVoucher(id: string, payload: VoucherPayload) {
 }
 
 /**
- * Admin: re-send the WhatsApp voucher confirmation for a given voucher.
- * Pulls voucher + tour data fresh from the DB and goes through the same
- * Twilio path as createVoucher does, so the new send shows up in
- * whatsapp_logs and gets a statusCallback.
+ * Admin: re-send the full set of voucher WhatsApp notifications (customer,
+ * EasyBook internal, agency, sales person) for a given voucher number.
+ * Pulls everything fresh from the DB so a resend reflects the current state.
  */
 export async function resendVoucherWhatsApp(voucherNo: string) {
   const supabase = await createServerSupabaseClient();
 
   const { data: voucher, error } = await supabase
     .from("vouchers")
-    .select("*, tour:tours(name)")
+    .select(
+      "*, tour:tours(name), agency:agencies(name, phone), sales_person:profiles!vouchers_sales_person_id_fkey(phone, full_name)"
+    )
     .eq("voucher_no", voucherNo)
     .single();
 
@@ -186,26 +186,35 @@ export async function resendVoucherWhatsApp(voucherNo: string) {
     return { error: "Bilet bulunamadı" };
   }
 
-  if (!voucher.customer_phone) {
-    return { error: "Müşteri telefonu kayıtlı değil" };
-  }
-
   try {
-    const { sendWhatsAppMessage } = await import("@/lib/twilio");
-    const result = await sendWhatsAppMessage({
-      to: voucher.customer_phone,
-      voucherNo: voucher.voucher_no,
-      tourName: voucher.tour?.name || "Tur",
-      tourDate: voucher.tour_date,
-      customerName: voucher.customer_name,
+    const { sendVoucherNotifications } = await import("@/lib/twilio");
+    const { results } = await sendVoucherNotifications({
+      customerPhone: voucher.customer_phone ?? null,
+      agencyPhone: voucher.agency?.phone ?? null,
+      salesPersonPhone: voucher.sales_person?.phone ?? null,
+      voucher: {
+        voucherNo: voucher.voucher_no,
+        tourName: voucher.tour?.name || "Tur",
+        tourDate: voucher.tour_date,
+        customerName: voucher.customer_name,
+        agencyName: voucher.agency?.name ?? null,
+      },
     });
 
-    if (!result.success) {
-      return { error: result.error || "Gönderim başarısız" };
-    }
+    const successCount = results.filter((r) => r.success).length;
+    const failCount = results.length - successCount;
 
     revalidatePath("/whatsapp-logs");
-    return { success: true, messageId: result.messageId };
+
+    if (successCount === 0) {
+      return { error: results[0]?.error || "Hiçbir alıcıya gönderilemedi" };
+    }
+    return {
+      success: true,
+      sent: successCount,
+      failed: failCount,
+      results,
+    };
   } catch (err: any) {
     console.error("Resend WhatsApp error:", err);
     return { error: err?.message || "Beklenmeyen hata" };
