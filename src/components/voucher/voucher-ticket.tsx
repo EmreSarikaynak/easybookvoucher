@@ -219,7 +219,7 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
                 <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#9ca3af", fontWeight: 700, fontSize: "9px", textTransform: "uppercase", marginBottom: "4px", lineHeight: "1.4" }}>
                   <User style={{ width: "12px", height: "12px" }} /> {t.guest}
                 </div>
-                <div style={{ fontSize: "15px", fontWeight: 800, color: "#1f2937", whiteSpace: "nowrap", lineHeight: "1.4", paddingTop: "2px" }}>
+                <div style={{ fontSize: "15px", fontWeight: 800, color: "#1f2937", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.4", paddingTop: "2px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                   {voucher.customer_name}
                 </div>
               </div>
@@ -229,7 +229,7 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
                 <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#9ca3af", fontWeight: 700, fontSize: "9px", textTransform: "uppercase", marginBottom: "4px", lineHeight: "1.4" }}>
                   <Home style={{ width: "12px", height: "12px" }} /> {t.hotel} / {t.room}
                 </div>
-                <div style={{ fontSize: "14px", fontWeight: 700, color: "#374151", whiteSpace: "nowrap", lineHeight: "1.4", paddingTop: "2px" }}>
+                <div style={{ fontSize: "14px", fontWeight: 700, color: "#374151", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.4", paddingTop: "2px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                   {voucher.hotel || "-"} <span style={{ color: "#374151", fontWeight: 700 }}>/ {voucher.room_no || "-"}</span>
                 </div>
               </div>
