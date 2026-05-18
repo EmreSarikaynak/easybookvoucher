@@ -204,6 +204,28 @@ export async function sendVoucherNotifications(
 
     const results: NotificationResult[] = [];
 
+    const getInternalFallback = () => {
+        let waLink = "";
+        if (opts.customerPhone) {
+            let digits = opts.customerPhone.replace(/[^0-9]/g, "");
+            const rawTrimmed = opts.customerPhone.trim();
+            if (!rawTrimmed.startsWith("+") && !rawTrimmed.startsWith("00") && digits.length <= 11) {
+                digits = digits.startsWith("0") ? "90" + digits.slice(1) : "90" + digits;
+            }
+            waLink = `\n💬 Müşteri İle Yazış: https://wa.me/${digits}`;
+        }
+
+        return `📋 *YENİ BİLET KAYDI*\n\n` +
+               `🎫 Bilet No: ${v.voucherNo}\n` +
+               `👤 Müşteri: ${v.customerName}\n` +
+               (opts.customerPhone ? `📱 Telefon: ${opts.customerPhone}\n` : "") +
+               `🚢 Tur: ${v.tourName}\n` +
+               `📅 Tarih: ${dateTr}\n` +
+               `🏢 Acente: ${agencyName}` +
+               waLink +
+               `\n\nBu otomatik bir bildirimdir.`;
+    };
+
     // 1) Customer — language picked from the phone prefix
     if (opts.customerPhone) {
         const isTr = isTurkishPhone(opts.customerPhone);
@@ -231,15 +253,6 @@ export async function sendVoucherNotifications(
 
     // 2) EasyBook internal copy
     if (easybookPhone) {
-        const fallback =
-            `Yeni bilet kesildi.\n\n` +
-            `Müşteri: ${v.customerName}\n` +
-            `Bilet No: ${v.voucherNo}\n` +
-            `Tur: ${v.tourName}\n` +
-            `Tarih: ${dateTr}\n` +
-            `Acente: ${agencyName}\n\n` +
-            `Bu otomatik bir bildirimdir.`;
-
         const r = await sendOne({
             to: easybookPhone,
             templateSid: internalTemplateSid,
@@ -250,7 +263,7 @@ export async function sendVoucherNotifications(
                 "4": dateTr,
                 "5": agencyName,
             },
-            fallbackBody: fallback,
+            fallbackBody: getInternalFallback(),
             voucherNo: v.voucherNo,
         });
         results.push({ recipient: "easybook", phone: easybookPhone, ...r });
@@ -258,15 +271,6 @@ export async function sendVoucherNotifications(
 
     // 3) Agency owner
     if (opts.agencyPhone) {
-        const fallback =
-            `Yeni bilet kesildi.\n\n` +
-            `Müşteri: ${v.customerName}\n` +
-            `Bilet No: ${v.voucherNo}\n` +
-            `Tur: ${v.tourName}\n` +
-            `Tarih: ${dateTr}\n` +
-            `Acente: ${agencyName}\n\n` +
-            `Bu otomatik bir bildirimdir.`;
-
         const r = await sendOne({
             to: opts.agencyPhone,
             templateSid: internalTemplateSid,
@@ -277,7 +281,7 @@ export async function sendVoucherNotifications(
                 "4": dateTr,
                 "5": agencyName,
             },
-            fallbackBody: fallback,
+            fallbackBody: getInternalFallback(),
             voucherNo: v.voucherNo,
         });
         results.push({ recipient: "agency", phone: opts.agencyPhone, ...r });
@@ -285,15 +289,6 @@ export async function sendVoucherNotifications(
 
     // 4) Sales person who created the voucher
     if (opts.salesPersonPhone) {
-        const fallback =
-            `Yeni bilet kesildi.\n\n` +
-            `Müşteri: ${v.customerName}\n` +
-            `Bilet No: ${v.voucherNo}\n` +
-            `Tur: ${v.tourName}\n` +
-            `Tarih: ${dateTr}\n` +
-            `Acente: ${agencyName}\n\n` +
-            `Bu otomatik bir bildirimdir.`;
-
         const r = await sendOne({
             to: opts.salesPersonPhone,
             templateSid: internalTemplateSid,
@@ -304,7 +299,7 @@ export async function sendVoucherNotifications(
                 "4": dateTr,
                 "5": agencyName,
             },
-            fallbackBody: fallback,
+            fallbackBody: getInternalFallback(),
             voucherNo: v.voucherNo,
         });
         results.push({ recipient: "sales", phone: opts.salesPersonPhone, ...r });
