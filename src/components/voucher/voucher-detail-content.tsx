@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Edit, XCircle } from "lucide-react";
+import { ArrowLeft, Edit, XCircle, RefreshCcw, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,9 +27,10 @@ const statusVariant: Record<VoucherStatus, "success" | "destructive" | "secondar
 
 interface VoucherDetailContentProps {
   voucher: Voucher;
+  isAdmin?: boolean;
 }
 
-export function VoucherDetailContent({ voucher: initialVoucher }: VoucherDetailContentProps) {
+export function VoucherDetailContent({ voucher: initialVoucher, isAdmin }: VoucherDetailContentProps) {
   const router = useRouter();
   const supabase = createClient();
   const [voucher, setVoucher] = useState<Voucher>(initialVoucher);
@@ -44,6 +45,34 @@ export function VoucherDetailContent({ voucher: initialVoucher }: VoucherDetailC
 
     if (!error) {
       setVoucher({ ...voucher, status: "cancelled" });
+    }
+  };
+
+  const handleActivate = async () => {
+    if (!confirm("Bu bileti tekrar aktif etmek istediğinize emin misiniz?")) return;
+
+    const { error } = await supabase
+      .from("vouchers")
+      .update({ status: "active" })
+      .eq("id", voucher.id);
+
+    if (!error) {
+      setVoucher({ ...voucher, status: "active" });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("Bu bileti SİLMEK istediğinize emin misiniz? Bu işlem geri alınamaz!")) return;
+
+    const { error } = await supabase
+      .from("vouchers")
+      .delete()
+      .eq("id", voucher.id);
+
+    if (!error) {
+      router.push("/vouchers");
+    } else {
+      alert("Silinirken bir hata oluştu!");
     }
   };
 
@@ -73,6 +102,18 @@ export function VoucherDetailContent({ voucher: initialVoucher }: VoucherDetailC
             <Button variant="destructive" size="sm" onClick={handleCancel}>
               <XCircle className="mr-2 h-4 w-4" />
               İptal Et
+            </Button>
+          )}
+          {voucher.status === "cancelled" && isAdmin && (
+            <Button variant="default" size="sm" onClick={handleActivate} className="bg-green-600 hover:bg-green-700">
+              <RefreshCcw className="mr-2 h-4 w-4" />
+              Aktif Et
+            </Button>
+          )}
+          {isAdmin && (
+            <Button variant="destructive" size="sm" onClick={handleDelete} className="bg-red-700 hover:bg-red-800">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Sil
             </Button>
           )}
         </div>
