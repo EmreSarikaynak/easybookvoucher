@@ -219,7 +219,7 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
                 <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#9ca3af", fontWeight: 700, fontSize: "9px", textTransform: "uppercase", marginBottom: "4px", lineHeight: "1.4" }}>
                   <User style={{ width: "12px", height: "12px" }} /> {t.guest}
                 </div>
-                <div style={{ fontSize: "15px", fontWeight: 800, color: "#1f2937", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.4", paddingTop: "2px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "#1f2937", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.3", paddingTop: "2px" }}>
                   {voucher.customer_name}
                 </div>
               </div>
@@ -229,7 +229,7 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
                 <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#9ca3af", fontWeight: 700, fontSize: "9px", textTransform: "uppercase", marginBottom: "4px", lineHeight: "1.4" }}>
                   <Home style={{ width: "12px", height: "12px" }} /> {t.hotel} / {t.room}
                 </div>
-                <div style={{ fontSize: "14px", fontWeight: 600, color: "#374151", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.4", paddingTop: "2px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                <div style={{ fontSize: "13px", fontWeight: 500, color: "#374151", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.3", paddingTop: "2px" }}>
                   {voucher.hotel || "-"} <span style={{ color: "#374151", fontWeight: 700 }}>/ {voucher.room_no || "-"}</span>
                 </div>
               </div>
@@ -239,7 +239,7 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
                 <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#9ca3af", fontWeight: 700, fontSize: "9px", textTransform: "uppercase", marginBottom: "4px", lineHeight: "1.4" }}>
                   <Calendar style={{ width: "12px", height: "12px" }} /> {t.date}
                 </div>
-                <div style={{ fontSize: "15px", fontWeight: 800, color: "#374151", lineHeight: "1.4", paddingTop: "2px" }}>
+                <div style={{ fontSize: "14px", fontWeight: 700, color: "#374151", lineHeight: "1.4", paddingTop: "2px" }}>
                   {formatDate(voucher.tour_date)}
                 </div>
               </div>
@@ -247,6 +247,15 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
               {/* Alınış / Hareket Saati & PAX */}
               {(() => {
                 const { isSelf, location } = parseSelfPickup(voucher.pickup_place);
+                
+                // Format time helper function
+                const formatTimeStr = (timeStr?: string | null) => {
+                  if (!timeStr) return "10:00";
+                  const parts = timeStr.split(':');
+                  if (parts.length >= 2) return `${parts[0]}:${parts[1]}`;
+                  return timeStr;
+                };
+                
                 return (
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div>
@@ -268,19 +277,19 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
                           </div>
                           {voucher.pickup_time && (
                             <div style={{ fontSize: "15px", fontWeight: 800, color: "#16a34a", lineHeight: "1.4", paddingTop: "2px" }}>
-                              {voucher.pickup_time.split(':').slice(0, 2).join(':')}
+                              {formatTimeStr(voucher.pickup_time)}
                             </div>
                           )}
                         </>
                       ) : (
                         <>
                           {voucher.pickup_place && (
-                            <div style={{ fontSize: "10px", fontWeight: 600, color: "#374151", lineHeight: "1.4", paddingTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "130px" }}>
+                            <div style={{ fontSize: "10px", fontWeight: 600, color: "#374151", lineHeight: "1.3", paddingTop: "2px", whiteSpace: "normal", wordBreak: "break-word", maxWidth: "130px" }}>
                               {voucher.pickup_place}
                             </div>
                           )}
                           <div style={{ fontSize: "15px", fontWeight: 800, color: "#dc2626", lineHeight: "1.4", paddingTop: "2px" }}>
-                            {voucher.pickup_time ? voucher.pickup_time.split(':').slice(0, 2).join(':') : "10:00"}
+                            {formatTimeStr(voucher.pickup_time)}
                           </div>
                         </>
                       )}
