@@ -229,7 +229,7 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
                 <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#9ca3af", fontWeight: 700, fontSize: "9px", textTransform: "uppercase", marginBottom: "4px", lineHeight: "1.4" }}>
                   <Home style={{ width: "12px", height: "12px" }} /> {t.hotel} / {t.room}
                 </div>
-                <div style={{ fontSize: "14px", fontWeight: 700, color: "#374151", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.4", paddingTop: "2px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: "#374151", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.4", paddingTop: "2px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                   {voucher.hotel || "-"} <span style={{ color: "#374151", fontWeight: 700 }}>/ {voucher.room_no || "-"}</span>
                 </div>
               </div>
@@ -250,21 +250,25 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
                 return (
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px",
+                      <div style={{
+                        display: "flex", alignItems: "center", gap: "4px",
                         color: isSelf ? "#16a34a" : "#ef4444",
-                        fontWeight: 700, fontSize: "9px", textTransform: "uppercase", marginBottom: "4px", lineHeight: "1.4" }}>
+                        fontWeight: 700, fontSize: "9px", textTransform: "uppercase", marginBottom: "4px", lineHeight: "1.4"
+                      }}>
                         <Clock style={{ width: "12px", height: "12px" }} />
                         {isSelf ? t.departure : t.pickup}
                       </div>
                       {isSelf ? (
                         <>
-                          <div style={{ fontSize: "10px", fontWeight: 700, color: "#16a34a", lineHeight: "1.4", paddingTop: "2px",
-                            background: "#dcfce7", borderRadius: "4px", padding: "2px 6px", display: "inline-block", marginBottom: "2px" }}>
+                          <div style={{
+                            fontSize: "10px", fontWeight: 700, color: "#16a34a", lineHeight: "1.4", paddingTop: "2px",
+                            background: "#dcfce7", borderRadius: "4px", padding: "2px 6px", display: "inline-block", marginBottom: "2px"
+                          }}>
                             {location ? location : "Kendi Geliyorlar"}
                           </div>
                           {voucher.pickup_time && (
                             <div style={{ fontSize: "15px", fontWeight: 800, color: "#16a34a", lineHeight: "1.4", paddingTop: "2px" }}>
-                              {voucher.pickup_time}
+                              {voucher.pickup_time.split(':').slice(0, 2).join(':')}
                             </div>
                           )}
                         </>
@@ -276,7 +280,7 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
                             </div>
                           )}
                           <div style={{ fontSize: "15px", fontWeight: 800, color: "#dc2626", lineHeight: "1.4", paddingTop: "2px" }}>
-                            {voucher.pickup_time || "10:00"}
+                            {voucher.pickup_time ? voucher.pickup_time.split(':').slice(0, 2).join(':') : "10:00"}
                           </div>
                         </>
                       )}
