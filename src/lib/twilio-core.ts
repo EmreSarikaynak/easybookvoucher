@@ -19,6 +19,10 @@ export const easybookPhone =
 const pdfTemplateSidTr = process.env.TWILIO_PDF_TEMPLATE_SID_TR;
 const pdfTemplateSidEn = process.env.TWILIO_PDF_TEMPLATE_SID_EN;
 const pdfInternalTemplateSid = process.env.TWILIO_PDF_INTERNAL_TEMPLATE_SID;
+const pdfMediaTemplateSidTr = process.env.TWILIO_PDF_MEDIA_TEMPLATE_SID_TR;
+const pdfMediaTemplateSidEn = process.env.TWILIO_PDF_MEDIA_TEMPLATE_SID_EN;
+const pdfMediaInternalTemplateSid =
+  process.env.TWILIO_PDF_MEDIA_INTERNAL_TEMPLATE_SID;
 
 function formatTourDate(tourDate: string, locale?: typeof tr): string {
   try {
@@ -189,6 +193,17 @@ function resolveWhatsAppMediaUrl(
   if (imageUrl) return imageUrl;
   if (process.env.TWILIO_SEND_PDF_AS_MEDIA === "true" && pdfUrl) return pdfUrl;
   return undefined;
+}
+
+function getMediaVariableFromUrl(mediaUrl?: string | null): string | null {
+  if (!mediaUrl) return null;
+  try {
+    const url = new URL(mediaUrl);
+    const filename = url.pathname.split("/").filter(Boolean).pop();
+    return filename || null;
+  } catch {
+    return mediaUrl.split("/").filter(Boolean).pop() || null;
+  }
 }
 
 /** Cloudflare Workers uyumlu — Twilio REST API (SDK yok). */
@@ -385,27 +400,60 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
   const easybookNorm = normalisePhone(easybookPhone);
   const dateTr = formatTourDate(opts.voucher.tourDate, tr);
   const dateEn = formatTourDate(opts.voucher.tourDate);
-  const internalVars = {
+  const mediaVariable = getMediaVariableFromUrl(opts.imageUrl ?? opts.pdfUrl);
+  const internalTextVars = {
     "1": opts.voucher.customerName,
     "2": opts.voucher.voucherNo,
     "3": opts.voucher.tourName,
     "4": dateTr,
     "5": opts.pdfUrl,
   };
-  const customerVarsTr = {
+  const customerTextVarsTr = {
     "1": opts.voucher.customerName,
     "2": opts.voucher.voucherNo,
     "3": opts.voucher.tourName,
     "4": dateTr,
     "5": opts.pdfUrl,
   };
-  const customerVarsEn = {
+  const customerTextVarsEn = {
     "1": opts.voucher.customerName,
     "2": opts.voucher.voucherNo,
     "3": opts.voucher.tourName,
     "4": dateEn,
     "5": opts.pdfUrl,
   };
+  const internalMediaVars = {
+    "1": mediaVariable || "",
+    "2": opts.voucher.customerName,
+    "3": opts.voucher.voucherNo,
+    "4": opts.voucher.tourName,
+    "5": dateTr,
+    "6": opts.pdfUrl,
+  };
+  const customerMediaVarsTr = {
+    "1": mediaVariable || "",
+    "2": opts.voucher.customerName,
+    "3": opts.voucher.voucherNo,
+    "4": opts.voucher.tourName,
+    "5": dateTr,
+    "6": opts.pdfUrl,
+  };
+  const customerMediaVarsEn = {
+    "1": mediaVariable || "",
+    "2": opts.voucher.customerName,
+    "3": opts.voucher.voucherNo,
+    "4": opts.voucher.tourName,
+    "5": dateEn,
+    "6": opts.pdfUrl,
+  };
+  const internalTemplateSid =
+    mediaVariable && pdfMediaInternalTemplateSid
+      ? pdfMediaInternalTemplateSid
+      : pdfInternalTemplateSid;
+  const internalTemplateVars =
+    mediaVariable && pdfMediaInternalTemplateSid
+      ? internalMediaVars
+      : internalTextVars;
 
   const targets: Array<{
     to: string;
@@ -416,8 +464,8 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
     {
       to: easybookPhone,
       body: adminBody,
-      templateSid: pdfInternalTemplateSid,
-      templateVariables: internalVars,
+      templateSid: internalTemplateSid,
+      templateVariables: internalTemplateVars,
     },
   ];
 
@@ -427,8 +475,8 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
       targets.push({
         to: opts.adminPhoneFromSettings,
         body: adminBody,
-        templateSid: pdfInternalTemplateSid,
-        templateVariables: internalVars,
+        templateSid: internalTemplateSid,
+        templateVariables: internalTemplateVars,
       });
     }
   }
@@ -437,18 +485,30 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
     targets.push({
       to: opts.agencyPhone,
       body: agencyBody,
-      templateSid: pdfInternalTemplateSid,
-      templateVariables: internalVars,
+      templateSid: internalTemplateSid,
+      templateVariables: internalTemplateVars,
     });
   }
 
   if (opts.voucher.customerPhone) {
     const customerIsTr = isTurkishPhone(opts.voucher.customerPhone);
+    const customerMediaSid = customerIsTr
+      ? pdfMediaTemplateSidTr
+      : pdfMediaTemplateSidEn;
+    const customerTextSid = customerIsTr ? pdfTemplateSidTr : pdfTemplateSidEn;
     targets.push({
       to: opts.voucher.customerPhone,
       body: customerBody,
-      templateSid: customerIsTr ? pdfTemplateSidTr : pdfTemplateSidEn,
-      templateVariables: customerIsTr ? customerVarsTr : customerVarsEn,
+      templateSid:
+        mediaVariable && customerMediaSid ? customerMediaSid : customerTextSid,
+      templateVariables:
+        mediaVariable && customerMediaSid
+          ? customerIsTr
+            ? customerMediaVarsTr
+            : customerMediaVarsEn
+          : customerIsTr
+            ? customerTextVarsTr
+            : customerTextVarsEn,
     });
   }
 
