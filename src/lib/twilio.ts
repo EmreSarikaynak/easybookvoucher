@@ -333,6 +333,7 @@ export interface VoucherPDFNotificationOptions {
     /** Admin number from the settings table. If same as easybookPhone, deduped. */
     adminPhoneFromSettings?: string | null;
     voucher: VoucherPDFInfo;
+    isRevised?: boolean;
 }
 
 /**
@@ -370,8 +371,10 @@ export async function sendVoucherPDFNotifications(
         waCustomerLink = `\n💬 Müşteri WhatsApp: https://wa.me/${normalised}`;
     }
 
+    const titlePrefix = opts.isRevised ? "🔴 *REVİZE BİLET*" : "🎫 *YENİ BİLET*";
+
     const body =
-        `🎫 *YENİ BİLET* — ${v.voucherNo}\n\n` +
+        `${titlePrefix} — ${v.voucherNo}\n\n` +
         `👤 Misafir: ${v.customerName}\n` +
         (v.customerPhone ? `📱 Telefon: ${v.customerPhone}\n` : "") +
         `🚢 Tur: ${v.tourName}\n` +

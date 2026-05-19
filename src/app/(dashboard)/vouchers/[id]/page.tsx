@@ -5,7 +5,7 @@ import type { Voucher } from "@/lib/types";
 
 interface PageProps {
   params: { id: string };
-  searchParams?: { new?: string };
+  searchParams?: { new?: string; revised?: string };
 }
 
 async function getVoucher(id: string): Promise<Voucher | null> {
@@ -55,6 +55,14 @@ export default async function VoucherDetailPage({ params, searchParams }: PagePr
   }
 
   const isNewVoucher = searchParams?.new === "1";
+  const isRevisedVoucher = searchParams?.revised === "1";
 
-  return <VoucherDetailContent voucher={voucher} isAdmin={isAdmin} isNewVoucher={isNewVoucher} />;
+  return (
+    <VoucherDetailContent 
+      voucher={voucher} 
+      isAdmin={isAdmin} 
+      isNewVoucher={isNewVoucher} 
+      isRevisedVoucher={isRevisedVoucher} 
+    />
+  );
 }

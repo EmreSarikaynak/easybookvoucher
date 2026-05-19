@@ -29,9 +29,10 @@ interface VoucherDetailContentProps {
   voucher: Voucher;
   isAdmin?: boolean;
   isNewVoucher?: boolean;
+  isRevisedVoucher?: boolean;
 }
 
-export function VoucherDetailContent({ voucher: initialVoucher, isAdmin, isNewVoucher }: VoucherDetailContentProps) {
+export function VoucherDetailContent({ voucher: initialVoucher, isAdmin, isNewVoucher, isRevisedVoucher }: VoucherDetailContentProps) {
   const router = useRouter();
   const supabase = createClient();
   const [voucher, setVoucher] = useState<Voucher>(initialVoucher);
@@ -123,7 +124,7 @@ export function VoucherDetailContent({ voucher: initialVoucher, isAdmin, isNewVo
       {/* Bilet ve Paylaşım Butonları */}
       <div className="mt-8">
         <h2 className="text-lg font-semibold mb-4">Bilet Önizleme</h2>
-        <VoucherActions voucher={voucher} autoSend={isNewVoucher} />
+        <VoucherActions voucher={voucher} autoSend={isNewVoucher || isRevisedVoucher} isRevised={isRevisedVoucher} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

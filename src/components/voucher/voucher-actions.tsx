@@ -17,12 +17,11 @@ interface VoucherActionsProps {
   voucher: Voucher;
   /** When true, auto-generates PDF and sends WhatsApp notifications on mount */
   autoSend?: boolean;
+  isRevised?: boolean;
 }
 
-export function VoucherActions({ voucher, autoSend }: VoucherActionsProps) {
+export function VoucherActions({ voucher, autoSend, isRevised }: VoucherActionsProps) {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
-  const [isSendingCustomer, setIsSendingCustomer] = useState(false);
-  const [isSendingEasyBook, setIsSendingEasyBook] = useState(false);
   const [previewLang, setPreviewLang] = useState<Language>('tr');
   const ticketRef = useRef<HTMLDivElement>(null);
 
@@ -39,7 +38,11 @@ export function VoucherActions({ voucher, autoSend }: VoucherActionsProps) {
     const run = async () => {
       if (!ticketRef.current) return;
       setAutoSendStatus('sending');
-      setAutoSendMessage('PDF oluşturuluyor ve WhatsApp bildirimleri gönderiliyor...');
+      setAutoSendMessage(
+        isRevised
+          ? 'PDF güncelleniyor ve WhatsApp bildirimleri gönderiliyor...'
+          : 'PDF oluşturuluyor ve WhatsApp bildirimleri gönderiliyor...'
+      );
 
       try {
         // Wait for fonts & images
@@ -57,13 +60,17 @@ export function VoucherActions({ voucher, autoSend }: VoucherActionsProps) {
         }
 
         // Send WhatsApp notifications
-        const sendResult = await sendVoucherPDFWhatsApp(voucher.id, uploadResult.url);
+        const sendResult = await sendVoucherPDFWhatsApp(voucher.id, uploadResult.url, isRevised);
         if (!sendResult.success) {
           throw new Error(sendResult.error || 'WhatsApp gönderilemedi');
         }
 
         setAutoSendStatus('success');
-        setAutoSendMessage('✅ PDF oluşturuldu ve WhatsApp bildirimleri gönderildi!');
+        setAutoSendMessage(
+          isRevised
+            ? '✅ PDF başarıyla güncellendi ve Revize WhatsApp bildirimleri gönderildi!'
+            : '✅ PDF oluşturuldu ve WhatsApp bildirimleri gönderildi!'
+        );
       } catch (err: any) {
         console.error('Auto-send error:', err);
         setAutoSendStatus('error');
@@ -72,7 +79,7 @@ export function VoucherActions({ voucher, autoSend }: VoucherActionsProps) {
     };
 
     run();
-  }, [autoSend, voucher.id, voucher.voucher_no]);
+  }, [autoSend, voucher.id, voucher.voucher_no, isRevised]);
 
   const formatDate = (dateStr: string) => {
     try {
@@ -95,19 +102,6 @@ export function VoucherActions({ voucher, autoSend }: VoucherActionsProps) {
     voucher.sales_person?.agency?.agency_code ||
     null;
 
-  /** PDF indir, ardından WhatsApp aç */
-  const generateAndSendPDF = async (
-    lang: Language,
-    filenameBase: string
-  ) => {
-    if (!ticketRef.current) return;
-    const originalLang = previewLang;
-    setPreviewLang(lang);
-    await new Promise(resolve => setTimeout(resolve, 150));
-    await downloadPDF(ticketRef.current, filenameBase);
-    setPreviewLang(originalLang);
-  };
-
   const handleDownloadPDF = async (lang: Language) => {
     if (!ticketRef.current) return;
 
@@ -129,65 +123,6 @@ export function VoucherActions({ voucher, autoSend }: VoucherActionsProps) {
     } finally {
       setIsGeneratingPDF(false);
       setPreviewLang(originalLang);
-    }
-  };
-
-  const handleSendToCustomer = async () => {
-    if (!voucher.customer_phone) {
-      alert("Müşteri telefon numarası girilmemiş!");
-      return;
-    }
-    setIsSendingCustomer(true);
-    try {
-      const now = new Date();
-      const timestamp = `${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
-      const agencyCode = getAgencyCode() || 'NOAGENCY';
-      const filename = `ticket-${voucher.voucher_no}-${agencyCode}-${timestamp}-musteri`;
-      await generateAndSendPDF('tr', filename);
-      sendToCustomer({
-        customerPhone: voucher.customer_phone,
-        voucherNo: voucher.voucher_no,
-        tourName: voucher.tour?.name || "Tur",
-        tourDate: formatDate(voucher.tour_date),
-        customerName: voucher.customer_name,
-        pickupTime: voucher.pickup_time,
-        pickupPlace: voucher.pickup_place,
-        hotel: voucher.hotel,
-        pax: getPaxString(),
-      });
-    } catch (err) {
-      console.error("Müşteriye gönderilirken hata:", err);
-      alert("Gönderim sırasında bir hata oluştu!");
-    } finally {
-      setIsSendingCustomer(false);
-    }
-  };
-
-  const handleSendToEasyBook = async () => {
-    setIsSendingEasyBook(true);
-    try {
-      const now = new Date();
-      const timestamp = `${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
-      const agencyCode = getAgencyCode() || 'NOAGENCY';
-      const filename = `ticket-${voucher.voucher_no}-${agencyCode}-${timestamp}-easybook`;
-      await generateAndSendPDF('tr', filename);
-      sendToEasyBook({
-        voucherNo: voucher.voucher_no,
-        customerName: voucher.customer_name,
-        customerPhone: voucher.customer_phone,
-        tourName: voucher.tour?.name || "Tur",
-        tourDate: formatDate(voucher.tour_date),
-        pickupTime: voucher.pickup_time,
-        pickupPlace: voucher.pickup_place,
-        hotel: voucher.hotel,
-        pax: getPaxString(),
-        agencyCode: getAgencyCode(),
-      });
-    } catch (err) {
-      console.error("EasyBook'a gönderilirken hata:", err);
-      alert("Gönderim sırasında bir hata oluştu!");
-    } finally {
-      setIsSendingEasyBook(false);
     }
   };
 
@@ -237,34 +172,6 @@ export function VoucherActions({ voucher, autoSend }: VoucherActionsProps) {
           )}
           <span className="mr-2">🇹🇷</span>
           TR PDF
-        </Button>
-
-        <Button
-          variant="outline"
-          onClick={handleSendToCustomer}
-          disabled={isSendingCustomer}
-          className="flex-1 sm:flex-none bg-green-50 hover:bg-green-100 border-green-300 text-green-700"
-        >
-          {isSendingCustomer ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <MessageCircle className="mr-2 h-4 w-4" />
-          )}
-          Müşteriye Gönder
-        </Button>
-
-        <Button
-          variant="outline"
-          onClick={handleSendToEasyBook}
-          disabled={isSendingEasyBook}
-          className="flex-1 sm:flex-none bg-blue-50 hover:bg-blue-100 border-blue-300 text-blue-700"
-        >
-          {isSendingEasyBook ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Send className="mr-2 h-4 w-4" />
-          )}
-          EasyBook&apos;a Gönder
         </Button>
       </div>
 

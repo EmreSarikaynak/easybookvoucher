@@ -127,6 +127,8 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
       const voucherId = 'voucherId' in result ? result.voucherId : undefined;
       if (!isEditing && voucherId) {
         router.push(`/vouchers/${voucherId}?new=1`);
+      } else if (isEditing && voucher) {
+        router.push(`/vouchers/${voucher.id}?revised=1`);
       } else {
         router.push("/vouchers");
       }

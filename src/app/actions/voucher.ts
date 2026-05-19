@@ -153,7 +153,8 @@ export async function createVoucher(payload: VoucherPayload) {
  */
 export async function sendVoucherPDFWhatsApp(
   voucherId: string,
-  pdfUrl: string
+  pdfUrl: string,
+  isRevised?: boolean
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createServerSupabaseClient();
 
@@ -183,6 +184,7 @@ export async function sendVoucherPDFWhatsApp(
     const { sendVoucherPDFNotifications } = await import("@/lib/twilio");
     await sendVoucherPDFNotifications({
       pdfUrl,
+      isRevised,
       agencyPhone: voucher.agency?.phone ?? null,
       adminPhoneFromSettings,
       voucher: {
