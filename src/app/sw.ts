@@ -1,6 +1,6 @@
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { Serwist } from "serwist";
+import { Serwist, NetworkFirst, NetworkOnly } from "serwist";
 
 declare global {
     interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -11,17 +11,40 @@ declare global {
 // Service worker global scope type
 declare const self: WorkerGlobalScope & typeof globalThis;
 
+// Custom runtime caching: Supabase storage + other cross-origin URLs
+// Use NetworkOnly so failures don't throw no-response errors
+const customCaching = [
+    // Supabase storage images — NetworkFirst, silently fail offline
+    {
+        matcher: ({ url }: { url: URL }) =>
+            url.hostname.endsWith(".supabase.co") &&
+            url.pathname.startsWith("/storage/"),
+        handler: new NetworkFirst({
+            cacheName: "supabase-storage",
+            networkTimeoutSeconds: 8,
+            plugins: [],
+        }),
+    },
+    // All other cross-origin requests — NetworkOnly (no cache, no error)
+    {
+        matcher: ({ sameOrigin }: { sameOrigin: boolean }) => !sameOrigin,
+        handler: new NetworkOnly(),
+    },
+    // Spread the default cache rules for same-origin
+    ...defaultCache,
+];
+
 const serwist = new Serwist({
     precacheEntries: self.__SW_MANIFEST,
     skipWaiting: true,
     clientsClaim: true,
     navigationPreload: true,
-    runtimeCaching: defaultCache,
+    runtimeCaching: customCaching,
     fallbacks: {
         entries: [
             {
                 url: "/offline",
-                matcher({ request }) {
+                matcher({ request }: { request: Request }) {
                     return request.destination === "document";
                 },
             },
