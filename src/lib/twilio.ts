@@ -1,6 +1,7 @@
 import twilio from "twilio";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
+import { normalizePhoneDigits } from "@/lib/twilio-core";
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -29,24 +30,13 @@ const easybookPhone =
 const client = accountSid && authToken ? twilio(accountSid, authToken) : null;
 
 function formatWhatsAppNumber(phone: string): string {
-    // 1. Strip all non-numeric characters
     let digits = phone.replace(/[^0-9]/g, "");
-
-    // 2. If it starts with '00', strip '00'
-    if (digits.startsWith("00")) {
-        digits = digits.slice(2);
+    if (digits.startsWith("00")) digits = digits.slice(2);
+    if (digits.startsWith("900") && digits.length >= 12) {
+        digits = "90" + digits.slice(3);
     }
-
-    // 3. If it starts with '0', strip '0' and prepend '90' (standard Turkish format 05xx -> 905xx)
-    if (digits.startsWith("0")) {
-        digits = "90" + digits.slice(1);
-    }
-
-    // 4. If it's a 10-digit number starting with '5', prepend '90' (5xx -> 905xx)
-    if (digits.length === 10 && digits.startsWith("5")) {
-        digits = "90" + digits;
-    }
-
+    if (digits.startsWith("0")) digits = "90" + digits.slice(1);
+    if (digits.length === 10 && digits.startsWith("5")) digits = "90" + digits;
     return `whatsapp:+${digits}`;
 }
 
@@ -233,12 +223,7 @@ export async function sendVoucherNotifications(
     const getInternalFallback = () => {
         let waLink = "";
         if (opts.customerPhone) {
-            let digits = opts.customerPhone.replace(/[^0-9]/g, "");
-            const rawTrimmed = opts.customerPhone.trim();
-            if (!rawTrimmed.startsWith("+") && !rawTrimmed.startsWith("00") && digits.length <= 11) {
-                digits = digits.startsWith("0") ? "90" + digits.slice(1) : "90" + digits;
-            }
-            waLink = `\n💬 Müşteri İle Yazış: https://wa.me/${digits}`;
+            waLink = `\n💬 Müşteri İle Yazış: https://wa.me/${normalizePhoneDigits(opts.customerPhone)}`;
         }
 
         return `📋 *YENİ BİLET KAYDI*\n\n` +
@@ -416,7 +401,6 @@ export async function sendVoucherPDFNotifications(
         to: easybookPhone,
         fallbackBody: adminBody,
         voucherNo: v.voucherNo,
-        mediaUrl: opts.pdfUrl,
     });
     results.push({ recipient: "easybook", phone: easybookPhone, ...r1 });
 
@@ -428,7 +412,6 @@ export async function sendVoucherPDFNotifications(
                 to: opts.adminPhoneFromSettings,
                 fallbackBody: adminBody,
                 voucherNo: v.voucherNo,
-                mediaUrl: opts.pdfUrl,
             });
             results.push({ recipient: "easybook", phone: opts.adminPhoneFromSettings, ...r2 });
         }
@@ -440,7 +423,6 @@ export async function sendVoucherPDFNotifications(
             to: opts.agencyPhone,
             fallbackBody: agencyBody,
             voucherNo: v.voucherNo,
-            mediaUrl: opts.pdfUrl,
         });
         results.push({ recipient: "agency", phone: opts.agencyPhone, ...r3 });
     }
@@ -451,7 +433,6 @@ export async function sendVoucherPDFNotifications(
             to: v.customerPhone,
             fallbackBody: customerBody,
             voucherNo: v.voucherNo,
-            mediaUrl: opts.pdfUrl,
         });
         results.push({ recipient: "customer", phone: v.customerPhone, ...r4 });
     }

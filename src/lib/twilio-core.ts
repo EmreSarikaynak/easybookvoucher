@@ -8,12 +8,21 @@ const statusCallbackUrl =
 export const easybookPhone =
   process.env.TWILIO_EASYBOOK_PHONE || "+905366029397";
 
-export function formatWhatsAppNumber(phone: string): string {
+/** TR ve uluslararası numaraları whatsapp:+XXXXXXXX formatına çevirir. */
+export function normalizePhoneDigits(phone: string): string {
   let digits = phone.replace(/[^0-9]/g, "");
   if (digits.startsWith("00")) digits = digits.slice(2);
+  // +900553... yazım hatası → 90553...
+  if (digits.startsWith("900") && digits.length >= 12) {
+    digits = "90" + digits.slice(3);
+  }
   if (digits.startsWith("0")) digits = "90" + digits.slice(1);
   if (digits.length === 10 && digits.startsWith("5")) digits = "90" + digits;
-  return `whatsapp:+${digits}`;
+  return digits;
+}
+
+export function formatWhatsAppNumber(phone: string): string {
+  return `whatsapp:+${normalizePhoneDigits(phone)}`;
 }
 
 export function normalisePhone(phone: string): string {
@@ -68,13 +77,7 @@ export interface PdfWhatsAppBodies {
 
 function buildWaMeLink(phone: string | null | undefined): string {
   if (!phone) return "";
-  const digits = phone.replace(/[^0-9]/g, "");
-  const normalised = digits.startsWith("0")
-    ? "90" + digits.slice(1)
-    : digits.length <= 10
-      ? "90" + digits
-      : digits;
-  return `https://wa.me/${normalised}`;
+  return `https://wa.me/${normalizePhoneDigits(phone)}`;
 }
 
 /**
@@ -182,12 +185,20 @@ export interface FetchSendResult {
   error?: string;
 }
 
+/**
+ * PDF bildirimlerinde MediaUrl çoğu undelivered üretiyor (Meta medya doğrulaması).
+ * Link metin içinde yeterli; ek dosya için varsayılan kapalı.
+ */
+const USE_WHATSAPP_MEDIA_ATTACHMENT =
+  process.env.TWILIO_SEND_PDF_AS_MEDIA === "true";
+
 /** Cloudflare Workers uyumlu — Twilio REST API (SDK yok). */
 export async function sendWhatsAppViaFetch(params: {
   to: string;
   body: string;
   voucherNo: string;
   mediaUrl?: string;
+  includeMedia?: boolean;
 }): Promise<FetchSendResult> {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -202,7 +213,13 @@ export async function sendWhatsAppViaFetch(params: {
   form.set("From", from);
   form.set("To", to);
   form.set("Body", params.body);
-  if (params.mediaUrl) form.set("MediaUrl", params.mediaUrl);
+  const attachMedia =
+    params.includeMedia !== false &&
+    USE_WHATSAPP_MEDIA_ATTACHMENT &&
+    Boolean(params.mediaUrl);
+  if (attachMedia && params.mediaUrl) {
+    form.set("MediaUrl", params.mediaUrl);
+  }
   form.set("StatusCallback", statusCallbackUrl);
 
   const credentials =
@@ -325,6 +342,7 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
       body: target.body,
       voucherNo: opts.voucher.voucherNo,
       mediaUrl: opts.pdfUrl,
+      includeMedia: false,
     });
     if (result.success) sent++;
     else lastError = result.error || lastError;

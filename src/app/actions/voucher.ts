@@ -267,12 +267,45 @@ export async function resendVoucherWhatsApp(voucherNo: string) {
   }
 
   const adminPhoneFromSettings = await readAdminWhatsappPhone(supabase);
+  const agency =
+    voucher.agency && !Array.isArray(voucher.agency) ? voucher.agency : null;
 
   try {
+    // PDF varsa tam bildirim seti (admin / acente / müşteri ayrı metinler)
+    if (voucher.pdf_url) {
+      const { sendVoucherPDFNotificationsFetch } = await import("@/lib/twilio-core");
+      const result = await sendVoucherPDFNotificationsFetch({
+        pdfUrl: voucher.pdf_url,
+        agencyPhone: agency?.phone ?? null,
+        adminPhoneFromSettings,
+        voucher: {
+          voucherNo: voucher.voucher_no,
+          tourName: voucher.tour?.name || "Tur",
+          tourDate: voucher.tour_date,
+          customerName: voucher.customer_name,
+          customerPhone: voucher.customer_phone,
+          hotel: voucher.hotel,
+          pickupTime: voucher.pickup_time,
+          pickupPlace: voucher.pickup_place,
+          paxAdult: voucher.pax_adult,
+          paxChild: voucher.pax_child,
+          paxInfant: voucher.pax_infant,
+          agencyName: agency?.name ?? null,
+        },
+      });
+
+      revalidatePath("/whatsapp-logs");
+
+      if (!result.success) {
+        return { error: result.error || "Gönderilemedi" };
+      }
+      return { success: true, sent: result.sent, failed: 0 };
+    }
+
     const { sendVoucherNotifications } = await import("@/lib/twilio");
     const { results } = await sendVoucherNotifications({
       customerPhone: voucher.customer_phone ?? null,
-      agencyPhone: voucher.agency?.phone ?? null,
+      agencyPhone: agency?.phone ?? null,
       salesPersonPhone: voucher.sales_person?.phone ?? null,
       adminPhoneFromSettings,
       voucher: {
@@ -280,7 +313,7 @@ export async function resendVoucherWhatsApp(voucherNo: string) {
         tourName: voucher.tour?.name || "Tur",
         tourDate: voucher.tour_date,
         customerName: voucher.customer_name,
-        agencyName: voucher.agency?.name ?? null,
+        agencyName: agency?.name ?? null,
       },
     });
 
@@ -298,9 +331,10 @@ export async function resendVoucherWhatsApp(voucherNo: string) {
       failed: failCount,
       results,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Resend WhatsApp error:", err);
-    return { error: err?.message || "Beklenmeyen hata" };
+    const message = err instanceof Error ? err.message : "Beklenmeyen hata";
+    return { error: message };
   }
 }
 

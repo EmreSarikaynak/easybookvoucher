@@ -29,7 +29,10 @@ export async function POST(req: Request) {
         status: messageStatus,
         updated_at: new Date().toISOString(),
       };
-      if (errorMessage) updateData.error_message = errorMessage;
+      const errDetail = [errorMessage, errorCode ? `kod:${errorCode}` : ""]
+        .filter(Boolean)
+        .join(" ");
+      if (errDetail) updateData.error_message = errDetail;
 
       await supabase
         .from("whatsapp_logs")
