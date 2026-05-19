@@ -75,6 +75,14 @@ export function VoucherActions({ voucher, autoSend, isRevised }: VoucherActionsP
         console.error('Auto-send error:', err);
         setAutoSendStatus('error');
         setAutoSendMessage(`❌ Otomatik gönderim başarısız: ${err?.message || 'Bilinmeyen hata'}`);
+      } finally {
+        // Clear query parameters from URL to avoid re-triggering autoSend on manual refresh
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('new');
+          url.searchParams.delete('revised');
+          window.history.replaceState({}, '', url.pathname + url.search);
+        }
       }
     };
 

@@ -73,6 +73,7 @@ interface SendOneParams {
      *  as the human-readable text stored in whatsapp_logs. */
     fallbackBody: string;
     voucherNo: string;
+    mediaUrl?: string;
 }
 
 interface SendOneResult {
@@ -124,6 +125,10 @@ async function sendOne(params: SendOneParams): Promise<SendOneResult> {
         baseParams.contentVariables = JSON.stringify(params.variables ?? {});
     } else {
         baseParams.body = params.fallbackBody;
+    }
+
+    if (params.mediaUrl) {
+        baseParams.mediaUrl = [params.mediaUrl];
     }
 
     try {
@@ -379,6 +384,12 @@ export async function sendVoucherPDFNotifications(
         dateTr = format(new Date(v.tourDate), "dd MMMM yyyy EEEE", { locale: tr });
     } catch { /* keep raw */ }
 
+    // Format date English
+    let dateEn = v.tourDate;
+    try {
+        dateEn = format(new Date(v.tourDate), "dd MMMM yyyy EEEE");
+    } catch { /* keep raw */ }
+
     // Format PAX
     const paxParts: string[] = [];
     if ((v.paxAdult ?? 0) > 0) paxParts.push(`${v.paxAdult} Yetişkin`);
@@ -410,6 +421,19 @@ export async function sendVoucherPDFNotifications(
         waCustomerLink +
         `\n\n📄 *PDF Bilet:*\n${opts.pdfUrl}`;
 
+    const isCustomerTr = v.customerPhone ? isTurkishPhone(v.customerPhone) : true;
+    const customerBody = isCustomerTr
+        ? body
+        : `${opts.isRevised ? "🔴 *REVISED TICKET*" : "🎫 *NEW TICKET*"} — ${v.voucherNo}\n\n` +
+          `👤 Guest: ${v.customerName}\n` +
+          `🚢 Tour: ${v.tourName}\n` +
+          `📅 Date: ${dateEn}\n` +
+          (v.hotel ? `🏨 Hotel: ${v.hotel}\n` : "") +
+          (v.pickupPlace ? `📍 Pickup: ${v.pickupPlace}\n` : "") +
+          (v.pickupTime ? `⏰ Time: ${v.pickupTime.slice(0, 5)}\n` : "") +
+          `👥 PAX: ${paxStr}\n` +
+          `\n\n📄 *PDF Ticket:*\n${opts.pdfUrl}`;
+
     // Normalise helper to compare numbers
     const normalisePhone = (p: string) =>
         formatWhatsAppNumber(p).replace("whatsapp:", "");
@@ -421,6 +445,7 @@ export async function sendVoucherPDFNotifications(
         to: easybookPhone,
         fallbackBody: body,
         voucherNo: v.voucherNo,
+        mediaUrl: opts.pdfUrl,
     });
     results.push({ recipient: "easybook", phone: easybookPhone, ...r1 });
 
@@ -432,6 +457,7 @@ export async function sendVoucherPDFNotifications(
                 to: opts.adminPhoneFromSettings,
                 fallbackBody: body,
                 voucherNo: v.voucherNo,
+                mediaUrl: opts.pdfUrl,
             });
             results.push({ recipient: "easybook", phone: opts.adminPhoneFromSettings, ...r2 });
         }
@@ -443,8 +469,20 @@ export async function sendVoucherPDFNotifications(
             to: opts.agencyPhone,
             fallbackBody: body,
             voucherNo: v.voucherNo,
+            mediaUrl: opts.pdfUrl,
         });
         results.push({ recipient: "agency", phone: opts.agencyPhone, ...r3 });
+    }
+
+    // 4. Customer phone (so customer gets the PDF visual too!)
+    if (v.customerPhone) {
+        const r4 = await sendOne({
+            to: v.customerPhone,
+            fallbackBody: customerBody,
+            voucherNo: v.voucherNo,
+            mediaUrl: opts.pdfUrl,
+        });
+        results.push({ recipient: "customer", phone: v.customerPhone, ...r4 });
     }
 
     return { results };
