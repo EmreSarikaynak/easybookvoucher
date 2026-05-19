@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
 
 export async function getSetting(key: string) {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
         .from("settings")
         .select("value")
@@ -16,7 +16,7 @@ export async function getSetting(key: string) {
 }
 
 export async function updateSetting(key: string, value: any) {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     // Check auth
     const { data: { user } } = await supabase.auth.getUser();
@@ -43,7 +43,7 @@ export async function updateSetting(key: string, value: any) {
 }
 
 export async function uploadLogo(formData: FormData) {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     const file = formData.get("file") as File;
 
     if (!file) return { error: "Dosya seçilmedi" };

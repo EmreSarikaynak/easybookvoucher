@@ -78,7 +78,6 @@ export default function UsersPage() {
       setProfiles(profilesRes.data ?? []);
       setAgencies(agenciesRes.data ?? []);
     } catch (err) {
-      console.error("Users fetch error:", err);
       setFetchError(
         err instanceof Error ? err.message : "Veriler yüklenemedi."
       );
@@ -214,28 +213,9 @@ export default function UsersPage() {
     sales: "bg-green-100 text-green-800",
   };
 
-  if (authLoading || (loading && profiles.length === 0 && !fetchError)) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Kullanıcılar</h1>
-            <p className="text-muted-foreground">Kullanıcı yönetimi</p>
-          </div>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              className="h-36 animate-pulse rounded-lg border bg-muted"
-            />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  if (!authLoading && !isAdmin) return null;
 
-  if (!isAdmin) return null;
+  const showSkeleton = authLoading || (loading && !fetchError);
 
   const requiresAgency =
     formData.role === "agency_admin" || formData.role === "sales";
@@ -259,7 +239,16 @@ export default function UsersPage() {
         </div>
       )}
 
-      {profiles.length === 0 ? (
+      {showSkeleton ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-36 animate-pulse rounded-lg border bg-muted"
+            />
+          ))}
+        </div>
+      ) : profiles.length === 0 ? (
         <div className="flex flex-col items-center py-12 text-center">
           <Users className="h-12 w-12 text-muted-foreground" />
           <h3 className="mt-4 text-lg font-semibold">Kullanıcı bulunamadı</h3>

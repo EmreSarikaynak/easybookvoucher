@@ -15,7 +15,7 @@ interface PageProps {
 }
 
 async function getVouchers(searchParams: PageProps["searchParams"], currentUser: any): Promise<Voucher[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   let query = supabase
     .from("vouchers")

@@ -11,7 +11,7 @@ interface DashboardStats {
 }
 
 async function getStats(): Promise<DashboardStats> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const today = new Date().toISOString().split("T")[0];
 
   const [totalRes, activeRes, todayRes, agencyRes] = await Promise.all([

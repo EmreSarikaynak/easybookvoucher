@@ -3,7 +3,7 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import type { Profile } from "@/lib/types";
 
 async function getProfile(): Promise<Profile | null> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },

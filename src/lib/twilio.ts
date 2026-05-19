@@ -309,6 +309,122 @@ export async function sendVoucherNotifications(
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
+ * PDF URL notification (admin + agency)
+ * ────────────────────────────────────────────────────────────────────────── */
+
+export interface VoucherPDFInfo {
+    voucherNo: string;
+    tourName: string;
+    tourDate: string;
+    customerName: string;
+    customerPhone?: string | null;
+    hotel?: string | null;
+    pickupTime?: string | null;
+    pickupPlace?: string | null;
+    paxAdult?: number;
+    paxChild?: number;
+    paxInfant?: number;
+    agencyName?: string | null;
+}
+
+export interface VoucherPDFNotificationOptions {
+    pdfUrl: string;
+    agencyPhone?: string | null;
+    /** Admin number from the settings table. If same as easybookPhone, deduped. */
+    adminPhoneFromSettings?: string | null;
+    voucher: VoucherPDFInfo;
+}
+
+/**
+ * Sends a rich text message + PDF link to:
+ *  1. Hardcoded EasyBook number (+905366029397) — always
+ *  2. Admin number from settings — only if different from EasyBook number
+ *  3. Agency phone — only if present
+ *
+ * No Twilio media URL needed; the PDF public URL is embedded in the message.
+ */
+export async function sendVoucherPDFNotifications(
+    opts: VoucherPDFNotificationOptions
+): Promise<{ results: NotificationResult[] }> {
+    const v = opts.voucher;
+    const results: NotificationResult[] = [];
+
+    // Format date
+    let dateTr = v.tourDate;
+    try {
+        dateTr = format(new Date(v.tourDate), "dd MMMM yyyy EEEE", { locale: tr });
+    } catch { /* keep raw */ }
+
+    // Format PAX
+    const paxParts: string[] = [];
+    if ((v.paxAdult ?? 0) > 0) paxParts.push(`${v.paxAdult} Yetişkin`);
+    if ((v.paxChild ?? 0) > 0) paxParts.push(`${v.paxChild} Çocuk`);
+    if ((v.paxInfant ?? 0) > 0) paxParts.push(`${v.paxInfant} Bebek`);
+    const paxStr = paxParts.join(" + ") || "—";
+
+    // WhatsApp deep-link for customer
+    let waCustomerLink = "";
+    if (v.customerPhone) {
+        const digits = v.customerPhone.replace(/[^0-9]/g, "");
+        const normalised = digits.startsWith("0") ? "90" + digits.slice(1) : digits.length <= 10 ? "90" + digits : digits;
+        waCustomerLink = `\n💬 Müşteri WhatsApp: https://wa.me/${normalised}`;
+    }
+
+    const body =
+        `🎫 *YENİ BİLET* — ${v.voucherNo}\n\n` +
+        `👤 Misafir: ${v.customerName}\n` +
+        (v.customerPhone ? `📱 Telefon: ${v.customerPhone}\n` : "") +
+        `🚢 Tur: ${v.tourName}\n` +
+        `📅 Tarih: ${dateTr}\n` +
+        (v.hotel ? `🏨 Otel: ${v.hotel}\n` : "") +
+        (v.pickupPlace ? `📍 Alış: ${v.pickupPlace}\n` : "") +
+        (v.pickupTime ? `⏰ Saat: ${v.pickupTime.slice(0, 5)}\n` : "") +
+        `👥 PAX: ${paxStr}\n` +
+        (v.agencyName ? `🏢 Acente: ${v.agencyName}\n` : "") +
+        waCustomerLink +
+        `\n\n📄 *PDF Bilet:*\n${opts.pdfUrl}`;
+
+    // Normalise helper to compare numbers
+    const normalisePhone = (p: string) =>
+        formatWhatsAppNumber(p).replace("whatsapp:", "");
+
+    const easybookNorm = normalisePhone(easybookPhone);
+
+    // 1. Always send to hardcoded EasyBook number
+    const r1 = await sendOne({
+        to: easybookPhone,
+        fallbackBody: body,
+        voucherNo: v.voucherNo,
+    });
+    results.push({ recipient: "easybook", phone: easybookPhone, ...r1 });
+
+    // 2. Admin number from settings — only if different from EasyBook
+    if (opts.adminPhoneFromSettings) {
+        const adminNorm = normalisePhone(opts.adminPhoneFromSettings);
+        if (adminNorm !== easybookNorm) {
+            const r2 = await sendOne({
+                to: opts.adminPhoneFromSettings,
+                fallbackBody: body,
+                voucherNo: v.voucherNo,
+            });
+            results.push({ recipient: "easybook", phone: opts.adminPhoneFromSettings, ...r2 });
+        }
+    }
+
+    // 3. Agency phone
+    if (opts.agencyPhone) {
+        const r3 = await sendOne({
+            to: opts.agencyPhone,
+            fallbackBody: body,
+            voucherNo: v.voucherNo,
+        });
+        results.push({ recipient: "agency", phone: opts.agencyPhone, ...r3 });
+    }
+
+    return { results };
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
  * Backward-compatible single-customer API
  * ────────────────────────────────────────────────────────────────────────── */
 

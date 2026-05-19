@@ -2,7 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import type { Profile } from "@/lib/types";
 
 export async function getCurrentUser(): Promise<Profile | null> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     const {
         data: { user },

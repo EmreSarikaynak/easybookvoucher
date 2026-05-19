@@ -22,9 +22,10 @@ import type { Profile } from "@/lib/types";
 interface SettingsClientProps {
     profile: Profile | null;
     siteLogo: string | null;
+    adminWhatsappPhone: string | null;
 }
 
-export function SettingsClient({ profile, siteLogo: initialSiteLogo }: SettingsClientProps) {
+export function SettingsClient({ profile, siteLogo: initialSiteLogo, adminWhatsappPhone: initialAdminPhone }: SettingsClientProps) {
     const supabase = createClient();
 
     const [fullName, setFullName] = useState(profile?.full_name ?? "");
@@ -36,6 +37,11 @@ export function SettingsClient({ profile, siteLogo: initialSiteLogo }: SettingsC
 
     // Custom: Site Logo State
     const [siteLogo, setSiteLogo] = useState<string | null>(initialSiteLogo);
+
+    // Admin WhatsApp Phone
+    const [adminPhone, setAdminPhone] = useState(initialAdminPhone ?? "");
+    const [savingAdminPhone, setSavingAdminPhone] = useState(false);
+    const [adminPhoneMessage, setAdminPhoneMessage] = useState<string | null>(null);
 
     // Note: We don't need useEffect to sync profile -> state unless we expect specific changes,
     // because "initial state" pattern works well if profile is fetched server-side.
@@ -169,6 +175,49 @@ export function SettingsClient({ profile, siteLogo: initialSiteLogo }: SettingsC
             {/* Only Admin Sections */}
             {isAdmin && (
                 <>
+                    <Separator />
+
+                    {/* Admin WhatsApp Numarası */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-base">📱 Admin WhatsApp Numarası</CardTitle>
+                            <CardDescription>
+                                Her kesilen bilet bu numaraya da gönderilir. +905366029397 zaten otomatik alıyor —
+                                farklı bir numara girmek isterseniz buraya ekleyin (aynı numarayı girerseniz tekrar göndermez).
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex gap-3">
+                                <Input
+                                    value={adminPhone}
+                                    onChange={(e) => setAdminPhone(e.target.value)}
+                                    placeholder="+90 5XX XXX XX XX"
+                                    className="flex-1"
+                                />
+                                <Button
+                                    onClick={async () => {
+                                        setSavingAdminPhone(true);
+                                        setAdminPhoneMessage(null);
+                                        const { updateSetting } = await import("@/app/actions/settings");
+                                        const result = await updateSetting("admin_whatsapp_phone", adminPhone.trim());
+                                        if (result?.error) {
+                                            setAdminPhoneMessage("❌ " + result.error);
+                                        } else {
+                                            setAdminPhoneMessage("✅ Kaydedildi!");
+                                        }
+                                        setSavingAdminPhone(false);
+                                    }}
+                                    disabled={savingAdminPhone}
+                                >
+                                    {savingAdminPhone ? "Kaydediliyor..." : "Kaydet"}
+                                </Button>
+                            </div>
+                            {adminPhoneMessage && (
+                                <p className="mt-2 text-sm">{adminPhoneMessage}</p>
+                            )}
+                        </CardContent>
+                    </Card>
+
                     <Separator />
 
                     <Card>

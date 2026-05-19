@@ -93,7 +93,7 @@ export async function createVoucher(payload: VoucherPayload) {
     }
   }
 
-  const { error } = await supabase.from("vouchers").insert({
+  const { data: insertedRows, error } = await supabase.from("vouchers").insert({
     ...payload,
     voucher_no: finalVoucherNo,
     tour_id: payload.tour_id || null,
@@ -102,12 +102,15 @@ export async function createVoucher(payload: VoucherPayload) {
     sales_person_id: user.id,
     agency_id: profile?.agency_id || null,
     status: "active",
-  });
+  }).select("id").single();
+
+  const insertedId: string | undefined = insertedRows?.id;
 
   if (error) {
     console.error("Voucher create error:", error);
     return { error: formatDbError(error) };
   }
+
 
   // Bilet kaydedildikten sonra ilgili herkese WhatsApp bildirimi gönder.
   // Sıra: müşteri (TR/EN, prefix'e göre) + EasyBook + acente + sales person.
@@ -140,7 +143,68 @@ export async function createVoucher(payload: VoucherPayload) {
   }
 
   revalidatePath("/vouchers");
-  return { success: true };
+  return { success: true, voucherId: insertedId };
+}
+
+/**
+ * Sends WhatsApp text+PDF URL notifications for a voucher.
+ * Recipients: hardcoded EasyBook number + admin setting (deduped) + agency.
+ * PDF is already uploaded; caller provides the public URL.
+ */
+export async function sendVoucherPDFWhatsApp(
+  voucherId: string,
+  pdfUrl: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServerSupabaseClient();
+
+  // Fetch the voucher + related data
+  const { data: voucher, error: vErr } = await supabase
+    .from("vouchers")
+    .select("*, tour:tours(name), agency:agencies(name, phone), sales_person:profiles!vouchers_sales_person_id_fkey(full_name)")
+    .eq("id", voucherId)
+    .single();
+
+  if (vErr || !voucher) {
+    return { success: false, error: "Bilet bulunamadı" };
+  }
+
+  // Read admin WhatsApp number from settings
+  let adminPhoneFromSettings: string | null = null;
+  const { data: settingRow } = await supabase
+    .from("settings")
+    .select("value")
+    .eq("key", "admin_whatsapp_phone")
+    .single();
+  if (settingRow?.value && typeof settingRow.value === "string") {
+    adminPhoneFromSettings = settingRow.value.trim();
+  }
+
+  try {
+    const { sendVoucherPDFNotifications } = await import("@/lib/twilio");
+    await sendVoucherPDFNotifications({
+      pdfUrl,
+      agencyPhone: voucher.agency?.phone ?? null,
+      adminPhoneFromSettings,
+      voucher: {
+        voucherNo: voucher.voucher_no,
+        tourName: voucher.tour?.name || "Tur",
+        tourDate: voucher.tour_date,
+        customerName: voucher.customer_name,
+        customerPhone: voucher.customer_phone,
+        hotel: voucher.hotel,
+        pickupTime: voucher.pickup_time,
+        pickupPlace: voucher.pickup_place,
+        paxAdult: voucher.pax_adult,
+        paxChild: voucher.pax_child,
+        paxInfant: voucher.pax_infant,
+        agencyName: voucher.agency?.name ?? null,
+      },
+    });
+    return { success: true };
+  } catch (err: any) {
+    console.error("sendVoucherPDFWhatsApp error:", err);
+    return { success: false, error: err?.message || "WhatsApp gönderilemedi" };
+  }
 }
 
 export async function updateVoucher(id: string, payload: VoucherPayload) {

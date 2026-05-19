@@ -28,9 +28,10 @@ const statusVariant: Record<VoucherStatus, "success" | "destructive" | "secondar
 interface VoucherDetailContentProps {
   voucher: Voucher;
   isAdmin?: boolean;
+  isNewVoucher?: boolean;
 }
 
-export function VoucherDetailContent({ voucher: initialVoucher, isAdmin }: VoucherDetailContentProps) {
+export function VoucherDetailContent({ voucher: initialVoucher, isAdmin, isNewVoucher }: VoucherDetailContentProps) {
   const router = useRouter();
   const supabase = createClient();
   const [voucher, setVoucher] = useState<Voucher>(initialVoucher);
@@ -122,7 +123,7 @@ export function VoucherDetailContent({ voucher: initialVoucher, isAdmin }: Vouch
       {/* Bilet ve Paylaşım Butonları */}
       <div className="mt-8">
         <h2 className="text-lg font-semibold mb-4">Bilet Önizleme</h2>
-        <VoucherActions voucher={voucher} />
+        <VoucherActions voucher={voucher} autoSend={isNewVoucher} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

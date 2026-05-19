@@ -5,6 +5,7 @@ import type { Voucher } from "@/lib/types";
 
 interface PageProps {
   params: { id: string };
+  searchParams?: { new?: string };
 }
 
 async function getVoucher(id: string): Promise<Voucher | null> {
@@ -31,7 +32,7 @@ async function getVoucher(id: string): Promise<Voucher | null> {
 
 import { getCurrentUser } from "@/lib/auth-helpers";
 
-export default async function VoucherDetailPage({ params }: PageProps) {
+export default async function VoucherDetailPage({ params, searchParams }: PageProps) {
   const [voucher, currentUser] = await Promise.all([
     getVoucher(params.id),
     getCurrentUser(),
@@ -53,5 +54,7 @@ export default async function VoucherDetailPage({ params }: PageProps) {
     }
   }
 
-  return <VoucherDetailContent voucher={voucher} isAdmin={isAdmin} />;
+  const isNewVoucher = searchParams?.new === "1";
+
+  return <VoucherDetailContent voucher={voucher} isAdmin={isAdmin} isNewVoucher={isNewVoucher} />;
 }

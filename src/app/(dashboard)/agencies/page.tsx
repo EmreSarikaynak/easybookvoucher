@@ -4,7 +4,7 @@ import type { Agency } from "@/lib/types";
 import { getCurrentUser, isAdmin } from "@/lib/auth-helpers";
 
 async function getAgencies(userIsAdmin: boolean, agencyId?: string | null): Promise<Agency[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   let query = supabase.from("agencies").select("*").eq("is_active", true);
   

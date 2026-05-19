@@ -8,7 +8,7 @@ interface PageProps {
 }
 
 async function getVoucher(id: string): Promise<Voucher | null> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("vouchers")
@@ -30,7 +30,7 @@ async function getVoucher(id: string): Promise<Voucher | null> {
 }
 
 async function getTours(): Promise<Tour[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("tours")

@@ -3,7 +3,7 @@ import { ToursContent } from "@/components/tour/tours-content";
 import type { Tour } from "@/lib/types";
 
 async function getTours(): Promise<Tour[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("tours")
@@ -19,7 +19,7 @@ async function getTours(): Promise<Tour[]> {
 }
 
 async function getToursPageData() {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: { user } } = await supabase.auth.getUser();
 

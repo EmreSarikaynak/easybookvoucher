@@ -43,7 +43,7 @@ export async function signInWithIdentifier(identifier: string, password: string)
     email = profile.email;
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const { error: signInError } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -58,7 +58,7 @@ export async function signInWithIdentifier(identifier: string, password: string)
 }
 
 export async function signOutAction() {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.auth.signOut();
 

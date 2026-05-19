@@ -4,7 +4,7 @@ import { SettingsClient } from "./settings-client";
 import type { Profile } from "@/lib/types";
 
 export default async function SettingsPage() {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   // 1. Get Logged In User
   const {
@@ -13,6 +13,7 @@ export default async function SettingsPage() {
 
   let profile: Profile | null = null;
   let siteLogo: string | null = null;
+  let adminWhatsappPhone: string | null = null;
 
   if (user) {
     // 2. Fetch Profile
@@ -35,7 +36,14 @@ export default async function SettingsPage() {
     console.error("Error fetching site logo:", err);
   }
 
+  try {
+    const phone = await getSetting("admin_whatsapp_phone");
+    if (typeof phone === 'string') {
+      adminWhatsappPhone = phone;
+    }
+  } catch { /* ignore */ }
+
   return (
-    <SettingsClient profile={profile} siteLogo={siteLogo} />
+    <SettingsClient profile={profile} siteLogo={siteLogo} adminWhatsappPhone={adminWhatsappPhone} />
   );
 }

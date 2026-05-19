@@ -72,7 +72,7 @@ export async function getExchangeRateForDate(
     date: string
 ) {
     const { createServerSupabaseClient } = await import("@/lib/supabase-server");
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         const { data, error } = await supabase
@@ -103,7 +103,7 @@ export async function getExchangeRateForDate(
  */
 export async function getAllExchangeRatesForDate(date: string) {
     const { createServerSupabaseClient } = await import("@/lib/supabase-server");
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         // Get all unique currency pairs

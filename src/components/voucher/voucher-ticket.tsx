@@ -189,7 +189,9 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
                 }}>
                   {voucher.tour?.name || "TUR ADI"}
                 </h2>
-                <div style={{ fontSize: "10px", color: "#ec4899", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: "4px", lineHeight: "1.4" }}>BODRUM</div>
+                <div style={{ fontSize: "10px", color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: "4px", lineHeight: "1.4" }}>
+                  {voucher.agency?.name || voucher.sales_person?.agency?.name || ""}
+                </div>
               </div>
               <div style={{ flexShrink: 0, backgroundColor: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "4px", padding: "5px 8px" }}>
                 <div style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", display: "flex", alignItems: "center", gap: "4px" }}>
@@ -305,6 +307,24 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
               })()}
 
             </div>
+
+            {/* Notes */}
+            {voucher.notes && (
+              <div style={{
+                backgroundColor: "#fefce8",
+                border: "1px solid #fde68a",
+                borderRadius: "4px",
+                padding: "5px 8px",
+                marginBottom: "6px"
+              }}>
+                <div style={{ fontSize: "8px", fontWeight: 700, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "2px" }}>
+                  ⚠️ {t.notes}
+                </div>
+                <div style={{ fontSize: "10px", fontWeight: 500, color: "#78350f", lineHeight: "1.3", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                  {voucher.notes}
+                </div>
+              </div>
+            )}
 
             {/* Footer */}
             <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "8px", marginTop: "auto" }}>

@@ -9,7 +9,7 @@ const BUCKET_NAME = "boat-gallery";
 export async function uploadBoatImage(
     formData: FormData
 ): Promise<{ url: string | null; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         const file = formData.get("file") as File | null;
@@ -67,7 +67,7 @@ export async function uploadBoatImage(
 export async function deleteBoatImage(
     imageUrl: string
 ): Promise<{ success: boolean; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         // Extract file path from URL

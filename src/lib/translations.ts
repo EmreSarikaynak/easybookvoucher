@@ -26,6 +26,9 @@ export interface VoucherTranslations {
     paid: string;
     remaining: string;
 
+    // Notes
+    notes: string;
+
     // QR Code
     detailedInfo: string;
 
@@ -56,6 +59,9 @@ export const translations: Record<Language, VoucherTranslations> = {
         paid: 'Deposit',
         remaining: 'BALANCE',
 
+        // Notes
+        notes: 'NOTES',
+
         // QR Code
         detailedInfo: 'Detailed Info',
 
@@ -83,6 +89,9 @@ export const translations: Record<Language, VoucherTranslations> = {
         total: 'Toplam',
         paid: 'Kapora',
         remaining: 'REST',
+
+        // Notes
+        notes: 'NOT',
 
         // QR Code
         detailedInfo: 'Detaylı Bilgi',

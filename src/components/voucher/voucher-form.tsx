@@ -124,7 +124,12 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
         return;
       }
 
-      router.push("/vouchers");
+      const voucherId = 'voucherId' in result ? result.voucherId : undefined;
+      if (!isEditing && voucherId) {
+        router.push(`/vouchers/${voucherId}?new=1`);
+      } else {
+        router.push("/vouchers");
+      }
       router.refresh();
     } catch (err: unknown) {
       const message =

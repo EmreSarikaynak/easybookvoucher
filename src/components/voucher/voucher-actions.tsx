@@ -1,26 +1,78 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { Download, MessageCircle, Send, Loader2 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Download, MessageCircle, Send, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VoucherTicket } from "./voucher-ticket";
-import { downloadPDF } from "@/lib/pdf";
+import { downloadPDF, generatePDF } from "@/lib/pdf";
 import { sendToCustomer, sendToEasyBook } from "@/lib/whatsapp";
 import type { Voucher } from "@/lib/types";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
 import type { Language } from "@/lib/translations";
+import { uploadVoucherPDF } from "@/app/actions/upload-voucher-pdf";
+import { sendVoucherPDFWhatsApp } from "@/app/actions/voucher";
 
 interface VoucherActionsProps {
   voucher: Voucher;
+  /** When true, auto-generates PDF and sends WhatsApp notifications on mount */
+  autoSend?: boolean;
 }
 
-export function VoucherActions({ voucher }: VoucherActionsProps) {
+export function VoucherActions({ voucher, autoSend }: VoucherActionsProps) {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isSendingCustomer, setIsSendingCustomer] = useState(false);
   const [isSendingEasyBook, setIsSendingEasyBook] = useState(false);
   const [previewLang, setPreviewLang] = useState<Language>('tr');
   const ticketRef = useRef<HTMLDivElement>(null);
+
+  // Auto-send state
+  const [autoSendStatus, setAutoSendStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+  const [autoSendMessage, setAutoSendMessage] = useState<string>('');
+  const autoSentRef = useRef(false);
+
+  // Auto-send effect: triggers once when autoSend=true and component is mounted
+  useEffect(() => {
+    if (!autoSend || autoSentRef.current) return;
+    autoSentRef.current = true;
+
+    const run = async () => {
+      if (!ticketRef.current) return;
+      setAutoSendStatus('sending');
+      setAutoSendMessage('PDF oluşturuluyor ve WhatsApp bildirimleri gönderiliyor...');
+
+      try {
+        // Wait for fonts & images
+        await document.fonts.ready;
+        await new Promise(r => setTimeout(r, 800));
+
+        // Generate PDF as base64
+        const pdf = await generatePDF(ticketRef.current!, `ticket-${voucher.voucher_no}`);
+        const pdfBase64 = pdf.output('datauristring');
+
+        // Upload to Supabase Storage
+        const uploadResult = await uploadVoucherPDF(voucher.id, pdfBase64);
+        if ('error' in uploadResult) {
+          throw new Error(uploadResult.error);
+        }
+
+        // Send WhatsApp notifications
+        const sendResult = await sendVoucherPDFWhatsApp(voucher.id, uploadResult.url);
+        if (!sendResult.success) {
+          throw new Error(sendResult.error || 'WhatsApp gönderilemedi');
+        }
+
+        setAutoSendStatus('success');
+        setAutoSendMessage('✅ PDF oluşturuldu ve WhatsApp bildirimleri gönderildi!');
+      } catch (err: any) {
+        console.error('Auto-send error:', err);
+        setAutoSendStatus('error');
+        setAutoSendMessage(`❌ Otomatik gönderim başarısız: ${err?.message || 'Bilinmeyen hata'}`);
+      }
+    };
+
+    run();
+  }, [autoSend, voucher.id, voucher.voucher_no]);
 
   const formatDate = (dateStr: string) => {
     try {
@@ -141,6 +193,20 @@ export function VoucherActions({ voucher }: VoucherActionsProps) {
 
   return (
     <div className="space-y-6">
+      {/* Auto-send status banner */}
+      {autoSendStatus !== 'idle' && (
+        <div className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium ${
+          autoSendStatus === 'sending' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+          autoSendStatus === 'success' ? 'bg-green-50 text-green-700 border border-green-200' :
+          'bg-red-50 text-red-700 border border-red-200'
+        }`}>
+          {autoSendStatus === 'sending' && <Loader2 className="h-4 w-4 animate-spin shrink-0" />}
+          {autoSendStatus === 'success' && <CheckCircle2 className="h-4 w-4 shrink-0" />}
+          {autoSendStatus === 'error' && <XCircle className="h-4 w-4 shrink-0" />}
+          <span>{autoSendMessage}</span>
+        </div>
+      )}
+
       {/* Action Buttons */}
       <div className="flex flex-wrap gap-3">
         {/* English PDF Button */}

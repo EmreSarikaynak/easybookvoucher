@@ -15,7 +15,7 @@ interface AgentPaymentPayload {
 }
 
 export async function createAgentPayment(payload: AgentPaymentPayload) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },
@@ -45,7 +45,7 @@ export async function createAgentPayment(payload: AgentPaymentPayload) {
 }
 
 export async function getAgentPayments(agencyId: string): Promise<AgentPayment[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("agent_payments")
@@ -71,7 +71,7 @@ export interface AgentAccountingSummary {
 export async function getAgentAccountingSummary(
   agencyId: string
 ): Promise<AgentAccountingSummary> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   // Get all vouchers for this agency to sum agent_owes_easybook_eur
   const { data: vouchers } = await supabase
