@@ -58,6 +58,10 @@ function isTurkishPhone(phone: string): boolean {
     return formatWhatsAppNumber(phone).startsWith("whatsapp:+90");
 }
 
+function normalisePhone(phone: string): string {
+    return formatWhatsAppNumber(phone).replace("whatsapp:", "");
+}
+
 /* ──────────────────────────────────────────────────────────────────────────
  * Low-level send + log helpers
  * ────────────────────────────────────────────────────────────────────────── */
@@ -432,9 +436,6 @@ export async function sendVoucherPDFNotifications(
           `👥 PAX: ${paxStr}\n` +
           `\n\n📄 *PDF Ticket:*\n${opts.pdfUrl}`;
 
-    // Normalise helper to compare numbers
-    const normalisePhone = (p: string) =>
-        formatWhatsAppNumber(p).replace("whatsapp:", "");
 
     const easybookNorm = normalisePhone(easybookPhone);
 
