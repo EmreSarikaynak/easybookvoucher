@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
 import type { CurrencyType } from "@/lib/types";
 import { formatDbError } from "@/lib/error-messages";
+import { parseWhatsappPhoneSetting } from "@/lib/settings-utils";
 
 interface VoucherPayload {
   voucher_no: string;
@@ -124,16 +125,7 @@ export async function createVoucher(payload: VoucherPayload) {
     if (tourData?.name) tourName = tourData.name;
   }
 
-  // Read admin WhatsApp number from settings
-  let adminPhoneFromSettings: string | null = null;
-  const { data: settingRow } = await supabase
-    .from("settings")
-    .select("value")
-    .eq("key", "admin_whatsapp_phone")
-    .single();
-  if (settingRow?.value && typeof settingRow.value === "string") {
-    adminPhoneFromSettings = settingRow.value.trim();
-  }
+  const adminPhoneFromSettings = await readAdminWhatsappPhone(supabase);
 
   try {
     const { sendVoucherNotifications } = await import("@/lib/twilio");
@@ -163,41 +155,46 @@ export async function createVoucher(payload: VoucherPayload) {
  * Recipients: hardcoded EasyBook number + admin setting (deduped) + agency.
  * PDF is already uploaded; caller provides the public URL.
  */
+async function readAdminWhatsappPhone(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>
+): Promise<string | null> {
+  const { data: settingRow } = await supabase
+    .from("settings")
+    .select("value")
+    .eq("key", "admin_whatsapp_phone")
+    .maybeSingle();
+
+  return parseWhatsappPhoneSetting(settingRow?.value);
+}
+
 export async function sendVoucherPDFWhatsApp(
   voucherId: string,
   pdfUrl: string,
   isRevised?: boolean
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createServerSupabaseClient();
-
-  // Fetch the voucher + related data
-  const { data: voucher, error: vErr } = await supabase
-    .from("vouchers")
-    .select("*, tour:tours(name), agency:agencies(name, phone), sales_person:profiles!vouchers_sales_person_id_fkey(full_name)")
-    .eq("id", voucherId)
-    .single();
-
-  if (vErr || !voucher) {
-    return { success: false, error: "Bilet bulunamadı" };
-  }
-
-  // Read admin WhatsApp number from settings
-  let adminPhoneFromSettings: string | null = null;
-  const { data: settingRow } = await supabase
-    .from("settings")
-    .select("value")
-    .eq("key", "admin_whatsapp_phone")
-    .single();
-  if (settingRow?.value && typeof settingRow.value === "string") {
-    adminPhoneFromSettings = settingRow.value.trim();
-  }
-
   try {
-    const { sendVoucherPDFNotifications } = await import("@/lib/twilio");
-    await sendVoucherPDFNotifications({
+    const supabase = await createServerSupabaseClient();
+
+    const { data: voucher, error: vErr } = await supabase
+      .from("vouchers")
+      .select("*, tour:tours(name), agency:agencies(name, phone), sales_person:profiles!vouchers_sales_person_id_fkey(full_name)")
+      .eq("id", voucherId)
+      .single();
+
+    if (vErr || !voucher) {
+      return { success: false, error: "Bilet bulunamadı" };
+    }
+
+    const adminPhoneFromSettings = await readAdminWhatsappPhone(supabase);
+
+    const agency =
+      voucher.agency && !Array.isArray(voucher.agency) ? voucher.agency : null;
+
+    const { sendVoucherPDFNotificationsFetch } = await import("@/lib/twilio-core");
+    const result = await sendVoucherPDFNotificationsFetch({
       pdfUrl,
       isRevised,
-      agencyPhone: voucher.agency?.phone ?? null,
+      agencyPhone: agency?.phone ?? null,
       adminPhoneFromSettings,
       voucher: {
         voucherNo: voucher.voucher_no,
@@ -211,13 +208,18 @@ export async function sendVoucherPDFWhatsApp(
         paxAdult: voucher.pax_adult,
         paxChild: voucher.pax_child,
         paxInfant: voucher.pax_infant,
-        agencyName: voucher.agency?.name ?? null,
+        agencyName: agency?.name ?? null,
       },
     });
+
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
     return { success: true };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("sendVoucherPDFWhatsApp error:", err);
-    return { success: false, error: err?.message || "WhatsApp gönderilemedi" };
+    const message = err instanceof Error ? err.message : "WhatsApp gönderilemedi";
+    return { success: false, error: message };
   }
 }
 
@@ -264,16 +266,7 @@ export async function resendVoucherWhatsApp(voucherNo: string) {
     return { error: "Bilet bulunamadı" };
   }
 
-  // Read admin WhatsApp number from settings
-  let adminPhoneFromSettings: string | null = null;
-  const { data: settingRow } = await supabase
-    .from("settings")
-    .select("value")
-    .eq("key", "admin_whatsapp_phone")
-    .single();
-  if (settingRow?.value && typeof settingRow.value === "string") {
-    adminPhoneFromSettings = settingRow.value.trim();
-  }
+  const adminPhoneFromSettings = await readAdminWhatsappPhone(supabase);
 
   try {
     const { sendVoucherNotifications } = await import("@/lib/twilio");

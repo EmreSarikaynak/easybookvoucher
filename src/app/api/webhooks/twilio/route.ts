@@ -71,14 +71,13 @@ export async function POST(req: Request) {
       // Read admin number from settings
       let adminPhoneFromSettings: string | null = null;
       try {
+        const { parseWhatsappPhoneSetting } = await import("@/lib/settings-utils");
         const { data: settingRow } = await supabase
           .from("settings")
           .select("value")
           .eq("key", "admin_whatsapp_phone")
-          .single();
-        if (settingRow?.value && typeof settingRow.value === "string") {
-          adminPhoneFromSettings = settingRow.value.trim();
-        }
+          .maybeSingle();
+        adminPhoneFromSettings = parseWhatsappPhoneSetting(settingRow?.value);
       } catch { /* ignore */ }
 
       // Twilio client

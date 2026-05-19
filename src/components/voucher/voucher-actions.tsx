@@ -10,8 +10,7 @@ import type { Voucher } from "@/lib/types";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
 import type { Language } from "@/lib/translations";
-import { uploadVoucherPDF } from "@/app/actions/upload-voucher-pdf";
-import { sendVoucherPDFWhatsApp } from "@/app/actions/voucher";
+import { createClient } from "@/lib/supabase";
 
 interface VoucherActionsProps {
   voucher: Voucher;
@@ -31,13 +30,26 @@ export function VoucherActions({ voucher, autoSend, isRevised, onPdfUploaded }: 
   const [autoSendMessage, setAutoSendMessage] = useState<string>('');
   const autoSentRef = useRef(false);
 
+  /** Bilet önizlemesi DOM'a bağlanana kadar bekler (ref bazen ilk tick'te hazır değil). */
+  const waitForTicketElement = async (maxMs = 8000): Promise<HTMLElement | null> => {
+    const deadline = Date.now() + maxMs;
+    while (Date.now() < deadline) {
+      if (ticketRef.current) return ticketRef.current;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return ticketRef.current;
+  };
+
   // Auto-send effect: triggers once when autoSend=true and component is mounted
   useEffect(() => {
     if (!autoSend || autoSentRef.current) return;
     autoSentRef.current = true;
 
     const run = async () => {
-      if (!ticketRef.current) return;
+      const ticketEl = await waitForTicketElement();
+      if (!ticketEl) {
+        throw new Error("Bilet önizlemesi yüklenemedi. Sayfayı yenileyip tekrar deneyin.");
+      }
       setAutoSendStatus('sending');
       setAutoSendMessage(
         isRevised
@@ -50,25 +62,53 @@ export function VoucherActions({ voucher, autoSend, isRevised, onPdfUploaded }: 
         await document.fonts.ready;
         await new Promise(r => setTimeout(r, 800));
 
-        // Generate PDF as base64
-        const pdf = await generatePDF(ticketRef.current!, `ticket-${voucher.voucher_no}`);
-        const pdfBase64 = pdf.output('datauristring');
+        // PDF oluştur ve doğrudan Supabase Storage'a yükle (base64 server action limitini aşmamak için)
+        const pdf = await generatePDF(ticketEl, `ticket-${voucher.voucher_no}`);
+        const pdfBlob = pdf.output("blob");
+        const fileName = `${voucher.id}.pdf`;
+        const supabase = createClient();
 
-        // Upload to Supabase Storage
-        const uploadResult = await uploadVoucherPDF(voucher.id, pdfBase64);
-        if ('error' in uploadResult) {
-          throw new Error(uploadResult.error);
+        const { error: uploadError } = await supabase.storage
+          .from("voucher-pdfs")
+          .upload(fileName, pdfBlob, {
+            contentType: "application/pdf",
+            upsert: true,
+          });
+
+        if (uploadError) {
+          throw new Error(`PDF yüklenemedi: ${uploadError.message}`);
         }
 
-        // Notify parent component about the updated PDF URL
+        const { data: { publicUrl } } = supabase.storage
+          .from("voucher-pdfs")
+          .getPublicUrl(fileName);
+
+        // PDF URL kaydı + WhatsApp (API route — Cloudflare'de server action 500 vermesin diye)
+        const waRes = await fetch("/api/vouchers/send-pdf-whatsapp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            voucherId: voucher.id,
+            pdfUrl: publicUrl,
+            isRevised: Boolean(isRevised),
+          }),
+        });
+
+        const sendResult = (await waRes.json()) as {
+          success?: boolean;
+          error?: string;
+          sent?: number;
+        };
+
+        if (!waRes.ok || !sendResult.success) {
+          throw new Error(
+            sendResult.error ||
+              `WhatsApp gönderilemedi (HTTP ${waRes.status})`
+          );
+        }
+
         if (onPdfUploaded) {
-          onPdfUploaded(uploadResult.url);
-        }
-
-        // Send WhatsApp notifications
-        const sendResult = await sendVoucherPDFWhatsApp(voucher.id, uploadResult.url, isRevised);
-        if (!sendResult.success) {
-          throw new Error(sendResult.error || 'WhatsApp gönderilemedi');
+          onPdfUploaded(publicUrl);
         }
 
         setAutoSendStatus('success');

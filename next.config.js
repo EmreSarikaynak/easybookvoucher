@@ -9,6 +9,12 @@ const withSerwist = require("@serwist/next").default({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    serverActions: {
+      // PDF base64 server action ile gönderildiğinde 1MB varsayılan limit aşılıyordu
+      bodySizeLimit: "10mb",
+    },
+  },
   eslint: {
     ignoreDuringBuilds: true,
   },

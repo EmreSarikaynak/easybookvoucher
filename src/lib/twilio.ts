@@ -62,6 +62,24 @@ function normalisePhone(phone: string): string {
     return formatWhatsAppNumber(phone).replace("whatsapp:", "");
 }
 
+function formatTourDate(tourDate: string, locale?: typeof tr): string {
+    try {
+        const d = new Date(tourDate);
+        if (Number.isNaN(d.getTime())) return tourDate;
+        return locale
+            ? format(d, "dd MMMM yyyy EEEE", { locale })
+            : format(d, "dd MMMM yyyy EEEE");
+    } catch {
+        return tourDate;
+    }
+}
+
+function formatPickupTimeLabel(pickupTime: unknown): string | null {
+    if (pickupTime == null || pickupTime === "") return null;
+    const s = String(pickupTime);
+    return s.length >= 5 ? s.slice(0, 5) : s;
+}
+
 /* ──────────────────────────────────────────────────────────────────────────
  * Low-level send + log helpers
  * ────────────────────────────────────────────────────────────────────────── */
@@ -206,8 +224,8 @@ export async function sendVoucherNotifications(
     opts: VoucherNotificationOptions
 ): Promise<{ results: NotificationResult[] }> {
     const v = opts.voucher;
-    const dateTr = format(new Date(v.tourDate), "dd MMMM yyyy EEEE", { locale: tr });
-    const dateEn = format(new Date(v.tourDate), "dd MMMM yyyy EEEE");
+    const dateTr = formatTourDate(v.tourDate, tr);
+    const dateEn = formatTourDate(v.tourDate);
     const agencyName = v.agencyName?.trim() || "—";
 
     const results: NotificationResult[] = [];
@@ -384,81 +402,31 @@ export async function sendVoucherPDFNotifications(
     const v = opts.voucher;
     const results: NotificationResult[] = [];
 
-    // Format date
-    let dateTr = v.tourDate;
-    try {
-        dateTr = format(new Date(v.tourDate), "dd MMMM yyyy EEEE", { locale: tr });
-    } catch { /* keep raw */ }
-
-    // Format date English
-    let dateEn = v.tourDate;
-    try {
-        dateEn = format(new Date(v.tourDate), "dd MMMM yyyy EEEE");
-    } catch { /* keep raw */ }
-
-    // Format PAX
-    const paxParts: string[] = [];
-    if ((v.paxAdult ?? 0) > 0) paxParts.push(`${v.paxAdult} Yetişkin`);
-    if ((v.paxChild ?? 0) > 0) paxParts.push(`${v.paxChild} Çocuk`);
-    if ((v.paxInfant ?? 0) > 0) paxParts.push(`${v.paxInfant} Bebek`);
-    const paxStr = paxParts.join(" + ") || "—";
-
-    // WhatsApp deep-link for customer
-    let waCustomerLink = "";
-    if (v.customerPhone) {
-        const digits = v.customerPhone.replace(/[^0-9]/g, "");
-        const normalised = digits.startsWith("0") ? "90" + digits.slice(1) : digits.length <= 10 ? "90" + digits : digits;
-        waCustomerLink = `\n💬 Müşteri WhatsApp: https://wa.me/${normalised}`;
-    }
-
-    const titlePrefix = opts.isRevised ? "🔴 *REVİZE BİLET*" : "🎫 *YENİ BİLET*";
-
-    const body =
-        `${titlePrefix} — ${v.voucherNo}\n\n` +
-        `👤 Misafir: ${v.customerName}\n` +
-        (v.customerPhone ? `📱 Telefon: ${v.customerPhone}\n` : "") +
-        `🚢 Tur: ${v.tourName}\n` +
-        `📅 Tarih: ${dateTr}\n` +
-        (v.hotel ? `🏨 Otel: ${v.hotel}\n` : "") +
-        (v.pickupPlace ? `📍 Alış: ${v.pickupPlace}\n` : "") +
-        (v.pickupTime ? `⏰ Saat: ${v.pickupTime.slice(0, 5)}\n` : "") +
-        `👥 PAX: ${paxStr}\n` +
-        (v.agencyName ? `🏢 Acente: ${v.agencyName}\n` : "") +
-        waCustomerLink +
-        `\n\n📄 *PDF Bilet:*\n${opts.pdfUrl}`;
-
-    const isCustomerTr = v.customerPhone ? isTurkishPhone(v.customerPhone) : true;
-    const customerBody = isCustomerTr
-        ? body
-        : `${opts.isRevised ? "🔴 *REVISED TICKET*" : "🎫 *NEW TICKET*"} — ${v.voucherNo}\n\n` +
-          `👤 Guest: ${v.customerName}\n` +
-          `🚢 Tour: ${v.tourName}\n` +
-          `📅 Date: ${dateEn}\n` +
-          (v.hotel ? `🏨 Hotel: ${v.hotel}\n` : "") +
-          (v.pickupPlace ? `📍 Pickup: ${v.pickupPlace}\n` : "") +
-          (v.pickupTime ? `⏰ Time: ${v.pickupTime.slice(0, 5)}\n` : "") +
-          `👥 PAX: ${paxStr}\n` +
-          `\n\n📄 *PDF Ticket:*\n${opts.pdfUrl}`;
-
+    const { buildPdfWhatsAppBodies } = await import("@/lib/twilio-core");
+    const { adminBody, agencyBody, customerBody } = buildPdfWhatsAppBodies(
+        opts.pdfUrl,
+        v,
+        opts.isRevised
+    );
 
     const easybookNorm = normalisePhone(easybookPhone);
 
-    // 1. Always send to hardcoded EasyBook number
+    // 1. EasyBook dahili
     const r1 = await sendOne({
         to: easybookPhone,
-        fallbackBody: body,
+        fallbackBody: adminBody,
         voucherNo: v.voucherNo,
         mediaUrl: opts.pdfUrl,
     });
     results.push({ recipient: "easybook", phone: easybookPhone, ...r1 });
 
-    // 2. Admin number from settings — only if different from EasyBook
+    // 2. Ayarlardaki admin (EasyBook'tan farklıysa)
     if (opts.adminPhoneFromSettings) {
         const adminNorm = normalisePhone(opts.adminPhoneFromSettings);
         if (adminNorm !== easybookNorm) {
             const r2 = await sendOne({
                 to: opts.adminPhoneFromSettings,
-                fallbackBody: body,
+                fallbackBody: adminBody,
                 voucherNo: v.voucherNo,
                 mediaUrl: opts.pdfUrl,
             });
@@ -466,18 +434,18 @@ export async function sendVoucherPDFNotifications(
         }
     }
 
-    // 3. Agency phone
+    // 3. Acente — acenteye özel metin
     if (opts.agencyPhone) {
         const r3 = await sendOne({
             to: opts.agencyPhone,
-            fallbackBody: body,
+            fallbackBody: agencyBody,
             voucherNo: v.voucherNo,
             mediaUrl: opts.pdfUrl,
         });
         results.push({ recipient: "agency", phone: opts.agencyPhone, ...r3 });
     }
 
-    // 4. Customer phone (so customer gets the PDF visual too!)
+    // 4. Müşteri — TR/EN misafir metni
     if (v.customerPhone) {
         const r4 = await sendOne({
             to: v.customerPhone,
