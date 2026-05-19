@@ -259,18 +259,28 @@ export async function sendVoucherNotifications(
         results.push({ recipient: "customer", phone: opts.customerPhone, ...r });
     }
 
+    const activeInternalTemplate = internalTemplateSid || voucherTemplateSidTr;
+    const internalVariables = activeInternalTemplate === internalTemplateSid
+        ? {
+            "1": v.customerName,
+            "2": v.voucherNo,
+            "3": v.tourName,
+            "4": dateTr,
+            "5": agencyName,
+          }
+        : {
+            "1": v.customerName,
+            "2": v.voucherNo,
+            "3": v.tourName,
+            "4": dateTr,
+          };
+
     // 2) EasyBook internal copy
     if (easybookPhone) {
         const r = await sendOne({
             to: easybookPhone,
-            templateSid: internalTemplateSid,
-            variables: {
-                "1": v.customerName,
-                "2": v.voucherNo,
-                "3": v.tourName,
-                "4": dateTr,
-                "5": agencyName,
-            },
+            templateSid: activeInternalTemplate,
+            variables: internalVariables,
             fallbackBody: getInternalFallback(),
             voucherNo: v.voucherNo,
         });
@@ -284,14 +294,8 @@ export async function sendVoucherNotifications(
         if (adminNorm !== easybookNorm) {
             const r = await sendOne({
                 to: opts.adminPhoneFromSettings,
-                templateSid: internalTemplateSid,
-                variables: {
-                    "1": v.customerName,
-                    "2": v.voucherNo,
-                    "3": v.tourName,
-                    "4": dateTr,
-                    "5": agencyName,
-                },
+                templateSid: activeInternalTemplate,
+                variables: internalVariables,
                 fallbackBody: getInternalFallback(),
                 voucherNo: v.voucherNo,
             });
