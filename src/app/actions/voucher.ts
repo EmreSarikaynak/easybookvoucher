@@ -5,6 +5,14 @@ import { revalidatePath } from "next/cache";
 import type { CurrencyType } from "@/lib/types";
 import { formatDbError } from "@/lib/error-messages";
 import { parseWhatsappPhoneSetting } from "@/lib/settings-utils";
+import { normalizeStoredPhone } from "@/lib/phone";
+
+function normalizeVoucherPayloadPhones(payload: VoucherPayload): VoucherPayload {
+  return {
+    ...payload,
+    customer_phone: normalizeStoredPhone(payload.customer_phone),
+  };
+}
 
 interface VoucherPayload {
   voucher_no: string;
@@ -26,6 +34,7 @@ interface VoucherPayload {
 }
 
 export async function createVoucher(payload: VoucherPayload) {
+  payload = normalizeVoucherPayloadPhones(payload);
   const supabase = await createServerSupabaseClient();
 
   // Kullanıcı bilgisini al
@@ -60,7 +69,7 @@ export async function createVoucher(payload: VoucherPayload) {
       agencyPrefix = targetAgency.agency_code;
     }
     agencyName = targetAgency?.name ?? null;
-    agencyPhone = targetAgency?.phone ?? null;
+    agencyPhone = normalizeStoredPhone(targetAgency?.phone ?? null);
   }
 
   let finalVoucherNo = payload.voucher_no;
@@ -224,6 +233,7 @@ export async function sendVoucherPDFWhatsApp(
 }
 
 export async function updateVoucher(id: string, payload: VoucherPayload) {
+  payload = normalizeVoucherPayloadPhones(payload);
   const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase
@@ -232,7 +242,7 @@ export async function updateVoucher(id: string, payload: VoucherPayload) {
       ...payload,
       tour_id: payload.tour_id || null,
       pickup_time: payload.pickup_time || null,
-      customer_phone: payload.customer_phone || null,
+      customer_phone: payload.customer_phone,
     })
     .eq("id", id);
 

@@ -1,7 +1,10 @@
 import twilio from "twilio";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
-import { normalizePhoneDigits } from "@/lib/twilio-core";
+import {
+    formatWhatsAppNumber as formatWaNumber,
+    normalizePhoneDigits,
+} from "@/lib/phone";
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -30,14 +33,7 @@ const easybookPhone =
 const client = accountSid && authToken ? twilio(accountSid, authToken) : null;
 
 function formatWhatsAppNumber(phone: string): string {
-    let digits = phone.replace(/[^0-9]/g, "");
-    if (digits.startsWith("00")) digits = digits.slice(2);
-    if (digits.startsWith("900") && digits.length >= 12) {
-        digits = "90" + digits.slice(3);
-    }
-    if (digits.startsWith("0")) digits = "90" + digits.slice(1);
-    if (digits.length === 10 && digits.startsWith("5")) digits = "90" + digits;
-    return `whatsapp:+${digits}`;
+    return formatWaNumber(phone);
 }
 
 /**

@@ -1,5 +1,13 @@
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
+import {
+  formatWhatsAppNumber,
+  isTurkishPhone,
+  normalisePhone,
+  normalizePhoneDigits,
+} from "@/lib/phone";
+
+export { formatWhatsAppNumber, normalisePhone, normalizePhoneDigits };
 
 const statusCallbackUrl =
   process.env.TWILIO_STATUS_CALLBACK_URL ||
@@ -7,31 +15,6 @@ const statusCallbackUrl =
 
 export const easybookPhone =
   process.env.TWILIO_EASYBOOK_PHONE || "+905366029397";
-
-/** TR ve uluslararası numaraları whatsapp:+XXXXXXXX formatına çevirir. */
-export function normalizePhoneDigits(phone: string): string {
-  let digits = phone.replace(/[^0-9]/g, "");
-  if (digits.startsWith("00")) digits = digits.slice(2);
-  // +900553... yazım hatası → 90553...
-  if (digits.startsWith("900") && digits.length >= 12) {
-    digits = "90" + digits.slice(3);
-  }
-  if (digits.startsWith("0")) digits = "90" + digits.slice(1);
-  if (digits.length === 10 && digits.startsWith("5")) digits = "90" + digits;
-  return digits;
-}
-
-export function formatWhatsAppNumber(phone: string): string {
-  return `whatsapp:+${normalizePhoneDigits(phone)}`;
-}
-
-export function normalisePhone(phone: string): string {
-  return formatWhatsAppNumber(phone).replace("whatsapp:", "");
-}
-
-function isTurkishPhone(phone: string): boolean {
-  return formatWhatsAppNumber(phone).startsWith("whatsapp:+90");
-}
 
 function formatTourDate(tourDate: string, locale?: typeof tr): string {
   try {

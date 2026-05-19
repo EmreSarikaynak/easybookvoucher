@@ -2,6 +2,8 @@
 
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
+import { normalizeStoredPhone } from "@/lib/phone";
+import { parseWhatsappPhoneSetting } from "@/lib/settings-utils";
 
 export async function getSetting(key: string) {
     const supabase = await createServerSupabaseClient();
@@ -24,12 +26,19 @@ export async function updateSetting(key: string, value: any) {
         return { error: "Yetkisiz işlem" };
     }
 
-    // Upsert the setting
+    let storedValue = value;
+    if (key === "admin_whatsapp_phone" && typeof value === "string") {
+        storedValue =
+            normalizeStoredPhone(value) ??
+            parseWhatsappPhoneSetting(value) ??
+            value.trim();
+    }
+
     const { error } = await supabase
         .from("settings")
         .upsert({
             key,
-            value,
+            value: storedValue,
             updated_at: new Date().toISOString()
         });
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { normalizeStoredPhone } from "@/lib/phone";
 
 interface CountryCode {
   flag: string;
@@ -106,10 +107,19 @@ export function PhoneInput({ value, onChange, id, className }: PhoneInputProps) 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // Sync outward value when either part changes
+  // Sync outward value when either part changes (kayıt formatı: +905551234567)
   useEffect(() => {
-    const full = localNumber ? `${selectedCountry.code}${localNumber}` : "";
-    onChange(full);
+    if (!localNumber) {
+      onChange("");
+      return;
+    }
+    let local = localNumber.replace(/[^0-9]/g, "");
+    // +90 seçiliyken 0553... → 553... (çift 90 önlenir)
+    if (selectedCountry.code === "+90" && local.startsWith("0")) {
+      local = local.slice(1);
+    }
+    const raw = `${selectedCountry.code}${local}`;
+    onChange(normalizeStoredPhone(raw) ?? raw);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCountry, localNumber]);
 

@@ -3,7 +3,13 @@
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
 import { formatDbError } from "@/lib/error-messages";
+import { normalizeStoredPhone } from "@/lib/phone";
 import type { CurrencyType, Tour } from "@/lib/types";
+
+function normalizeAgencyPayload(payload: AgencyPayload): AgencyPayload {
+  const phone = normalizeStoredPhone(payload.phone);
+  return { ...payload, phone: phone ?? payload.phone.trim() };
+}
 
 interface AgencyPayload {
   name: string;
@@ -41,6 +47,7 @@ async function generateNextAgencyCode(supabase: Awaited<ReturnType<typeof create
 }
 
 export async function createAgency(payload: AgencyPayload) {
+  payload = normalizeAgencyPayload(payload);
   const supabase = await createServerSupabaseClient();
   const agencyCode = payload.agency_code || await generateNextAgencyCode(supabase);
 
@@ -60,6 +67,8 @@ export async function createAgency(payload: AgencyPayload) {
 }
 
 export async function createAgencyWithUser(payload: CreateAgencyWithUserPayload) {
+  const normalized = normalizeAgencyPayload(payload);
+  payload = { ...payload, ...normalized };
   const supabase = await createServerSupabaseClient();
 
   try {
@@ -133,6 +142,7 @@ export async function createAgencyWithUser(payload: CreateAgencyWithUserPayload)
 }
 
 export async function updateAgency(id: string, payload: AgencyPayload) {
+  payload = normalizeAgencyPayload(payload);
   const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase

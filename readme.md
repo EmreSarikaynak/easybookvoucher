@@ -219,7 +219,9 @@ easybookvoucher/
 | `TWILIO_EASYBOOK_PHONE` | Varsayılan: `+905366029397` |
 | `TWILIO_STATUS_CALLBACK_URL` | Varsayılan: `https://bodrumdayiz.com.tr/api/webhooks/twilio` |
 
-PDF otomatik gönderimi şablon kullanmaz; mesaj metni uygulamada üretilir (`src/lib/twilio-core.ts`).
+PDF otomatik gönderimi şablon kullanmaz; mesaj metni uygulamada üretilir (`src/lib/twilio-core.ts`). Twilio şablonlarına PDF URL parametresi eklemenize gerek yok.
+
+Telefon numaraları kayıt sırasında otomatik düzeltilir (`0553...` → `+90553...`, `+900553...` hatası düzeltilir) — `src/lib/phone.ts`.
 
 ```env
 # Lokal örnek — gerçek değerleri .env dosyanıza yazın (git'e eklemeyin)
