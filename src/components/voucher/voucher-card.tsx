@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Calendar, MapPin, Users, CreditCard, ChevronRight } from "lucide-react";
+import { Calendar, MapPin, Users, CreditCard, Eye, ExternalLink } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { Voucher, VoucherStatus } from "@/lib/types";
 import { formatDateShort, formatCurrency } from "@/lib/utils";
 import { STATUS_LABELS } from "@/lib/types";
+import { getVoucherJpegUrl } from "@/lib/voucher-assets";
 
 const statusVariant: Record<VoucherStatus, "success" | "destructive" | "secondary"> = {
   active: "success",
@@ -19,10 +21,12 @@ interface VoucherCardProps {
 }
 
 export function VoucherCard({ voucher }: VoucherCardProps) {
+  const jpegUrl = getVoucherJpegUrl(voucher.pdf_url);
+
   return (
-    <Link href={`/vouchers/${voucher.id}`} className="block">
-      <Card className="transition-all hover:shadow-md active:scale-[0.98] touch-manipulation">
-        <CardContent className="p-4">
+    <Card className="transition-all hover:shadow-md active:scale-[0.98] touch-manipulation">
+      <CardContent className="p-4">
+        <Link href={`/vouchers/${voucher.id}`} className="block">
           {/* Üst kısım: Bilet no, müşteri adı, durum */}
           <div className="flex items-start justify-between gap-2 mb-3">
             <div className="min-w-0 flex-1">
@@ -35,7 +39,6 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
               <Badge variant={statusVariant[voucher.status]} className="text-xs">
                 {STATUS_LABELS[voucher.status]}
               </Badge>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
             </div>
           </div>
 
@@ -71,8 +74,29 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
               {formatCurrency(voucher.total_price, voucher.currency)}
             </span>
           </div>
-        </CardContent>
-      </Card>
-    </Link>
+        </Link>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/vouchers/${voucher.id}`}>
+              <Eye className="mr-1.5 h-3.5 w-3.5" />
+              Bileti Gör
+            </Link>
+          </Button>
+          {jpegUrl ? (
+            <Button asChild variant="outline" size="sm">
+              <a href={jpegUrl} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                JPEG
+              </a>
+            </Button>
+          ) : (
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`/vouchers/${voucher.id}`}>JPEG Oluştur</Link>
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
