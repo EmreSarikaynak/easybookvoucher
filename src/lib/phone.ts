@@ -1,12 +1,16 @@
 /**
  * Telefon normalizasyonu — kayıt, WhatsApp ve Twilio için tek kaynak.
- * Örnek düzeltmeler: 0553... → +90553..., +900553... → +90553...
+ * Örnek düzeltmeler: 0553... → +90553..., +900553... / +909053... → +90553...
  */
 
 export function normalizePhoneDigits(phone: string): string {
   let digits = phone.replace(/[^0-9]/g, "");
   if (!digits) return "";
   if (digits.startsWith("00")) digits = digits.slice(2);
+  // +909053... (ülke kodu + yine ülke kodlu lokal giriş) → 90553...
+  if (digits.startsWith("9090") && digits.length >= 13) {
+    digits = "90" + digits.slice(4);
+  }
   // +900553... (çift 90) → 90553...
   if (digits.startsWith("900") && digits.length >= 12) {
     digits = "90" + digits.slice(3);

@@ -16,6 +16,10 @@ const statusCallbackUrl =
 export const easybookPhone =
   process.env.TWILIO_EASYBOOK_PHONE || "+905366029397";
 
+const pdfTemplateSidTr = process.env.TWILIO_PDF_TEMPLATE_SID_TR;
+const pdfTemplateSidEn = process.env.TWILIO_PDF_TEMPLATE_SID_EN;
+const pdfInternalTemplateSid = process.env.TWILIO_PDF_INTERNAL_TEMPLATE_SID;
+
 function formatTourDate(tourDate: string, locale?: typeof tr): string {
   try {
     const d = new Date(tourDate);
@@ -166,6 +170,15 @@ export interface FetchSendResult {
   success: boolean;
   messageId?: string;
   error?: string;
+  code?: number;
+}
+
+interface TemplateSendParams {
+  to: string;
+  contentSid: string;
+  variables: Record<string, string>;
+  bodyForLog: string;
+  voucherNo: string;
 }
 
 /** WhatsApp ek dosyası: JPEG tercih (PDF MediaUrl sık undelivered veriyordu). */
@@ -240,7 +253,7 @@ export async function sendWhatsAppViaFetch(params: {
         status: "failed",
         errorMessage: errMsg,
       });
-      return { success: false, error: errMsg };
+      return { success: false, error: errMsg, code: data.code };
     }
 
     await logWhatsAppFetch({
@@ -248,6 +261,77 @@ export async function sendWhatsAppViaFetch(params: {
       voucherNo: params.voucherNo,
       phone: params.to.replace(/^whatsapp:/, ""),
       body: params.body,
+      status: data.status || "queued",
+    });
+
+    return { success: true, messageId: data.sid };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Mesaj gönderilemedi";
+    return { success: false, error: message };
+  }
+}
+
+async function sendWhatsAppTemplateViaFetch(
+  params: TemplateSendParams
+): Promise<FetchSendResult> {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_WHATSAPP_NUMBER;
+
+  if (!accountSid || !authToken || !from) {
+    return { success: false, error: "Twilio yapılandırması eksik (env değişkenleri)" };
+  }
+
+  const form = new URLSearchParams();
+  form.set("From", from);
+  form.set("To", formatWhatsAppNumber(params.to));
+  form.set("ContentSid", params.contentSid);
+  form.set("ContentVariables", JSON.stringify(params.variables));
+  form.set("StatusCallback", statusCallbackUrl);
+
+  const credentials =
+    typeof btoa === "function"
+      ? btoa(`${accountSid}:${authToken}`)
+      : Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+
+  try {
+    const res = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${credentials}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: form.toString(),
+      }
+    );
+
+    const data = (await res.json()) as {
+      sid?: string;
+      status?: string;
+      message?: string;
+      code?: number;
+    };
+
+    if (!res.ok) {
+      const errMsg = data.message || `Twilio HTTP ${res.status}`;
+      await logWhatsAppFetch({
+        messageSid: `failed-${Date.now()}`,
+        voucherNo: params.voucherNo,
+        phone: params.to,
+        body: params.bodyForLog,
+        status: "failed",
+        errorMessage: errMsg,
+      });
+      return { success: false, error: errMsg, code: data.code };
+    }
+
+    await logWhatsAppFetch({
+      messageSid: data.sid || `unknown-${Date.now()}`,
+      voucherNo: params.voucherNo,
+      phone: params.to,
+      body: params.bodyForLog,
       status: data.status || "queued",
     });
 
@@ -299,23 +383,73 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
   );
 
   const easybookNorm = normalisePhone(easybookPhone);
-  const targets: { to: string; body: string }[] = [
-    { to: easybookPhone, body: adminBody },
+  const dateTr = formatTourDate(opts.voucher.tourDate, tr);
+  const dateEn = formatTourDate(opts.voucher.tourDate);
+  const internalVars = {
+    "1": opts.voucher.customerName,
+    "2": opts.voucher.voucherNo,
+    "3": opts.voucher.tourName,
+    "4": dateTr,
+    "5": opts.pdfUrl,
+  };
+  const customerVarsTr = {
+    "1": opts.voucher.customerName,
+    "2": opts.voucher.voucherNo,
+    "3": opts.voucher.tourName,
+    "4": dateTr,
+    "5": opts.pdfUrl,
+  };
+  const customerVarsEn = {
+    "1": opts.voucher.customerName,
+    "2": opts.voucher.voucherNo,
+    "3": opts.voucher.tourName,
+    "4": dateEn,
+    "5": opts.pdfUrl,
+  };
+
+  const targets: Array<{
+    to: string;
+    body: string;
+    templateSid?: string;
+    templateVariables?: Record<string, string>;
+  }> = [
+    {
+      to: easybookPhone,
+      body: adminBody,
+      templateSid: pdfInternalTemplateSid,
+      templateVariables: internalVars,
+    },
   ];
 
   if (opts.adminPhoneFromSettings) {
     const adminNorm = normalisePhone(opts.adminPhoneFromSettings);
     if (adminNorm !== easybookNorm) {
-      targets.push({ to: opts.adminPhoneFromSettings, body: adminBody });
+      targets.push({
+        to: opts.adminPhoneFromSettings,
+        body: adminBody,
+        templateSid: pdfInternalTemplateSid,
+        templateVariables: internalVars,
+      });
     }
   }
 
   if (opts.agencyPhone) {
-    targets.push({ to: opts.agencyPhone, body: agencyBody });
+    targets.push({
+      to: opts.agencyPhone,
+      body: agencyBody,
+      templateSid: pdfInternalTemplateSid,
+      templateVariables: internalVars,
+    });
   }
 
   if (opts.voucher.customerPhone) {
-    targets.push({ to: opts.voucher.customerPhone, body: customerBody });
+    const customerIsTr = isTurkishPhone(opts.voucher.customerPhone);
+    targets.push({
+      to: opts.voucher.customerPhone,
+      body: customerBody,
+      templateSid: customerIsTr ? pdfTemplateSidTr : pdfTemplateSidEn,
+      templateVariables: customerIsTr ? customerVarsTr : customerVarsEn,
+    });
   }
 
   const mediaUrl = resolveWhatsAppMediaUrl(opts.imageUrl, opts.pdfUrl);
@@ -337,6 +471,16 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
         body: target.body,
         voucherNo: opts.voucher.voucherNo,
         includeMedia: false,
+      });
+    }
+    // 24 saat penceresi dışındaysa onaylı PDF template ile tekrar dene.
+    if (!result.success && result.code === 63016 && target.templateSid) {
+      result = await sendWhatsAppTemplateViaFetch({
+        to: target.to,
+        contentSid: target.templateSid,
+        variables: target.templateVariables ?? {},
+        bodyForLog: `${target.body}\n\n(Template fallback: ${target.templateSid})`,
+        voucherNo: opts.voucher.voucherNo,
       });
     }
     if (result.success) sent++;
