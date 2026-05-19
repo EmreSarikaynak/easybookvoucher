@@ -14,11 +14,21 @@ export function createClient(): BrowserClient {
         "If you are deploying on Cloudflare Pages, make sure to add these to the environment variables " +
         "in your Cloudflare Dashboard and trigger a NEW deployment (Rebuild)."
       );
+      // Return a placeholder client so initialization/import doesn't hard-crash the React mounting tree
+      return createBrowserClient(
+        "https://placeholder-env-missing.supabase.co",
+        "placeholder-key",
+        {
+          auth: {
+            lock: async (_name, _acquireTimeout, fn) => fn(),
+          },
+        }
+      );
     }
 
     cached = createBrowserClient(
-      url || "",
-      anonKey || "",
+      url,
+      anonKey,
       {
         auth: {
           // navigator.locks deadlock'u bypass et — tek-sekme varsayımıyla no-op lock
