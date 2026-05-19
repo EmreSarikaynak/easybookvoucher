@@ -44,12 +44,13 @@ export function createServiceRoleClient() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   
   if (!url || !serviceRoleKey) {
-    console.error("❌ SERVER-SIDE ERROR: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing!");
+    throw new Error(
+      "SUPABASE_SERVICE_ROLE_KEY veya NEXT_PUBLIC_SUPABASE_URL eksik. " +
+        "Lokal: .env dosyası. Canlı: Cloudflare Workers Variables."
+    );
   }
 
-  return createClient(
-    url || "https://placeholder-env-missing.supabase.co",
-    serviceRoleKey || "placeholder-key",
+  return createClient(url, serviceRoleKey,
     {
       auth: {
         autoRefreshToken: false,

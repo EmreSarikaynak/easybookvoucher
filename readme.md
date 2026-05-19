@@ -195,10 +195,40 @@ easybookvoucher/
 
 ## Ortam Değişkenleri
 
+Şablon: [.env.example](.env.example) → kopyalayıp `.env` yapın (lokal).  
+**Canlı site (bodrumdayiz.com.tr):** aynı değişkenleri **Cloudflare Dashboard → Workers → easybookvoucher → Settings → Variables and Secrets** içine girin. Deploy `--keep-vars` kullanır; GitHub push Cloudflare secret'larını silmez.
+
+### Zorunlu
+
+| Değişken | Açıklama |
+|----------|----------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Settings → API → Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `anon` public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | `service_role` secret — PDF upload API, RLS bypass (**sadece sunucu**) |
+| `TWILIO_ACCOUNT_SID` | Twilio Console |
+| `TWILIO_AUTH_TOKEN` | Twilio Console |
+| `TWILIO_WHATSAPP_NUMBER` | Örn. `whatsapp:+19383488483` |
+
+### Opsiyonel (Twilio şablonları — bilet kaydı anı ilk SMS)
+
+| Değişken | Açıklama |
+|----------|----------|
+| `TWILIO_VOUCHER_TEMPLATE_SID_TR` | Müşteri +90 → Türkçe şablon |
+| `TWILIO_VOUCHER_TEMPLATE_SID_EN` | Müşteri yabancı numara → İngilizce şablon |
+| `TWILIO_INTERNAL_TEMPLATE_SID` | Admin / acente ilk bildirim (Türkçe) |
+| `TWILIO_EASYBOOK_PHONE` | Varsayılan: `+905366029397` |
+| `TWILIO_STATUS_CALLBACK_URL` | Varsayılan: `https://bodrumdayiz.com.tr/api/webhooks/twilio` |
+
+PDF otomatik gönderimi şablon kullanmaz; mesaj metni uygulamada üretilir (`src/lib/twilio-core.ts`).
+
 ```env
-NEXT_PUBLIC_SUPABASE_URL=<supabase-project-url>
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<supabase-anon-key>
-SUPABASE_SERVICE_ROLE_KEY=<supabase-service-role-key>  # Yalnızca sunucu tarafı
+# Lokal örnek — gerçek değerleri .env dosyanıza yazın (git'e eklemeyin)
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_AUTH_TOKEN=...
+TWILIO_WHATSAPP_NUMBER=whatsapp:+1...
 ```
 
 ## Geliştirme Notları
