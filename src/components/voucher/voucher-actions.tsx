@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Download, MessageCircle, Send, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VoucherTicket } from "./voucher-ticket";
-import { downloadPDF, generatePDF } from "@/lib/pdf";
+import { downloadPDF, generatePDF, generateTicketJpegBlob } from "@/lib/pdf";
 import { sendToCustomer, sendToEasyBook } from "@/lib/whatsapp";
 import type { Voucher } from "@/lib/types";
 import { format } from "date-fns";
@@ -62,12 +62,16 @@ export function VoucherActions({ voucher, autoSend, isRevised, onPdfUploaded }: 
         await new Promise(r => setTimeout(r, 800));
 
         // PDF oluştur ve API üzerinden yükle (service role — RLS engelini aşar)
-        const pdf = await generatePDF(ticketEl, `ticket-${voucher.voucher_no}`);
+        const [pdf, jpegBlob] = await Promise.all([
+          generatePDF(ticketEl, `ticket-${voucher.voucher_no}`),
+          generateTicketJpegBlob(ticketEl),
+        ]);
         const pdfBlob = pdf.output("blob");
 
         const uploadForm = new FormData();
         uploadForm.append("voucherId", voucher.id);
         uploadForm.append("file", pdfBlob, `${voucher.id}.pdf`);
+        uploadForm.append("image", jpegBlob, `${voucher.id}.jpg`);
 
         const uploadRes = await fetch("/api/vouchers/upload-pdf", {
           method: "POST",
@@ -76,6 +80,7 @@ export function VoucherActions({ voucher, autoSend, isRevised, onPdfUploaded }: 
 
         const uploadResult = (await uploadRes.json()) as {
           url?: string;
+          imageUrl?: string | null;
           error?: string;
         };
 
@@ -93,6 +98,7 @@ export function VoucherActions({ voucher, autoSend, isRevised, onPdfUploaded }: 
           body: JSON.stringify({
             voucherId: voucher.id,
             pdfUrl: uploadResult.url,
+            imageUrl: uploadResult.imageUrl ?? undefined,
             isRevised: Boolean(isRevised),
           }),
         });
@@ -117,8 +123,8 @@ export function VoucherActions({ voucher, autoSend, isRevised, onPdfUploaded }: 
         setAutoSendStatus('success');
         setAutoSendMessage(
           isRevised
-            ? '✅ PDF başarıyla güncellendi ve Revize WhatsApp bildirimleri gönderildi!'
-            : '✅ PDF oluşturuldu ve WhatsApp bildirimleri gönderildi!'
+            ? '✅ PDF güncellendi; bilet görseli ve bildirimler WhatsApp ile gönderildi!'
+            : '✅ PDF oluşturuldu; bilet görseli WhatsApp ek dosyası olarak gönderildi!'
         );
       } catch (err: any) {
         console.error('Auto-send error:', err);

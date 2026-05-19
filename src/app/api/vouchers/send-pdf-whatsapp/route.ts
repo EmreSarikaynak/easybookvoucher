@@ -24,10 +24,13 @@ export async function POST(request: Request) {
     const payload = (await request.json()) as {
       voucherId?: string;
       pdfUrl?: string;
+      imageUrl?: string;
       isRevised?: boolean;
     };
 
     const { voucherId, pdfUrl, isRevised } = payload;
+    const imageUrl =
+      payload.imageUrl ?? pdfUrl?.replace(/\.pdf$/i, ".jpg");
 
     if (!voucherId || !pdfUrl) {
       return NextResponse.json(
@@ -79,6 +82,7 @@ export async function POST(request: Request) {
 
     const result = await sendVoucherPDFNotificationsFetch({
       pdfUrl,
+      imageUrl,
       isRevised: Boolean(isRevised),
       agencyPhone: agency?.phone ?? null,
       adminPhoneFromSettings,

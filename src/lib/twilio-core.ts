@@ -168,12 +168,15 @@ export interface FetchSendResult {
   error?: string;
 }
 
-/**
- * PDF bildirimlerinde MediaUrl çoğu undelivered üretiyor (Meta medya doğrulaması).
- * Link metin içinde yeterli; ek dosya için varsayılan kapalı.
- */
-const USE_WHATSAPP_MEDIA_ATTACHMENT =
-  process.env.TWILIO_SEND_PDF_AS_MEDIA === "true";
+/** WhatsApp ek dosyası: JPEG tercih (PDF MediaUrl sık undelivered veriyordu). */
+function resolveWhatsAppMediaUrl(
+  imageUrl?: string | null,
+  pdfUrl?: string
+): string | undefined {
+  if (imageUrl) return imageUrl;
+  if (process.env.TWILIO_SEND_PDF_AS_MEDIA === "true" && pdfUrl) return pdfUrl;
+  return undefined;
+}
 
 /** Cloudflare Workers uyumlu — Twilio REST API (SDK yok). */
 export async function sendWhatsAppViaFetch(params: {
@@ -196,10 +199,7 @@ export async function sendWhatsAppViaFetch(params: {
   form.set("From", from);
   form.set("To", to);
   form.set("Body", params.body);
-  const attachMedia =
-    params.includeMedia !== false &&
-    USE_WHATSAPP_MEDIA_ATTACHMENT &&
-    Boolean(params.mediaUrl);
+  const attachMedia = params.includeMedia !== false && Boolean(params.mediaUrl);
   if (attachMedia && params.mediaUrl) {
     form.set("MediaUrl", params.mediaUrl);
   }
@@ -285,6 +285,8 @@ async function logWhatsAppFetch(p: {
 
 export async function sendVoucherPDFNotificationsFetch(opts: {
   pdfUrl: string;
+  /** JPEG bilet görseli — WhatsApp ek dosyası olarak gider */
+  imageUrl?: string | null;
   agencyPhone?: string | null;
   adminPhoneFromSettings?: string | null;
   voucher: VoucherPDFInfo;
@@ -316,17 +318,27 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
     targets.push({ to: opts.voucher.customerPhone, body: customerBody });
   }
 
+  const mediaUrl = resolveWhatsAppMediaUrl(opts.imageUrl, opts.pdfUrl);
   let sent = 0;
   let lastError = "";
 
   for (const target of targets) {
-    const result = await sendWhatsAppViaFetch({
+    let result = await sendWhatsAppViaFetch({
       to: target.to,
       body: target.body,
       voucherNo: opts.voucher.voucherNo,
-      mediaUrl: opts.pdfUrl,
-      includeMedia: false,
+      mediaUrl,
+      includeMedia: Boolean(mediaUrl),
     });
+    // Medya reddedilirse yalnızca metin + link ile tekrar dene
+    if (!result.success && mediaUrl) {
+      result = await sendWhatsAppViaFetch({
+        to: target.to,
+        body: target.body,
+        voucherNo: opts.voucher.voucherNo,
+        includeMedia: false,
+      });
+    }
     if (result.success) sent++;
     else lastError = result.error || lastError;
   }

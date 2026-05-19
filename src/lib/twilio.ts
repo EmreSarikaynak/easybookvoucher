@@ -362,6 +362,7 @@ export interface VoucherPDFInfo {
 
 export interface VoucherPDFNotificationOptions {
     pdfUrl: string;
+    imageUrl?: string | null;
     agencyPhone?: string | null;
     /** Admin number from the settings table. If same as easybookPhone, deduped. */
     adminPhoneFromSettings?: string | null;
@@ -391,12 +392,16 @@ export async function sendVoucherPDFNotifications(
     );
 
     const easybookNorm = normalisePhone(easybookPhone);
+    const mediaUrl =
+        opts.imageUrl ??
+        (process.env.TWILIO_SEND_PDF_AS_MEDIA === "true" ? opts.pdfUrl : undefined);
 
     // 1. EasyBook dahili
     const r1 = await sendOne({
         to: easybookPhone,
         fallbackBody: adminBody,
         voucherNo: v.voucherNo,
+        mediaUrl,
     });
     results.push({ recipient: "easybook", phone: easybookPhone, ...r1 });
 
@@ -408,6 +413,7 @@ export async function sendVoucherPDFNotifications(
                 to: opts.adminPhoneFromSettings,
                 fallbackBody: adminBody,
                 voucherNo: v.voucherNo,
+                mediaUrl,
             });
             results.push({ recipient: "easybook", phone: opts.adminPhoneFromSettings, ...r2 });
         }
@@ -419,6 +425,7 @@ export async function sendVoucherPDFNotifications(
             to: opts.agencyPhone,
             fallbackBody: agencyBody,
             voucherNo: v.voucherNo,
+            mediaUrl,
         });
         results.push({ recipient: "agency", phone: opts.agencyPhone, ...r3 });
     }
@@ -429,6 +436,7 @@ export async function sendVoucherPDFNotifications(
             to: v.customerPhone,
             fallbackBody: customerBody,
             voucherNo: v.voucherNo,
+            mediaUrl,
         });
         results.push({ recipient: "customer", phone: v.customerPhone, ...r4 });
     }

@@ -1,6 +1,51 @@
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
+export const TICKET_WIDTH = 850;
+export const TICKET_HEIGHT = 300;
+
+const canvasOptions = {
+  scale: 2,
+  useCORS: true,
+  allowTaint: true,
+  logging: false,
+  backgroundColor: "#ffffff",
+  width: TICKET_WIDTH,
+  height: TICKET_HEIGHT,
+  windowWidth: TICKET_WIDTH,
+  windowHeight: TICKET_HEIGHT,
+  scrollX: 0,
+  scrollY: 0,
+  x: 0,
+  y: 0,
+  imageTimeout: 5000,
+} as const;
+
+/** Bilet HTML → canvas (PDF ve JPEG için ortak) */
+export async function captureTicketCanvas(
+  element: HTMLElement
+): Promise<HTMLCanvasElement> {
+  await document.fonts.ready;
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  return html2canvas(element, canvasOptions);
+}
+
+/** WhatsApp ek dosyası — JPEG Meta/Twilio'da PDF'den daha güvenilir iletilir */
+export async function generateTicketJpegBlob(
+  element: HTMLElement,
+  quality = 0.92
+): Promise<Blob> {
+  const canvas = await captureTicketCanvas(element);
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) =>
+        blob ? resolve(blob) : reject(new Error("JPEG oluşturulamadı")),
+      "image/jpeg",
+      quality
+    );
+  });
+}
+
 /**
  * HTML elementini PDF'e çevirir
  * @param element - PDF'e çevrilecek HTML elementi
@@ -10,30 +55,9 @@ export async function generatePDF(
   element: HTMLElement,
   filename: string
 ): Promise<jsPDF> {
-  const width = 850;
-  const height = 300;
-
-  // Fontların yüklenmesini bekle
-  await document.fonts.ready;
-  await new Promise((resolve) => setTimeout(resolve, 300));
-
-  // html2canvas ile yakalama - stabil ayarlar
-  const canvas = await html2canvas(element, {
-    scale: 2, // 2x yeterli çözünürlük
-    useCORS: true,
-    allowTaint: true,
-    logging: false,
-    backgroundColor: "#ffffff",
-    width: width,
-    height: height,
-    windowWidth: width,
-    windowHeight: height,
-    scrollX: 0,
-    scrollY: 0,
-    x: 0,
-    y: 0,
-    imageTimeout: 5000,
-  });
+  const width = TICKET_WIDTH;
+  const height = TICKET_HEIGHT;
+  const canvas = await captureTicketCanvas(element);
 
   // PDF oluştur
   const pdf = new jsPDF({
@@ -104,35 +128,14 @@ export async function downloadPDF(
  * @param element - PDF'e çevrilecek HTML elementi
  */
 export async function getPDFBase64(element: HTMLElement): Promise<string> {
-  const width = 850;
-  const height = 300;
-
-  await document.fonts.ready;
-  await new Promise((resolve) => setTimeout(resolve, 200));
-
-  const canvas = await html2canvas(element, {
-    scale: 2,
-    useCORS: true,
-    allowTaint: true,
-    logging: false,
-    backgroundColor: "#ffffff",
-    width: width,
-    height: height,
-    windowWidth: width,
-    windowHeight: height,
-    scrollX: 0,
-    scrollY: 0,
-  });
-
+  const canvas = await captureTicketCanvas(element);
   const pdf = new jsPDF({
     orientation: "landscape",
     unit: "px",
-    format: [width, height],
+    format: [TICKET_WIDTH, TICKET_HEIGHT],
     hotfixes: ["px_scaling"],
   });
-
   const imgData = canvas.toDataURL("image/png", 1.0);
-  pdf.addImage(imgData, "PNG", 0, 0, width, height);
-
+  pdf.addImage(imgData, "PNG", 0, 0, TICKET_WIDTH, TICKET_HEIGHT);
   return pdf.output("datauristring");
 }

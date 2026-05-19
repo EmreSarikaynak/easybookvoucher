@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useState, useEffect } from "react";
+import { forwardRef, useState, useEffect, type CSSProperties } from "react";
 import type { Voucher } from "@/lib/types";
 import { CURRENCY_SYMBOLS } from "@/lib/types";
 import { format } from "date-fns";
@@ -57,6 +57,25 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
 
     const restToPay = voucher.total_price - voucher.deposit_paid;
     const isPaidAll = restToPay <= 0;
+    const tourName = voucher.tour?.name || "TUR ADI";
+    const tourNameLen = tourName.length;
+    const tourTitleStyle: CSSProperties = {
+      fontWeight: 800,
+      color: "#111827",
+      margin: 0,
+      paddingTop: "2px",
+      lineHeight: 1.2,
+      wordBreak: "break-word",
+      overflowWrap: "anywhere",
+      whiteSpace: "normal",
+      display: "-webkit-box",
+      WebkitBoxOrient: "vertical",
+      WebkitLineClamp: tourNameLen > 55 ? 3 : 2,
+      overflow: "hidden",
+      fontSize:
+        tourNameLen > 70 ? "11px" : tourNameLen > 50 ? "13px" : tourNameLen > 38 ? "15px" : "17px",
+      maxHeight: tourNameLen > 55 ? "42px" : "36px",
+    };
 
     return (
       <div
@@ -177,18 +196,8 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
               paddingBottom: "10px",
               marginBottom: "6px"
             }}>
-              <div style={{ flex: 1, paddingRight: "10px" }}>
-                <h2 style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#111827",
-                  margin: 0,
-                  paddingTop: "2px",
-                  whiteSpace: "nowrap",
-                  lineHeight: "1.4"
-                }}>
-                  {voucher.tour?.name || "TUR ADI"}
-                </h2>
+              <div style={{ flex: 1, paddingRight: "10px", minWidth: 0 }}>
+                <h2 style={tourTitleStyle}>{tourName}</h2>
                 <div style={{ fontSize: "10px", color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: "4px", lineHeight: "1.4" }}>
                   {voucher.agency?.name || voucher.sales_person?.agency?.name || ""}
                 </div>

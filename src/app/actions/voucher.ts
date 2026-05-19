@@ -179,7 +179,8 @@ async function readAdminWhatsappPhone(
 export async function sendVoucherPDFWhatsApp(
   voucherId: string,
   pdfUrl: string,
-  isRevised?: boolean
+  isRevised?: boolean,
+  imageUrl?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createServerSupabaseClient();
@@ -200,8 +201,10 @@ export async function sendVoucherPDFWhatsApp(
       voucher.agency && !Array.isArray(voucher.agency) ? voucher.agency : null;
 
     const { sendVoucherPDFNotificationsFetch } = await import("@/lib/twilio-core");
+    const resolvedImageUrl = imageUrl ?? pdfUrl.replace(/\.pdf$/i, ".jpg");
     const result = await sendVoucherPDFNotificationsFetch({
       pdfUrl,
+      imageUrl: resolvedImageUrl,
       isRevised,
       agencyPhone: agency?.phone ?? null,
       adminPhoneFromSettings,
@@ -284,8 +287,10 @@ export async function resendVoucherWhatsApp(voucherNo: string) {
     // PDF varsa tam bildirim seti (admin / acente / müşteri ayrı metinler)
     if (voucher.pdf_url) {
       const { sendVoucherPDFNotificationsFetch } = await import("@/lib/twilio-core");
+      const imageUrl = String(voucher.pdf_url).replace(/\.pdf$/i, ".jpg");
       const result = await sendVoucherPDFNotificationsFetch({
         pdfUrl: voucher.pdf_url,
+        imageUrl,
         agencyPhone: agency?.phone ?? null,
         adminPhoneFromSettings,
         voucher: {

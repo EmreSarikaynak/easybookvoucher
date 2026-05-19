@@ -22,6 +22,7 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const voucherId = formData.get("voucherId");
     const file = formData.get("file");
+    const imageFile = formData.get("image");
 
     if (typeof voucherId !== "string" || !voucherId) {
       return NextResponse.json(
@@ -64,6 +65,35 @@ export async function POST(request: Request) {
       data: { publicUrl },
     } = serviceSupabase.storage.from("voucher-pdfs").getPublicUrl(fileName);
 
+    let imageUrl: string | null = null;
+
+    if (imageFile instanceof File && imageFile.size > 0) {
+      if (imageFile.size > 5 * 1024 * 1024) {
+        return NextResponse.json(
+          { error: "Bilet görseli 5 MB'dan büyük olamaz" },
+          { status: 400 }
+        );
+      }
+      const imageName = `${voucherId}.jpg`;
+      const imageBuffer = Buffer.from(await imageFile.arrayBuffer());
+      const { error: imageErr } = await serviceSupabase.storage
+        .from("voucher-pdfs")
+        .upload(imageName, imageBuffer, {
+          contentType: "image/jpeg",
+          upsert: true,
+        });
+      if (imageErr) {
+        console.error("upload ticket image error:", imageErr);
+        return NextResponse.json(
+          { error: `Bilet görseli yüklenemedi: ${imageErr.message}` },
+          { status: 500 }
+        );
+      }
+      imageUrl = serviceSupabase.storage
+        .from("voucher-pdfs")
+        .getPublicUrl(imageName).data.publicUrl;
+    }
+
     const { error: saveError } = await serviceSupabase
       .from("vouchers")
       .update({ pdf_url: publicUrl })
@@ -77,7 +107,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ url: publicUrl });
+    return NextResponse.json({ url: publicUrl, imageUrl });
   } catch (err: unknown) {
     console.error("upload-pdf API error:", err);
     const message = err instanceof Error ? err.message : "Beklenmeyen hata";
