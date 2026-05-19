@@ -171,6 +171,7 @@ export interface VoucherNotificationOptions {
     customerPhone?: string | null;
     agencyPhone?: string | null;
     salesPersonPhone?: string | null;
+    adminPhoneFromSettings?: string | null;
     voucher: VoucherInfo;
 }
 
@@ -267,6 +268,28 @@ export async function sendVoucherNotifications(
             voucherNo: v.voucherNo,
         });
         results.push({ recipient: "easybook", phone: easybookPhone, ...r });
+    }
+
+    // 2.5) Admin number from settings — only if different from EasyBook
+    if (opts.adminPhoneFromSettings) {
+        const adminNorm = normalisePhone(opts.adminPhoneFromSettings);
+        const easybookNorm = normalisePhone(easybookPhone);
+        if (adminNorm !== easybookNorm) {
+            const r = await sendOne({
+                to: opts.adminPhoneFromSettings,
+                templateSid: internalTemplateSid,
+                variables: {
+                    "1": v.customerName,
+                    "2": v.voucherNo,
+                    "3": v.tourName,
+                    "4": dateTr,
+                    "5": agencyName,
+                },
+                fallbackBody: getInternalFallback(),
+                voucherNo: v.voucherNo,
+            });
+            results.push({ recipient: "easybook", phone: opts.adminPhoneFromSettings, ...r });
+        }
     }
 
     // 3) Agency owner

@@ -124,12 +124,24 @@ export async function createVoucher(payload: VoucherPayload) {
     if (tourData?.name) tourName = tourData.name;
   }
 
+  // Read admin WhatsApp number from settings
+  let adminPhoneFromSettings: string | null = null;
+  const { data: settingRow } = await supabase
+    .from("settings")
+    .select("value")
+    .eq("key", "admin_whatsapp_phone")
+    .single();
+  if (settingRow?.value && typeof settingRow.value === "string") {
+    adminPhoneFromSettings = settingRow.value.trim();
+  }
+
   try {
     const { sendVoucherNotifications } = await import("@/lib/twilio");
     await sendVoucherNotifications({
       customerPhone: payload.customer_phone ?? null,
       agencyPhone: agencyPhone,
       salesPersonPhone: profile?.phone ?? null,
+      adminPhoneFromSettings,
       voucher: {
         voucherNo: finalVoucherNo,
         tourName,
@@ -252,12 +264,24 @@ export async function resendVoucherWhatsApp(voucherNo: string) {
     return { error: "Bilet bulunamadı" };
   }
 
+  // Read admin WhatsApp number from settings
+  let adminPhoneFromSettings: string | null = null;
+  const { data: settingRow } = await supabase
+    .from("settings")
+    .select("value")
+    .eq("key", "admin_whatsapp_phone")
+    .single();
+  if (settingRow?.value && typeof settingRow.value === "string") {
+    adminPhoneFromSettings = settingRow.value.trim();
+  }
+
   try {
     const { sendVoucherNotifications } = await import("@/lib/twilio");
     const { results } = await sendVoucherNotifications({
       customerPhone: voucher.customer_phone ?? null,
       agencyPhone: voucher.agency?.phone ?? null,
       salesPersonPhone: voucher.sales_person?.phone ?? null,
+      adminPhoneFromSettings,
       voucher: {
         voucherNo: voucher.voucher_no,
         tourName: voucher.tour?.name || "Tur",
