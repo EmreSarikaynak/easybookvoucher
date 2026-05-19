@@ -28,25 +28,23 @@ const easybookPhone =
 
 const client = accountSid && authToken ? twilio(accountSid, authToken) : null;
 
-/**
- * Normalises any phone to E.164 (`whatsapp:+<digits>`). Falls back to +90 when
- * no country code is present (Turkish numbers entered as 05.. or 5..).
- */
 function formatWhatsAppNumber(phone: string): string {
+    // 1. Strip all non-numeric characters
     let digits = phone.replace(/[^0-9]/g, "");
 
-    const rawTrimmed = phone.trim();
-    const hasCountryCode =
-        rawTrimmed.startsWith("+") ||
-        rawTrimmed.startsWith("00") ||
-        digits.length > 11;
+    // 2. If it starts with '00', strip '00'
+    if (digits.startsWith("00")) {
+        digits = digits.slice(2);
+    }
 
-    if (!hasCountryCode) {
-        if (digits.startsWith("0")) {
-            digits = "90" + digits.slice(1);
-        } else {
-            digits = "90" + digits;
-        }
+    // 3. If it starts with '0', strip '0' and prepend '90' (standard Turkish format 05xx -> 905xx)
+    if (digits.startsWith("0")) {
+        digits = "90" + digits.slice(1);
+    }
+
+    // 4. If it's a 10-digit number starting with '5', prepend '90' (5xx -> 905xx)
+    if (digits.length === 10 && digits.startsWith("5")) {
+        digits = "90" + digits;
     }
 
     return `whatsapp:+${digits}`;

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Edit, XCircle, RefreshCcw, Trash2 } from "lucide-react";
+import { ArrowLeft, Edit, XCircle, RefreshCcw, Trash2, Copy, ExternalLink, Check } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +36,14 @@ export function VoucherDetailContent({ voucher: initialVoucher, isAdmin, isNewVo
   const router = useRouter();
   const supabase = createClient();
   const [voucher, setVoucher] = useState<Voucher>(initialVoucher);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyLink = () => {
+    if (!voucher.pdf_url) return;
+    navigator.clipboard.writeText(voucher.pdf_url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleCancel = async () => {
     if (!confirm("Bu bileti iptal etmek istediğinize emin misiniz?")) return;
@@ -122,9 +130,65 @@ export function VoucherDetailContent({ voucher: initialVoucher, isAdmin, isNewVo
       </div>
 
       {/* Bilet ve Paylaşım Butonları */}
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold mb-4">Bilet Önizleme</h2>
-        <VoucherActions voucher={voucher} autoSend={isNewVoucher || isRevisedVoucher} isRevised={isRevisedVoucher} />
+      <div className="mt-8 space-y-4">
+        <h2 className="text-lg font-semibold">Bilet Önizleme</h2>
+        
+        {/* PDF Link Card */}
+        {voucher.pdf_url && (
+          <Card className="border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20 overflow-hidden shadow-sm">
+            <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="space-y-1.5 flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                  <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                    PDF Bilet URL
+                  </span>
+                </div>
+                <p className="text-sm font-mono text-muted-foreground select-all truncate bg-white dark:bg-zinc-900/50 border dark:border-zinc-800 p-2 rounded-md">
+                  {voucher.pdf_url}
+                </p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleCopyLink}
+                  className="flex items-center gap-1.5 h-9"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      Kopyalandı!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4" />
+                      Kopyala
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  variant="default" 
+                  size="sm" 
+                  asChild
+                  className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5 h-9"
+                >
+                  <a href={voucher.pdf_url} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4" />
+                    Yeni Pencerede Gör
+                  </a>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <VoucherActions 
+          voucher={voucher} 
+          autoSend={isNewVoucher || isRevisedVoucher} 
+          isRevised={isRevisedVoucher} 
+          onPdfUploaded={(url) => setVoucher(prev => ({ ...prev, pdf_url: url }))}
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

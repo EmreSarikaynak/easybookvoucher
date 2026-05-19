@@ -18,9 +18,10 @@ interface VoucherActionsProps {
   /** When true, auto-generates PDF and sends WhatsApp notifications on mount */
   autoSend?: boolean;
   isRevised?: boolean;
+  onPdfUploaded?: (url: string) => void;
 }
 
-export function VoucherActions({ voucher, autoSend, isRevised }: VoucherActionsProps) {
+export function VoucherActions({ voucher, autoSend, isRevised, onPdfUploaded }: VoucherActionsProps) {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [previewLang, setPreviewLang] = useState<Language>('tr');
   const ticketRef = useRef<HTMLDivElement>(null);
@@ -57,6 +58,11 @@ export function VoucherActions({ voucher, autoSend, isRevised }: VoucherActionsP
         const uploadResult = await uploadVoucherPDF(voucher.id, pdfBase64);
         if ('error' in uploadResult) {
           throw new Error(uploadResult.error);
+        }
+
+        // Notify parent component about the updated PDF URL
+        if (onPdfUploaded) {
+          onPdfUploaded(uploadResult.url);
         }
 
         // Send WhatsApp notifications
