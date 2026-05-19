@@ -63,18 +63,19 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
       fontWeight: 800,
       color: "#111827",
       margin: 0,
-      paddingTop: "2px",
-      lineHeight: 1.2,
+      paddingTop: 0,
+      lineHeight: 1.12,
       wordBreak: "break-word",
       overflowWrap: "anywhere",
       whiteSpace: "normal",
       display: "-webkit-box",
       WebkitBoxOrient: "vertical",
-      WebkitLineClamp: tourNameLen > 55 ? 3 : 2,
+      WebkitLineClamp: 2,
       overflow: "hidden",
       fontSize:
-        tourNameLen > 70 ? "11px" : tourNameLen > 50 ? "13px" : tourNameLen > 38 ? "15px" : "17px",
-      maxHeight: tourNameLen > 55 ? "42px" : "36px",
+        tourNameLen > 70 ? "10px" : tourNameLen > 52 ? "11px" : tourNameLen > 38 ? "13px" : "16px",
+      minHeight: "30px",
+      maxHeight: "32px",
     };
 
     return (
@@ -193,12 +194,13 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
               justifyContent: "space-between",
               alignItems: "flex-start",
               borderBottom: "1px solid #e5e7eb",
-              paddingBottom: "10px",
-              marginBottom: "6px"
+              minHeight: "48px",
+              paddingBottom: "5px",
+              marginBottom: "4px"
             }}>
               <div style={{ flex: 1, paddingRight: "10px", minWidth: 0 }}>
                 <h2 style={tourTitleStyle}>{tourName}</h2>
-                <div style={{ fontSize: "10px", color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: "4px", lineHeight: "1.4" }}>
+                <div style={{ fontSize: "9px", color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: "2px", lineHeight: "1.15", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {voucher.agency?.name || voucher.sales_person?.agency?.name || ""}
                 </div>
               </div>
