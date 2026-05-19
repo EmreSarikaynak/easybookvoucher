@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { generateVoucherNo } from "@/lib/utils";
-import { createVoucher, updateVoucher } from "@/app/actions/voucher";
 import type { Tour, CurrencyType, Voucher } from "@/lib/types";
 import { SELF_PICKUP, encodeSelfPickup, parseSelfPickup } from "@/lib/constants";
 
@@ -112,19 +111,27 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
         notes: formData.notes,
       };
 
-      let result;
-      if (isEditing && voucher) {
-        result = await updateVoucher(voucher.id, payload);
-      } else {
-        result = await createVoucher(payload);
-      }
+      const response = await fetch("/api/vouchers/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: isEditing && voucher ? voucher.id : undefined,
+          payload,
+        }),
+      });
 
-      if (result.error) {
-        setError(result.error);
+      const result = (await response.json()) as {
+        success?: boolean;
+        voucherId?: string;
+        error?: string;
+      };
+
+      if (!response.ok || result.error) {
+        setError(result.error || `Bilet kaydedilemedi (HTTP ${response.status})`);
         return;
       }
 
-      const voucherId = 'voucherId' in result ? result.voucherId : undefined;
+      const voucherId = result.voucherId;
       if (!isEditing && voucherId) {
         router.push(`/vouchers/${voucherId}?new=1`);
       } else if (isEditing && voucher) {

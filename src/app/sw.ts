@@ -14,6 +14,19 @@ declare const self: WorkerGlobalScope & typeof globalThis;
 // Custom runtime caching: Supabase storage + other cross-origin URLs
 // Use NetworkOnly so failures don't throw no-response errors
 const customCaching = [
+    // Sayfa navigasyonlarını cache'leme: deploy sonrası eski JS, yeni server action
+    // ID'leriyle uyuşmayınca "Server Action was not found" hatası oluşuyordu.
+    {
+        matcher: ({ request, sameOrigin }: { request: Request; sameOrigin: boolean }) =>
+            sameOrigin && request.mode === "navigate",
+        handler: new NetworkOnly(),
+    },
+    // API cevapları her zaman canlı olmalı.
+    {
+        matcher: ({ url, sameOrigin }: { url: URL; sameOrigin: boolean }) =>
+            sameOrigin && url.pathname.startsWith("/api/"),
+        handler: new NetworkOnly(),
+    },
     // Supabase storage images — NetworkFirst, silently fail offline
     {
         matcher: ({ url }: { url: URL }) =>
