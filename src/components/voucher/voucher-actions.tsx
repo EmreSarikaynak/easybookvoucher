@@ -10,7 +10,6 @@ import type { Voucher } from "@/lib/types";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
 import type { Language } from "@/lib/translations";
-import { createClient } from "@/lib/supabase";
 
 interface VoucherActionsProps {
   voucher: Voucher;
@@ -62,34 +61,38 @@ export function VoucherActions({ voucher, autoSend, isRevised, onPdfUploaded }: 
         await document.fonts.ready;
         await new Promise(r => setTimeout(r, 800));
 
-        // PDF oluştur ve doğrudan Supabase Storage'a yükle (base64 server action limitini aşmamak için)
+        // PDF oluştur ve API üzerinden yükle (service role — RLS engelini aşar)
         const pdf = await generatePDF(ticketEl, `ticket-${voucher.voucher_no}`);
         const pdfBlob = pdf.output("blob");
-        const fileName = `${voucher.id}.pdf`;
-        const supabase = createClient();
 
-        const { error: uploadError } = await supabase.storage
-          .from("voucher-pdfs")
-          .upload(fileName, pdfBlob, {
-            contentType: "application/pdf",
-            upsert: true,
-          });
+        const uploadForm = new FormData();
+        uploadForm.append("voucherId", voucher.id);
+        uploadForm.append("file", pdfBlob, `${voucher.id}.pdf`);
 
-        if (uploadError) {
-          throw new Error(`PDF yüklenemedi: ${uploadError.message}`);
+        const uploadRes = await fetch("/api/vouchers/upload-pdf", {
+          method: "POST",
+          body: uploadForm,
+        });
+
+        const uploadResult = (await uploadRes.json()) as {
+          url?: string;
+          error?: string;
+        };
+
+        if (!uploadRes.ok || !uploadResult.url) {
+          throw new Error(
+            uploadResult.error ||
+              `PDF yüklenemedi (HTTP ${uploadRes.status})`
+          );
         }
 
-        const { data: { publicUrl } } = supabase.storage
-          .from("voucher-pdfs")
-          .getPublicUrl(fileName);
-
-        // PDF URL kaydı + WhatsApp (API route — Cloudflare'de server action 500 vermesin diye)
+        // WhatsApp bildirimleri
         const waRes = await fetch("/api/vouchers/send-pdf-whatsapp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             voucherId: voucher.id,
-            pdfUrl: publicUrl,
+            pdfUrl: uploadResult.url,
             isRevised: Boolean(isRevised),
           }),
         });
@@ -108,7 +111,7 @@ export function VoucherActions({ voucher, autoSend, isRevised, onPdfUploaded }: 
         }
 
         if (onPdfUploaded) {
-          onPdfUploaded(publicUrl);
+          onPdfUploaded(uploadResult.url);
         }
 
         setAutoSendStatus('success');
