@@ -260,7 +260,7 @@ export async function sendVoucherNotifications(
     }
 
     const activeInternalTemplate = internalTemplateSid || voucherTemplateSidTr;
-    const internalVariables = activeInternalTemplate === internalTemplateSid
+    const internalVariables: Record<string, string> = activeInternalTemplate === internalTemplateSid
         ? {
             "1": v.customerName,
             "2": v.voucherNo,
