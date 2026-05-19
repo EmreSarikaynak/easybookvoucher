@@ -4,8 +4,8 @@ import { VoucherDetailContent } from "@/components/voucher/voucher-detail-conten
 import type { Voucher } from "@/lib/types";
 
 interface PageProps {
-  params: { id: string };
-  searchParams?: { new?: string; revised?: string };
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ new?: string; revised?: string }>;
 }
 
 async function getVoucher(id: string): Promise<Voucher | null> {
@@ -33,8 +33,11 @@ async function getVoucher(id: string): Promise<Voucher | null> {
 import { getCurrentUser } from "@/lib/auth-helpers";
 
 export default async function VoucherDetailPage({ params, searchParams }: PageProps) {
+  const resolvedParams = await params;
+  const resolvedSearchParams = await searchParams;
+
   const [voucher, currentUser] = await Promise.all([
-    getVoucher(params.id),
+    getVoucher(resolvedParams.id),
     getCurrentUser(),
   ]);
 
@@ -54,8 +57,8 @@ export default async function VoucherDetailPage({ params, searchParams }: PagePr
     }
   }
 
-  const isNewVoucher = searchParams?.new === "1";
-  const isRevisedVoucher = searchParams?.revised === "1";
+  const isNewVoucher = resolvedSearchParams?.new === "1";
+  const isRevisedVoucher = resolvedSearchParams?.revised === "1";
 
   return (
     <VoucherDetailContent 

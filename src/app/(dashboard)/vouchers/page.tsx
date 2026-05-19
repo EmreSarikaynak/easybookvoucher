@@ -7,14 +7,14 @@ import { getCurrentUser } from "@/lib/auth-helpers";
 import type { Voucher } from "@/lib/types";
 
 interface PageProps {
-  searchParams: {
+  searchParams: Promise<{
     search?: string;
     status?: string;
     date?: string;
-  };
+  }>;
 }
 
-async function getVouchers(searchParams: PageProps["searchParams"], currentUser: any): Promise<Voucher[]> {
+async function getVouchers(searchParams: { search?: string; status?: string; date?: string }, currentUser: any): Promise<Voucher[]> {
   const supabase = await createServerSupabaseClient();
 
   let query = supabase
@@ -60,8 +60,9 @@ async function getVouchers(searchParams: PageProps["searchParams"], currentUser:
 }
 
 export default async function VouchersPage({ searchParams }: PageProps) {
+  const resolvedSearchParams = await searchParams;
   const currentUser = await getCurrentUser();
-  const vouchers = await getVouchers(searchParams, currentUser);
+  const vouchers = await getVouchers(resolvedSearchParams, currentUser);
 
   const isAdmin = currentUser?.role === "super_admin" || currentUser?.role === "admin";
   const pageTitle = isAdmin ? "Tüm Biletler" : "Biletlerim";

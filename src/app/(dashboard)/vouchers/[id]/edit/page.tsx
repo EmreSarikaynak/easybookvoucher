@@ -4,7 +4,7 @@ import { VoucherForm } from "@/components/voucher/voucher-form";
 import type { Voucher, Tour } from "@/lib/types";
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 async function getVoucher(id: string): Promise<Voucher | null> {
@@ -49,8 +49,9 @@ async function getTours(): Promise<Tour[]> {
 import { getCurrentUser } from "@/lib/auth-helpers";
 
 export default async function EditVoucherPage({ params }: PageProps) {
+  const resolvedParams = await params;
   const [voucher, tours, currentUser] = await Promise.all([
-    getVoucher(params.id),
+    getVoucher(resolvedParams.id),
     getTours(),
     getCurrentUser(),
   ]);
