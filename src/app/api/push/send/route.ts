@@ -7,8 +7,6 @@ import {
   type PushSubscriptionData,
 } from "@/lib/web-push-crypto";
 
-export const runtime = "edge";
-
 interface SendPushBody {
   title: string;
   body: string;
