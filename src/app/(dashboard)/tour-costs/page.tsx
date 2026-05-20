@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getCurrentUser, isAdmin } from "@/lib/auth-helpers";
 import { TourCostsEditor } from "@/components/tour/tour-costs-editor";
+import { TourCostsPdfActions } from "@/components/tour/tour-costs-pdf-actions";
 import type { Tour } from "@/lib/types";
 
 interface TourRow {
@@ -79,14 +80,25 @@ export default async function TourCostsPage() {
 
   if (admin) {
     const tours = await getActiveTours();
+    const adminPdfRows = tours.map((t) => ({
+      tourName: t.name,
+      costAdultEur: Math.round(t.base_price_adult_eur ?? 0),
+      costChildEur: Math.round(t.base_price_child_eur ?? 0),
+      costAdultTry: Math.round(t.base_price_adult_try ?? 0),
+      costChildTry: Math.round(t.base_price_child_try ?? 0),
+      isCustom: false,
+    }));
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Tur Maliyetleri</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            EasyBook tur standart taban fiyatları. Buradan girdiğiniz değerler acente
-            düzenle ekranında varsayılan olarak görünür.
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">Tur Maliyetleri</h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              EasyBook tur standart taban fiyatları. Buradan girdiğiniz değerler acente
+              düzenle ekranında varsayılan olarak görünür.
+            </p>
+          </div>
+          <TourCostsPdfActions rows={adminPdfRows} agencyName="EasyBook Tours" />
         </div>
         <TourCostsEditor tours={tours} />
       </div>
@@ -94,14 +106,33 @@ export default async function TourCostsPage() {
   }
 
   const rows = await getTourCosts(agencyId);
+  const agencyPhone = profile?.agency?.phone ?? null;
+  const agencyName = profile?.agency?.name ?? null;
+  const pdfRows = rows.map(
+    ({ tour, cost_adult_eur, cost_child_eur, cost_adult_try, cost_child_try, isCustom }) => ({
+      tourName: tour.name,
+      costAdultEur: cost_adult_eur,
+      costChildEur: cost_child_eur,
+      costAdultTry: cost_adult_try,
+      costChildTry: cost_child_try,
+      isCustom,
+    })
+  );
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Tur Maliyetleri</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Size özel tanımlanmış tur maliyetleri. Özel fiyat yoksa varsayılan maliyet gösterilir.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Tur Maliyetleri</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Size özel tanımlanmış tur maliyetleri. Özel fiyat yoksa varsayılan maliyet gösterilir.
+          </p>
+        </div>
+        <TourCostsPdfActions
+          rows={pdfRows}
+          agencyName={agencyName}
+          agencyPhone={agencyPhone}
+        />
       </div>
 
       <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
