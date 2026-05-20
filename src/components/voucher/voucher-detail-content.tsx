@@ -58,13 +58,13 @@ export function VoucherDetailContent({ voucher: initialVoucher, isAdmin, isNewVo
   const handleCancel = async () => {
     if (!confirm("Bu bileti iptal etmek istediğinize emin misiniz?")) return;
 
-    const { error } = await supabase
-      .from("vouchers")
-      .update({ status: "cancelled" })
-      .eq("id", voucher.id);
+    const { cancelVoucher } = await import("@/app/actions/voucher");
+    const result = await cancelVoucher(voucher.id);
 
-    if (!error) {
+    if (!result.error) {
       setVoucher({ ...voucher, status: "cancelled" });
+    } else {
+      alert("İptal sırasında hata: " + result.error);
     }
   };
 

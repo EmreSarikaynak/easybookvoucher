@@ -3,7 +3,7 @@
 import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { X, LayoutDashboard, FileText, PlusCircle, BarChart3, Building2, Users, Settings, MapPin, DollarSign } from "lucide-react";
+import { X, LayoutDashboard, FileText, PlusCircle, BarChart3, Building2, Users, Settings, MapPin, DollarSign, Headphones } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { Profile, UserRole } from "@/lib/types";
@@ -18,6 +18,7 @@ const navigation = [
   { name: "Tur Maliyetleri", href: "/tour-costs", icon: DollarSign },
   { name: "Acenteler", href: "/agencies", icon: Building2, adminOnly: true },
   { name: "Kullanıcılar", href: "/users", icon: Users, adminOnly: true },
+  { name: "Destek Talepleri", href: "/support", icon: Headphones },
   { name: "Ayarlar", href: "/settings", icon: Settings },
 ];
 

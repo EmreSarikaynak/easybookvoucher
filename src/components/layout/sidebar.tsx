@@ -16,6 +16,7 @@ import {
   Ship,
   DollarSign,
   MessageSquare,
+  Headphones,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Profile, UserRole } from "@/lib/types";
@@ -87,6 +88,11 @@ const navigation = [
     href: "/whatsapp-logs",
     icon: MessageSquare,
     adminOnly: true,
+  },
+  {
+    name: "Destek Talepleri",
+    href: "/support",
+    icon: Headphones,
   },
   {
     name: "Ayarlar",

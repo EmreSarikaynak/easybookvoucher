@@ -375,3 +375,54 @@ export async function updateVoucherPaymentStatus(id: string, isPaid: boolean) {
   revalidatePath("/reports");
   return { success: true };
 }
+
+/**
+ * Bileti iptal et (silme değil, status = cancelled).
+ * - agency_admin / sales → sadece kendi acentesine ait aktif bileti iptal edebilir
+ * - admin / super_admin → herhangi bir aktif bileti iptal edebilir
+ */
+export async function cancelVoucher(
+  id: string
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createServerSupabaseClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Oturum açmanız gerekiyor" };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, agency_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile) return { error: "Profil bulunamadı" };
+
+  const { data: voucher } = await supabase
+    .from("vouchers")
+    .select("id, status, agency_id")
+    .eq("id", id)
+    .single();
+
+  if (!voucher) return { error: "Bilet bulunamadı" };
+  if (voucher.status !== "active") return { error: "Sadece aktif biletler iptal edilebilir" };
+
+  const isAdmin =
+    profile.role === "super_admin" || profile.role === "admin";
+
+  if (!isAdmin && profile.agency_id !== voucher.agency_id) {
+    return { error: "Bu bileti iptal etme yetkiniz yok" };
+  }
+
+  const { error } = await supabase
+    .from("vouchers")
+    .update({ status: "cancelled" })
+    .eq("id", id);
+
+  if (error) return { error: formatDbError(error) };
+
+  revalidatePath(`/vouchers/${id}`);
+  revalidatePath("/vouchers");
+  return { success: true };
+}

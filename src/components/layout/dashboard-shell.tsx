@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { BottomNav } from "@/components/layout/bottom-nav";
+import { NotificationPrompt } from "@/components/pwa/notification-prompt";
 import type { Profile } from "@/lib/types";
 
 interface DashboardShellProps {
@@ -34,6 +35,9 @@ export function DashboardShell({ children, profile }: DashboardShellProps) {
 
       {/* Mobil Alt Navigasyon */}
       <BottomNav />
+
+      {/* Bildirim İzin Banner'ı */}
+      <NotificationPrompt />
     </div>
   );
 }

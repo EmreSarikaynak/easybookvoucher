@@ -405,6 +405,58 @@ export const DEPARTURE_PORTS = [
   "Torba Körfezi",
 ] as const;
 
+// ========================  SUPPORT TICKET TYPES  ========================
+
+export type SupportTicketStatus = "open" | "in_progress" | "resolved" | "closed";
+export type SupportTicketPriority = "low" | "normal" | "high" | "urgent";
+
+export interface SupportTicket {
+  id: string;
+  agency_id: string | null;
+  user_id: string;
+  subject: string;
+  message: string;
+  status: SupportTicketStatus;
+  priority: SupportTicketPriority;
+  admin_reply: string | null;
+  replied_at: string | null;
+  replied_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  user?: Profile;
+  agency?: Agency;
+  replied_by_profile?: Profile;
+}
+
+export const SUPPORT_STATUS_LABELS: Record<SupportTicketStatus, string> = {
+  open: "Açık",
+  in_progress: "İşlemde",
+  resolved: "Çözüldü",
+  closed: "Kapalı",
+};
+
+export const SUPPORT_PRIORITY_LABELS: Record<SupportTicketPriority, string> = {
+  low: "Düşük",
+  normal: "Normal",
+  high: "Yüksek",
+  urgent: "Acil",
+};
+
+export const SUPPORT_STATUS_COLORS: Record<SupportTicketStatus, string> = {
+  open: "bg-blue-100 text-blue-800",
+  in_progress: "bg-yellow-100 text-yellow-800",
+  resolved: "bg-green-100 text-green-800",
+  closed: "bg-gray-100 text-gray-700",
+};
+
+export const SUPPORT_PRIORITY_COLORS: Record<SupportTicketPriority, string> = {
+  low: "bg-gray-100 text-gray-600",
+  normal: "bg-blue-100 text-blue-700",
+  high: "bg-orange-100 text-orange-700",
+  urgent: "bg-red-100 text-red-700",
+};
+
 // ========================  WHATSAPP LOG TYPES  ========================
 
 export type WhatsAppMessageDirection = "outbound" | "inbound";
