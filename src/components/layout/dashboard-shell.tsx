@@ -6,6 +6,7 @@ import { Header } from "@/components/layout/header";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { NotificationPrompt } from "@/components/pwa/notification-prompt";
+import { PushSubscriptionSync } from "@/components/pwa/push-subscription-sync";
 import type { Profile } from "@/lib/types";
 
 interface DashboardShellProps {
@@ -38,6 +39,9 @@ export function DashboardShell({ children, profile }: DashboardShellProps) {
 
       {/* Bildirim İzin Banner'ı */}
       <NotificationPrompt />
+
+      {/* İzin verilmişse subscription'ı 24 saatte bir sessizce yenile */}
+      <PushSubscriptionSync />
     </div>
   );
 }
