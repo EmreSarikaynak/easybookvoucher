@@ -2,29 +2,36 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Download, Share, Plus, X, Smartphone } from "lucide-react";
+import { Download, Share, Plus, X, Smartphone, MoreVertical } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
     prompt: () => Promise<void>;
     userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-type Platform = "android" | "ios" | "desktop" | "other";
+type Platform = "ios" | "android" | "other-mobile" | "desktop";
 
 const DISMISS_KEY = "pwa-install-dismissed-until";
 const DISMISS_DAYS = 7;
-const SHOW_DELAY_MS = 1500;
+const SHOW_DELAY_MS = 800;
+const MANUAL_FALLBACK_MS = 2500;
 
 function detectPlatform(): Platform {
-    if (typeof window === "undefined") return "other";
-    const ua = window.navigator.userAgent.toLowerCase();
+    if (typeof window === "undefined") return "desktop";
+    const ua = window.navigator.userAgent;
+    const maxTouchPoints = window.navigator.maxTouchPoints || 0;
+
+    // iPhone / iPod ve iPad (iPadOS Safari "Macintosh" gönderir, çoklu touch ile ayırırız)
     const isIOS =
-        /iphone|ipad|ipod/.test(ua) ||
-        // iPadOS 13+ Safari'de Mac gibi görünüyor; touch desteği ile iPad'i ayır
-        (ua.includes("mac") && "ontouchend" in document);
+        /iPhone|iPad|iPod/i.test(ua) ||
+        (/Macintosh/i.test(ua) && maxTouchPoints > 1);
     if (isIOS) return "ios";
-    if (/android/.test(ua)) return "android";
-    if (/mobi|tablet/.test(ua)) return "other";
+
+    if (/Android/i.test(ua)) return "android";
+
+    // Diğer mobile tarayıcılar (HUAWEI, KaiOS, Windows Phone vb.)
+    if (/Mobi|Tablet|Mobile/i.test(ua)) return "other-mobile";
+
     return "desktop";
 }
 
@@ -40,25 +47,33 @@ function isStandalone(): boolean {
 
 function isDismissedRecently(): boolean {
     if (typeof window === "undefined") return true;
-    const raw = localStorage.getItem(DISMISS_KEY);
-    if (!raw) return false;
-    const until = Date.parse(raw);
-    if (Number.isNaN(until)) return false;
-    return Date.now() < until;
+    try {
+        const raw = localStorage.getItem(DISMISS_KEY);
+        if (!raw) return false;
+        const until = Date.parse(raw);
+        if (Number.isNaN(until)) return false;
+        return Date.now() < until;
+    } catch {
+        return false;
+    }
 }
 
 function markDismissed() {
-    const expiry = new Date();
-    expiry.setDate(expiry.getDate() + DISMISS_DAYS);
-    localStorage.setItem(DISMISS_KEY, expiry.toISOString());
+    try {
+        const expiry = new Date();
+        expiry.setDate(expiry.getDate() + DISMISS_DAYS);
+        localStorage.setItem(DISMISS_KEY, expiry.toISOString());
+    } catch {
+        /* localStorage erişilemez (private mode), yok say */
+    }
 }
 
 export function InstallPrompt() {
     const [deferredPrompt, setDeferredPrompt] =
         useState<BeforeInstallPromptEvent | null>(null);
-    const [showAndroidPrompt, setShowAndroidPrompt] = useState(false);
-    const [showIosSheet, setShowIosSheet] = useState(false);
-    const [platform, setPlatform] = useState<Platform>("other");
+    const [showNativePrompt, setShowNativePrompt] = useState(false);
+    const [showManualSheet, setShowManualSheet] = useState(false);
+    const [platform, setPlatform] = useState<Platform>("desktop");
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -67,59 +82,74 @@ export function InstallPrompt() {
 
         if (isStandalone()) return;
         if (isDismissedRecently()) return;
-        // Sadece mobil cihazlarda göster (kullanıcı isteği)
-        if (p !== "ios" && p !== "android") return;
+        // Yalnızca mobil cihazlar / tabletlerde göster
+        if (p === "desktop") return;
 
-        if (p === "ios") {
-            const t = setTimeout(() => setShowIosSheet(true), SHOW_DELAY_MS);
-            return () => clearTimeout(t);
-        }
+        let nativeFired = false;
+        let manualTimer: ReturnType<typeof setTimeout> | null = null;
 
         const handler = (e: Event) => {
             e.preventDefault();
+            nativeFired = true;
             setDeferredPrompt(e as BeforeInstallPromptEvent);
-            setShowAndroidPrompt(true);
+            if (manualTimer) clearTimeout(manualTimer);
+            setTimeout(() => setShowNativePrompt(true), SHOW_DELAY_MS);
         };
 
         const installedHandler = () => {
-            setShowAndroidPrompt(false);
-            setShowIosSheet(false);
+            setShowNativePrompt(false);
+            setShowManualSheet(false);
             setDeferredPrompt(null);
         };
 
         window.addEventListener("beforeinstallprompt", handler);
         window.addEventListener("appinstalled", installedHandler);
 
+        // iOS Safari `beforeinstallprompt` tetiklemiyor → manuel sheet hemen aç.
+        // Diğer mobil/tabletlerde event biraz gecikebileceği için kısa bekle,
+        // gelmezse "Ana Ekrana Ekle" talimatı göster.
+        if (p === "ios") {
+            manualTimer = setTimeout(
+                () => setShowManualSheet(true),
+                SHOW_DELAY_MS
+            );
+        } else {
+            manualTimer = setTimeout(() => {
+                if (!nativeFired) setShowManualSheet(true);
+            }, MANUAL_FALLBACK_MS);
+        }
+
         return () => {
             window.removeEventListener("beforeinstallprompt", handler);
             window.removeEventListener("appinstalled", installedHandler);
+            if (manualTimer) clearTimeout(manualTimer);
         };
     }, []);
 
     const handleInstall = async () => {
         if (!deferredPrompt) return;
-        await deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === "accepted") {
-            setShowAndroidPrompt(false);
-            setDeferredPrompt(null);
-        } else {
-            markDismissed();
-            setShowAndroidPrompt(false);
+        try {
+            await deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === "accepted") {
+                setShowNativePrompt(false);
+                setDeferredPrompt(null);
+                return;
+            }
+        } catch {
+            /* prompt çağrılamadı */
         }
-    };
-
-    const handleDismissAndroid = () => {
         markDismissed();
-        setShowAndroidPrompt(false);
+        setShowNativePrompt(false);
     };
 
-    const handleDismissIos = () => {
+    const dismissAll = () => {
         markDismissed();
-        setShowIosSheet(false);
+        setShowNativePrompt(false);
+        setShowManualSheet(false);
     };
 
-    if (showAndroidPrompt && platform === "android" && deferredPrompt) {
+    if (showNativePrompt && deferredPrompt) {
         return (
             <div className="fixed bottom-4 left-4 right-4 z-[60] sm:left-auto sm:right-4 sm:w-96">
                 <div className="bg-white border border-gray-200 shadow-2xl rounded-2xl p-4 flex items-center gap-3 animate-slide-up">
@@ -145,7 +175,7 @@ export function InstallPrompt() {
                         <Button
                             variant="ghost"
                             size="icon"
-                            onClick={handleDismissAndroid}
+                            onClick={dismissAll}
                             className="h-8 w-8"
                             aria-label="Kapat"
                         >
@@ -157,12 +187,13 @@ export function InstallPrompt() {
         );
     }
 
-    if (showIosSheet && platform === "ios") {
+    if (showManualSheet) {
+        const isIos = platform === "ios";
         return (
             <div className="fixed inset-x-0 bottom-0 z-[60] flex justify-center p-4">
                 <div className="w-full max-w-sm bg-white border border-gray-200 shadow-2xl rounded-2xl p-5 animate-slide-up relative">
                     <button
-                        onClick={handleDismissIos}
+                        onClick={dismissAll}
                         className="absolute top-3 right-3 text-gray-400 hover:text-gray-600"
                         aria-label="Kapat"
                     >
@@ -182,43 +213,95 @@ export function InstallPrompt() {
                         </div>
                     </div>
                     <ol className="space-y-2 text-sm text-gray-700 mb-4">
-                        <li className="flex items-start gap-2">
-                            <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-100 text-teal-700 text-xs font-bold flex items-center justify-center mt-0.5">
-                                1
-                            </span>
-                            <span className="flex items-center gap-1 flex-wrap">
-                                Safari'de alttaki
-                                <Share className="inline h-4 w-4 text-blue-600" />
-                                <span className="font-semibold">Paylaş</span>
-                                simgesine dokunun.
-                            </span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                            <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-100 text-teal-700 text-xs font-bold flex items-center justify-center mt-0.5">
-                                2
-                            </span>
-                            <span className="flex items-center gap-1 flex-wrap">
-                                Açılan menüden
-                                <Plus className="inline h-4 w-4" />
-                                <span className="font-semibold">
-                                    Ana Ekrana Ekle
-                                </span>
-                                seçeneğine dokunun.
-                            </span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                            <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-100 text-teal-700 text-xs font-bold flex items-center justify-center mt-0.5">
-                                3
-                            </span>
-                            <span>
-                                Sağ üst köşeden{" "}
-                                <span className="font-semibold">Ekle</span>'ye
-                                dokunarak yükleyin.
-                            </span>
-                        </li>
+                        {isIos ? (
+                            <>
+                                <li className="flex items-start gap-2">
+                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-100 text-teal-700 text-xs font-bold flex items-center justify-center mt-0.5">
+                                        1
+                                    </span>
+                                    <span className="flex items-center gap-1 flex-wrap">
+                                        Safari'de alttaki
+                                        <Share className="inline h-4 w-4 text-blue-600" />
+                                        <span className="font-semibold">
+                                            Paylaş
+                                        </span>
+                                        simgesine dokunun.
+                                    </span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-100 text-teal-700 text-xs font-bold flex items-center justify-center mt-0.5">
+                                        2
+                                    </span>
+                                    <span className="flex items-center gap-1 flex-wrap">
+                                        Açılan menüden
+                                        <Plus className="inline h-4 w-4" />
+                                        <span className="font-semibold">
+                                            Ana Ekrana Ekle
+                                        </span>
+                                        seçeneğine dokunun.
+                                    </span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-100 text-teal-700 text-xs font-bold flex items-center justify-center mt-0.5">
+                                        3
+                                    </span>
+                                    <span>
+                                        Sağ üst köşeden{" "}
+                                        <span className="font-semibold">
+                                            Ekle
+                                        </span>
+                                        'ye dokunarak yükleyin.
+                                    </span>
+                                </li>
+                            </>
+                        ) : (
+                            <>
+                                <li className="flex items-start gap-2">
+                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-100 text-teal-700 text-xs font-bold flex items-center justify-center mt-0.5">
+                                        1
+                                    </span>
+                                    <span className="flex items-center gap-1 flex-wrap">
+                                        Sağ üstteki
+                                        <MoreVertical className="inline h-4 w-4" />
+                                        <span className="font-semibold">
+                                            menü
+                                        </span>
+                                        simgesine dokunun.
+                                    </span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-100 text-teal-700 text-xs font-bold flex items-center justify-center mt-0.5">
+                                        2
+                                    </span>
+                                    <span>
+                                        Açılan menüden{" "}
+                                        <span className="font-semibold">
+                                            Uygulamayı yükle
+                                        </span>{" "}
+                                        veya{" "}
+                                        <span className="font-semibold">
+                                            Ana ekrana ekle
+                                        </span>{" "}
+                                        seçeneğine dokunun.
+                                    </span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-100 text-teal-700 text-xs font-bold flex items-center justify-center mt-0.5">
+                                        3
+                                    </span>
+                                    <span>
+                                        Onay penceresinde{" "}
+                                        <span className="font-semibold">
+                                            Yükle
+                                        </span>
+                                        'ye dokunun.
+                                    </span>
+                                </li>
+                            </>
+                        )}
                     </ol>
                     <Button
-                        onClick={handleDismissIos}
+                        onClick={dismissAll}
                         className="w-full bg-teal-600 hover:bg-teal-700"
                         size="sm"
                     >
