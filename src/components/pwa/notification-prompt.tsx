@@ -47,6 +47,9 @@ export function NotificationPrompt() {
           }
         }
         setShow(false);
+        // İzin zaten verilmişse de gizle
+      } else if (perm !== "default") {
+        setShow(false);
       }
     } catch {
       // ignore
