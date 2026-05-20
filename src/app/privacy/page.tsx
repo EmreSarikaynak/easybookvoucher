@@ -1,11 +1,12 @@
 import React from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { SecestaFooter } from '@/components/layout/secesta-footer';
 
 export default function PrivacyPage() {
     return (
-        <div className="min-h-screen gradient-bg-login p-4 md:p-8">
-            <div className="max-w-4xl mx-auto">
+        <div className="min-h-screen gradient-bg-login flex flex-col">
+            <div className="flex-1 p-4 md:p-8 max-w-4xl mx-auto w-full">
                 {/* Back to Login */}
                 <Link
                     href="/login"
@@ -187,6 +188,7 @@ export default function PrivacyPage() {
                     </div>
                 </div>
             </div>
+            <SecestaFooter variant="login" />
         </div>
     );
 }

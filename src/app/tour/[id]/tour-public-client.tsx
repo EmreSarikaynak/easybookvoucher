@@ -24,6 +24,7 @@ import {
   type TourLang,
 } from "@/lib/tour-i18n";
 import { EASYBOOK_CONTACT } from "@/lib/constants";
+import { SecestaFooter } from "@/components/layout/secesta-footer";
 import type { Tour } from "@/lib/types";
 
 interface TourPublicClientProps {
@@ -252,11 +253,13 @@ export function TourPublicClient({ tour }: TourPublicClientProps) {
           </section>
         )}
 
-        <footer className="text-center py-8 border-t text-sm text-muted-foreground">
+        <footer className="text-center py-8 border-t text-sm text-muted-foreground space-y-2">
           <p className="font-medium text-foreground">{ui.since}</p>
-          <p className="mt-1">{EASYBOOK_CONTACT.phoneDisplay}</p>
+          <p>{EASYBOOK_CONTACT.phoneDisplay}</p>
           <p>{EASYBOOK_CONTACT.website}</p>
         </footer>
+
+        <SecestaFooter variant="default" className="rounded-t-xl" />
       </main>
     </div>
   );

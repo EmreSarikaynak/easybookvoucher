@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { signInWithIdentifier } from "@/app/actions/auth";
 import { Mail, Lock, Loader2, Waves } from "lucide-react";
+import { SecestaFooter } from "@/components/layout/secesta-footer";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -52,7 +53,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">
+    <div className="relative flex min-h-screen flex-col overflow-hidden">
+      <div className="relative flex flex-1 items-center justify-center p-4">
       {/* Animated Ocean Gradient Background */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#0093E9] via-[#56CCF2] to-[#80D0C7] animate-gradient-shift">
         {/* Overlay Pattern for depth */}
@@ -165,14 +167,11 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {/* Footer Text */}
-          <div className="mt-6 text-center">
-            <p className="text-xs text-gray-500">
-              Secesta Yönetim Sistemi
-            </p>
-          </div>
         </CardContent>
       </Card>
+      </div>
+
+      <SecestaFooter variant="login" showPlatformNote />
 
       {/* Mobile-optimized spacing */}
       <style jsx global>{`
