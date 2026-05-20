@@ -5,6 +5,29 @@ ALTER TABLE tours
 
 COMMENT ON COLUMN tours.translations IS 'Per-language content: { "tr": { "name", "description", "highlights": [] }, "en": {...}, "ru": {...}, "pl": {...} }';
 
+-- tour-photos bucket (public read for customer pages)
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'tour-photos',
+  'tour-photos',
+  true,
+  10485760,
+  ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "Authenticated users can upload tour photos"
+ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (bucket_id = 'tour-photos');
+
+CREATE POLICY "Authenticated users can update tour photos"
+ON storage.objects FOR UPDATE TO authenticated
+USING (bucket_id = 'tour-photos');
+
+CREATE POLICY "Anyone can read tour photos"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'tour-photos');
+
 -- tour-videos bucket (public read for customer pages)
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
