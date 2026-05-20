@@ -8,6 +8,7 @@ import { ROLE_LABELS } from "@/lib/types";
 import { signOutAction } from "@/app/actions/auth";
 import type { Profile } from "@/lib/types";
 import { Logo } from "./logo";
+import Link from "next/link";
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -37,9 +38,20 @@ export function Header({ onMenuClick, profile }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b bg-white px-4 shadow-sm lg:h-16 lg:px-8">
-      {/* Sol: Logo (mobil) / Boş (masaüstü) */}
-      <div className="flex items-center gap-3">
-        <Logo className="h-8 w-auto lg:hidden" />
+      {/* Sol: Hamburger + Logo (mobil) */}
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onMenuClick}
+          className="h-9 w-9 lg:hidden"
+          aria-label="Menüyü aç"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+        <Link href="/dashboard" className="lg:hidden">
+          <Logo className="h-8 w-auto" />
+        </Link>
       </div>
 
       {/* Sağ: Kullanıcı bilgisi ve çıkış */}

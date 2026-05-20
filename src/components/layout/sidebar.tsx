@@ -123,7 +123,9 @@ export function Sidebar({ profile }: SidebarProps) {
     <aside className="hidden lg:fixed lg:inset-y-0 lg:z-40 lg:flex lg:w-64 lg:flex-col">
       <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r bg-white px-6 pb-4">
         <div className="flex h-16 shrink-0 items-center">
-          <Logo className="h-10 w-auto" />
+          <Link href="/dashboard">
+            <Logo className="h-10 w-auto" />
+          </Link>
         </div>
         <nav className="flex flex-1 flex-col">
           <ul role="list" className="flex flex-1 flex-col gap-y-1">

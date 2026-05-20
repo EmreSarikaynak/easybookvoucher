@@ -156,18 +156,18 @@ export function PhoneInput({ value, onChange, id, className }: PhoneInputProps) 
   };
 
   return (
-    <div className={`flex gap-0 ${className ?? ""}`} ref={dropdownRef} style={{ position: "relative" }}>
+    <div className={`flex min-w-0 ${className ?? ""}`} ref={dropdownRef} style={{ position: "relative" }}>
       {/* Country selector button */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 px-2.5 py-2 border border-r-0 border-input rounded-l-md bg-muted hover:bg-muted/80 transition-colors text-sm font-medium shrink-0 h-10"
+        className="flex items-center gap-1 px-2 py-2 border border-r-0 border-input rounded-l-md bg-muted hover:bg-muted/80 transition-colors shrink-0 h-10"
         title={selectedCountry.name}
         aria-label="Ülke kodu seç"
       >
         <span className="text-base leading-none">{selectedCountry.flag}</span>
-        <span className="text-xs text-muted-foreground font-mono">{selectedCountry.code}</span>
-        <svg className="w-3 h-3 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">{selectedCountry.code}</span>
+        <svg className="w-3 h-3 text-muted-foreground shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -179,7 +179,7 @@ export function PhoneInput({ value, onChange, id, className }: PhoneInputProps) 
         value={localNumber}
         onChange={(e) => setLocalNumber(e.target.value.replace(/[^0-9\s\-]/g, ""))}
         placeholder="5XX XXX XX XX"
-        className="flex h-10 flex-1 rounded-r-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="flex h-10 min-w-0 flex-1 rounded-r-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         autoComplete="tel-national"
       />
 
