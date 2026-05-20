@@ -19,7 +19,6 @@ import type { CurrencyType, Tour } from "@/lib/types";
 
 interface AgencyTourPricingProps {
   agencyId: string;
-  /** Parent reads/updates this via the ref-like callback below. */
   onChange: (cells: AgencyTourPricingCell[], dirty: boolean) => void;
 }
 
@@ -31,11 +30,19 @@ interface DraftCell extends AgencyTourPricingCell {
 
 const CURRENCIES: CurrencyType[] = ["EUR", "TRY"];
 
-const fallbackCost = (tour: Tour, currency: CurrencyType, who: "adult" | "child"): number => {
+const fallbackCost = (
+  tour: Tour,
+  currency: CurrencyType,
+  who: "adult" | "child"
+): number => {
   if (currency === "EUR") {
-    return (who === "adult" ? tour.base_price_adult_eur : tour.base_price_child_eur) ?? 0;
+    return Math.round(
+      (who === "adult" ? tour.base_price_adult_eur : tour.base_price_child_eur) ?? 0
+    );
   }
-  return (who === "adult" ? tour.base_price_adult_try : tour.base_price_child_try) ?? 0;
+  return Math.round(
+    (who === "adult" ? tour.base_price_adult_try : tour.base_price_child_try) ?? 0
+  );
 };
 
 export function AgencyTourPricing({ agencyId, onChange }: AgencyTourPricingProps) {
@@ -44,8 +51,7 @@ export function AgencyTourPricing({ agencyId, onChange }: AgencyTourPricingProps
   const [tours, setTours] = useState<Tour[]>([]);
   const [drafts, setDrafts] = useState<Record<CellKey, DraftCell>>({});
   const [activeCurrency, setActiveCurrency] = useState<CurrencyType>("EUR");
-  // Keep latest onChange in a ref so the dirty-propagation effect below
-  // only depends on `drafts` (otherwise inline callbacks cause an infinite loop).
+
   const onChangeRef = useRef(onChange);
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -75,10 +81,10 @@ export function AgencyTourPricing({ agencyId, onChange }: AgencyTourPricingProps
           id: existing?.id,
           tour_id: t.id,
           currency: c,
-          cost_adult: existing?.cost_adult ?? null,
-          cost_child: existing?.cost_child ?? null,
-          price_adult: existing?.price_adult ?? null,
-          price_child: existing?.price_child ?? 0,
+          cost_adult: existing?.cost_adult != null ? Math.round(existing.cost_adult) : null,
+          cost_child: existing?.cost_child != null ? Math.round(existing.cost_child) : null,
+          price_adult: existing?.price_adult != null ? Math.round(existing.price_adult) : null,
+          price_child: existing?.price_child != null ? Math.round(existing.price_child) : 0,
           dirty: false,
         };
       });
@@ -91,7 +97,6 @@ export function AgencyTourPricing({ agencyId, onChange }: AgencyTourPricingProps
     fetchData();
   }, [fetchData]);
 
-  // Propagate dirty cells upward so the parent's Save button can submit them.
   useEffect(() => {
     const dirtyCells: AgencyTourPricingCell[] = Object.values(drafts)
       .filter((d) => d.dirty)
@@ -104,13 +109,13 @@ export function AgencyTourPricing({ agencyId, onChange }: AgencyTourPricingProps
     field: "cost_adult" | "cost_child" | "price_adult" | "price_child",
     raw: string
   ) => {
-    const num = raw === "" ? null : parseFloat(raw);
-    const value = num === null || Number.isNaN(num) ? null : num;
+    const parsed = raw === "" ? null : parseInt(raw, 10);
+    const value = parsed === null || Number.isNaN(parsed) ? null : parsed;
     setDrafts((prev) => ({
       ...prev,
       [key]: {
         ...prev[key],
-        [field]: field === "price_child" ? value ?? 0 : value,
+        [field]: field === "price_child" ? (value ?? 0) : value,
         dirty: true,
       },
     }));
@@ -187,16 +192,16 @@ export function AgencyTourPricing({ agencyId, onChange }: AgencyTourPricingProps
                   <TableCell className="font-medium">
                     <div>{tour.name}</div>
                     <div className="text-[10px] text-muted-foreground">
-                      Varsayılan: {placeholderAdult.toFixed(2)} / {placeholderChild.toFixed(2)}
+                      Varsayılan: {placeholderAdult} / {placeholderChild}
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
                     <Input
                       type="number"
                       min={0}
-                      step="0.01"
+                      step="1"
                       value={cell.cost_adult ?? ""}
-                      placeholder={placeholderAdult.toFixed(2)}
+                      placeholder={String(placeholderAdult)}
                       onChange={(e) => updateCell(key, "cost_adult", e.target.value)}
                       className={`w-24 text-center ${dirtyClass}`}
                     />
@@ -205,9 +210,9 @@ export function AgencyTourPricing({ agencyId, onChange }: AgencyTourPricingProps
                     <Input
                       type="number"
                       min={0}
-                      step="0.01"
+                      step="1"
                       value={cell.cost_child ?? ""}
-                      placeholder={placeholderChild.toFixed(2)}
+                      placeholder={String(placeholderChild)}
                       onChange={(e) => updateCell(key, "cost_child", e.target.value)}
                       className={`w-24 text-center ${dirtyClass}`}
                     />
@@ -216,9 +221,9 @@ export function AgencyTourPricing({ agencyId, onChange }: AgencyTourPricingProps
                     <Input
                       type="number"
                       min={0}
-                      step="0.01"
+                      step="1"
                       value={cell.price_adult ?? ""}
-                      placeholder="0.00"
+                      placeholder="0"
                       onChange={(e) => updateCell(key, "price_adult", e.target.value)}
                       className={`w-24 text-center ${dirtyClass}`}
                     />
@@ -227,9 +232,9 @@ export function AgencyTourPricing({ agencyId, onChange }: AgencyTourPricingProps
                     <Input
                       type="number"
                       min={0}
-                      step="0.01"
+                      step="1"
                       value={cell.price_child ?? 0}
-                      placeholder="0.00"
+                      placeholder="0"
                       onChange={(e) => updateCell(key, "price_child", e.target.value)}
                       className={`w-24 text-center ${dirtyClass}`}
                     />

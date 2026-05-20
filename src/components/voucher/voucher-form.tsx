@@ -410,10 +410,10 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
               id="total_price"
               type="number"
               min={0}
-              step="0.01"
+              step="1"
               value={formData.total_price === "" ? "" : formData.total_price}
               onChange={(e) =>
-                handleChange("total_price", e.target.value === "" ? "" : parseFloat(e.target.value) || 0)
+                handleChange("total_price", e.target.value === "" ? "" : parseInt(e.target.value, 10) || 0)
               }
               onFocus={() => clearOnFocus("total_price")}
               onBlur={() => blurNum("total_price", 0)}
@@ -443,10 +443,10 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
               id="deposit_paid"
               type="number"
               min={0}
-              step="0.01"
+              step="1"
               value={formData.deposit_paid === "" ? "" : formData.deposit_paid}
               onChange={(e) =>
-                handleChange("deposit_paid", e.target.value === "" ? "" : parseFloat(e.target.value) || 0)
+                handleChange("deposit_paid", e.target.value === "" ? "" : parseInt(e.target.value, 10) || 0)
               }
               onFocus={() => clearOnFocus("deposit_paid")}
               onBlur={() => blurNum("deposit_paid", 0)}
@@ -461,7 +461,7 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
                 const total = num(formData.total_price);
                 const paid = num(formData.deposit_paid);
                 const rest = total - paid;
-                return rest > 0 ? rest.toFixed(2) : "0.00";
+                return rest > 0 ? String(Math.round(rest)) : "0";
               })()}
               readOnly
               className="flex-1 bg-muted font-mono font-semibold text-orange-600"

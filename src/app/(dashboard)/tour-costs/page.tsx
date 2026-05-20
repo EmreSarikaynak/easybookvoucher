@@ -137,14 +137,14 @@ export default async function TourCostsPage() {
                     </td>
                     <td className="py-3 px-4 text-right font-mono font-semibold text-blue-700">
                       <div className="flex flex-col gap-1 items-end">
-                        <span>{cost_adult_eur.toFixed(2)} € <span className="text-[10px] text-muted-foreground font-sans font-normal">(Yet)</span></span>
-                        <span className="text-blue-500/80">{cost_child_eur.toFixed(2)} € <span className="text-[10px] text-muted-foreground font-sans font-normal">(Çoc)</span></span>
+                        <span>{Math.round(cost_adult_eur)} € <span className="text-[10px] text-muted-foreground font-sans font-normal">(Yet)</span></span>
+                        <span className="text-blue-500/80">{Math.round(cost_child_eur)} € <span className="text-[10px] text-muted-foreground font-sans font-normal">(Çoc)</span></span>
                       </div>
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-muted-foreground">
                       <div className="flex flex-col gap-1 items-end">
-                        <span>{cost_adult_try.toFixed(2)} ₺ <span className="text-[10px] font-sans font-normal">(Yet)</span></span>
-                        <span className="text-muted-foreground/60">{cost_child_try.toFixed(2)} ₺ <span className="text-[10px] font-sans font-normal">(Çoc)</span></span>
+                        <span>{Math.round(cost_adult_try)} ₺ <span className="text-[10px] font-sans font-normal">(Yet)</span></span>
+                        <span className="text-muted-foreground/60">{Math.round(cost_child_try)} ₺ <span className="text-[10px] font-sans font-normal">(Çoc)</span></span>
                       </div>
                     </td>
                   </tr>
@@ -174,17 +174,17 @@ export default async function TourCostsPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">EUR (Yet/Çoc)</span>
                   <div className="flex items-center gap-2 font-mono font-semibold text-blue-700">
-                    <span>{cost_adult_eur.toFixed(2)} €</span>
+                    <span>{Math.round(cost_adult_eur)} €</span>
                     <span className="text-muted-foreground font-sans font-normal text-xs">/</span>
-                    <span className="text-blue-500/80">{cost_child_eur.toFixed(2)} €</span>
+                    <span className="text-blue-500/80">{Math.round(cost_child_eur)} €</span>
                   </div>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">TL (Yet/Çoc)</span>
                   <div className="flex items-center gap-2 font-mono text-muted-foreground">
-                    <span>{cost_adult_try.toFixed(2)} ₺</span>
+                    <span>{Math.round(cost_adult_try)} ₺</span>
                     <span className="font-sans font-normal text-xs">/</span>
-                    <span className="text-muted-foreground/60">{cost_child_try.toFixed(2)} ₺</span>
+                    <span className="text-muted-foreground/60">{Math.round(cost_child_try)} ₺</span>
                   </div>
                 </div>
               </div>

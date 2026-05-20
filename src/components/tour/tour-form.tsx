@@ -285,12 +285,12 @@ export function TourForm({ open, onOpenChange, tour, onSave }: TourFormProps) {
                   id="default_price"
                   type="number"
                   min={0}
-                  step="0.01"
+                  step="1"
                   value={formData.default_price}
                   onChange={(e) =>
                     setFormData((p) => ({
                       ...p,
-                      default_price: parseFloat(e.target.value) || 0,
+                      default_price: parseInt(e.target.value, 10) || 0,
                     }))
                   }
                   className="flex-1"
@@ -334,15 +334,15 @@ export function TourForm({ open, onOpenChange, tour, onSave }: TourFormProps) {
                   id="base_price_adult_eur"
                   type="number"
                   min={0}
-                  step="0.01"
+                  step="1"
                   value={formData.base_price_adult_eur}
                   onChange={(e) =>
                     setFormData((p) => ({
                       ...p,
-                      base_price_adult_eur: parseFloat(e.target.value) || 0,
+                      base_price_adult_eur: parseInt(e.target.value, 10) || 0,
                     }))
                   }
-                  placeholder="0.00"
+                  placeholder="0"
                 />
               </div>
               <div className="space-y-1">
@@ -351,15 +351,15 @@ export function TourForm({ open, onOpenChange, tour, onSave }: TourFormProps) {
                   id="base_price_child_eur"
                   type="number"
                   min={0}
-                  step="0.01"
+                  step="1"
                   value={formData.base_price_child_eur}
                   onChange={(e) =>
                     setFormData((p) => ({
                       ...p,
-                      base_price_child_eur: parseFloat(e.target.value) || 0,
+                      base_price_child_eur: parseInt(e.target.value, 10) || 0,
                     }))
                   }
-                  placeholder="0.00"
+                  placeholder="0"
                 />
               </div>
               <div className="space-y-1">
@@ -368,15 +368,15 @@ export function TourForm({ open, onOpenChange, tour, onSave }: TourFormProps) {
                   id="base_price_adult_try"
                   type="number"
                   min={0}
-                  step="0.01"
+                  step="1"
                   value={formData.base_price_adult_try}
                   onChange={(e) =>
                     setFormData((p) => ({
                       ...p,
-                      base_price_adult_try: parseFloat(e.target.value) || 0,
+                      base_price_adult_try: parseInt(e.target.value, 10) || 0,
                     }))
                   }
-                  placeholder="0.00"
+                  placeholder="0"
                 />
               </div>
               <div className="space-y-1">
@@ -385,15 +385,15 @@ export function TourForm({ open, onOpenChange, tour, onSave }: TourFormProps) {
                   id="base_price_child_try"
                   type="number"
                   min={0}
-                  step="0.01"
+                  step="1"
                   value={formData.base_price_child_try}
                   onChange={(e) =>
                     setFormData((p) => ({
                       ...p,
-                      base_price_child_try: parseFloat(e.target.value) || 0,
+                      base_price_child_try: parseInt(e.target.value, 10) || 0,
                     }))
                   }
-                  placeholder="0.00"
+                  placeholder="0"
                 />
               </div>
             </div>

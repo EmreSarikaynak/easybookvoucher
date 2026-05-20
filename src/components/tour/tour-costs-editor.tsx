@@ -28,10 +28,10 @@ export function TourCostsEditor({ tours }: TourCostsEditorProps) {
     const init: Record<string, Draft> = {};
     tours.forEach((t) => {
       init[t.id] = {
-        base_price_adult_eur: t.base_price_adult_eur ?? 0,
-        base_price_child_eur: t.base_price_child_eur ?? 0,
-        base_price_adult_try: t.base_price_adult_try ?? 0,
-        base_price_child_try: t.base_price_child_try ?? 0,
+        base_price_adult_eur: Math.round(t.base_price_adult_eur ?? 0),
+        base_price_child_eur: Math.round(t.base_price_child_eur ?? 0),
+        base_price_adult_try: Math.round(t.base_price_adult_try ?? 0),
+        base_price_child_try: Math.round(t.base_price_child_try ?? 0),
         dirty: false,
       };
     });
@@ -43,7 +43,7 @@ export function TourCostsEditor({ tours }: TourCostsEditorProps) {
     field: keyof Omit<Draft, "dirty">,
     raw: string
   ) => {
-    const num = parseFloat(raw);
+    const num = parseInt(raw, 10);
     setDrafts((prev) => ({
       ...prev,
       [tourId]: {
@@ -78,7 +78,6 @@ export function TourCostsEditor({ tours }: TourCostsEditorProps) {
       return;
     }
 
-    // Reset dirty flags
     setDrafts((prev) => {
       const next = { ...prev };
       Object.keys(next).forEach((id) => {
@@ -135,7 +134,7 @@ export function TourCostsEditor({ tours }: TourCostsEditorProps) {
                         <Input
                           type="number"
                           min={0}
-                          step="0.01"
+                          step="1"
                           value={d.base_price_adult_eur}
                           onChange={(e) =>
                             updateField(tour.id, "base_price_adult_eur", e.target.value)
@@ -147,7 +146,7 @@ export function TourCostsEditor({ tours }: TourCostsEditorProps) {
                         <Input
                           type="number"
                           min={0}
-                          step="0.01"
+                          step="1"
                           value={d.base_price_child_eur}
                           onChange={(e) =>
                             updateField(tour.id, "base_price_child_eur", e.target.value)
@@ -159,7 +158,7 @@ export function TourCostsEditor({ tours }: TourCostsEditorProps) {
                         <Input
                           type="number"
                           min={0}
-                          step="0.01"
+                          step="1"
                           value={d.base_price_adult_try}
                           onChange={(e) =>
                             updateField(tour.id, "base_price_adult_try", e.target.value)
@@ -171,7 +170,7 @@ export function TourCostsEditor({ tours }: TourCostsEditorProps) {
                         <Input
                           type="number"
                           min={0}
-                          step="0.01"
+                          step="1"
                           value={d.base_price_child_try}
                           onChange={(e) =>
                             updateField(tour.id, "base_price_child_try", e.target.value)
@@ -208,7 +207,7 @@ export function TourCostsEditor({ tours }: TourCostsEditorProps) {
                     <Input
                       type="number"
                       min={0}
-                      step="0.01"
+                      step="1"
                       value={d.base_price_adult_eur}
                       onChange={(e) =>
                         updateField(tour.id, "base_price_adult_eur", e.target.value)
@@ -221,7 +220,7 @@ export function TourCostsEditor({ tours }: TourCostsEditorProps) {
                     <Input
                       type="number"
                       min={0}
-                      step="0.01"
+                      step="1"
                       value={d.base_price_child_eur}
                       onChange={(e) =>
                         updateField(tour.id, "base_price_child_eur", e.target.value)
@@ -234,7 +233,7 @@ export function TourCostsEditor({ tours }: TourCostsEditorProps) {
                     <Input
                       type="number"
                       min={0}
-                      step="0.01"
+                      step="1"
                       value={d.base_price_adult_try}
                       onChange={(e) =>
                         updateField(tour.id, "base_price_adult_try", e.target.value)
@@ -247,7 +246,7 @@ export function TourCostsEditor({ tours }: TourCostsEditorProps) {
                     <Input
                       type="number"
                       min={0}
-                      step="0.01"
+                      step="1"
                       value={d.base_price_child_try}
                       onChange={(e) =>
                         updateField(tour.id, "base_price_child_try", e.target.value)
