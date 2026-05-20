@@ -37,10 +37,14 @@ export function MobileNav({ open, onClose, profile }: MobileNavProps) {
   };
 
   const isAdmin = hasRole("super_admin", "admin");
+  const canViewToursNav =
+    isAdmin ||
+    (hasRole("agency_admin", "sales") && !!profile?.agency_id);
 
-  const filteredNav = navigation.filter(
-    (item) => !item.adminOnly || isAdmin
-  );
+  const filteredNav = navigation.filter((item) => {
+    if (item.href === "/tours") return canViewToursNav;
+    return !item.adminOnly || isAdmin;
+  });
 
   if (!open) return null;
 

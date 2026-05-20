@@ -2,11 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Edit, Trash2, DollarSign, ImageIcon, ExternalLink } from "lucide-react";
+import { Edit, Trash2, ImageIcon, ExternalLink, Eye, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
+import { buildTourPublicUrl } from "@/lib/tour-i18n";
 import type { Tour } from "@/lib/types";
 
 interface TourCardProps {
@@ -14,7 +15,6 @@ interface TourCardProps {
   isAdmin?: boolean;
   onEdit?: (tour: Tour) => void;
   onDelete?: (tour: Tour) => void;
-  onManagePrices?: (tour: Tour) => void;
 }
 
 export function TourCard({
@@ -22,13 +22,12 @@ export function TourCard({
   isAdmin = false,
   onEdit,
   onDelete,
-  onManagePrices,
 }: TourCardProps) {
   const coverImage = tour.images?.[0];
+  const publicUrl = tour.tour_url || buildTourPublicUrl(tour.id);
 
   return (
     <Card className="overflow-hidden">
-      {/* Cover Image */}
       <div className="relative h-40 bg-muted">
         {coverImage ? (
           <Image
@@ -74,38 +73,46 @@ export function TourCard({
           </div>
         )}
 
-        {/* Actions */}
         <div className="flex flex-wrap gap-2 pt-2">
-          {isAdmin && (
-            <Button size="sm" variant="outline" asChild>
+          {isAdmin ? (
+            <>
+              <Button size="sm" variant="outline" asChild>
+                <Link href={`/tours/${tour.id}`}>
+                  <Edit className="mr-1 h-3 w-3" />
+                  Düzenle
+                </Link>
+              </Button>
+              {onEdit && (
+                <Button size="sm" variant="outline" onClick={() => onEdit(tour)}>
+                  Hızlı Düzenle
+                </Button>
+              )}
+            </>
+          ) : (
+            <Button size="sm" variant="default" asChild>
               <Link href={`/tours/${tour.id}`}>
-                <Edit className="mr-1 h-3 w-3" />
-                Detay
+                <Eye className="mr-1 h-3 w-3" />
+                Görüntüle
               </Link>
             </Button>
           )}
-          {isAdmin && onEdit && (
-            <Button size="sm" variant="outline" onClick={() => onEdit(tour)}>
-              <Edit className="mr-1 h-3 w-3" />
-              Hızlı Düzenle
-            </Button>
-          )}
           <Button size="sm" variant="outline" asChild>
-            <Link href={`/tour/${tour.id}`} target="_blank">
+            <a href={publicUrl} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="mr-1 h-3 w-3" />
-              Sayfa
-            </Link>
+              URL
+            </a>
           </Button>
-          {onManagePrices && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onManagePrices(tour)}
+          <Button size="sm" variant="outline" asChild>
+            <a
+              href={`/api/tours/${tour.id}/pdf?lang=tr`}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
             >
-              <DollarSign className="mr-1 h-3 w-3" />
-              Fiyatlar
-            </Button>
-          )}
+              <Download className="mr-1 h-3 w-3" />
+              PDF
+            </a>
+          </Button>
           {isAdmin && onDelete && (
             <Button
               size="sm"

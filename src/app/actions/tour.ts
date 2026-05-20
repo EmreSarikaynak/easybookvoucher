@@ -3,13 +3,25 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
 import { formatDbError } from "@/lib/error-messages";
+import { canManageTours, getCurrentUser } from "@/lib/auth-helpers";
 import {
   primaryTranslationName,
   type TourTranslations,
 } from "@/lib/tour-i18n";
 import type { Agency, CurrencyType } from "@/lib/types";
 
+async function assertTourAdmin(): Promise<{ error?: string }> {
+  const profile = await getCurrentUser();
+  if (!canManageTours(profile)) {
+    return { error: "Bu işlem için yönetici yetkisi gerekir." };
+  }
+  return {};
+}
+
 export async function uploadTourImages(formData: FormData): Promise<{ urls?: string[]; error?: string }> {
+  const denied = await assertTourAdmin();
+  if (denied.error) return denied;
+
   const supabase = await createServerSupabaseClient();
   const files = formData.getAll("files") as File[];
 
@@ -50,6 +62,9 @@ export async function uploadTourImages(formData: FormData): Promise<{ urls?: str
 }
 
 export async function uploadTourVideos(formData: FormData): Promise<{ urls?: string[]; error?: string }> {
+  const denied = await assertTourAdmin();
+  if (denied.error) return denied;
+
   const supabase = await createServerSupabaseClient();
   const files = formData.getAll("files") as File[];
 
@@ -133,6 +148,9 @@ function buildTourRow(payload: TourPayload) {
 }
 
 export async function createTour(payload: TourPayload) {
+  const denied = await assertTourAdmin();
+  if (denied.error) return denied;
+
   const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
@@ -151,6 +169,9 @@ export async function createTour(payload: TourPayload) {
 }
 
 export async function updateTour(id: string, payload: TourPayload) {
+  const denied = await assertTourAdmin();
+  if (denied.error) return denied;
+
   const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.from("tours").update(buildTourRow(payload)).eq("id", id);
@@ -275,6 +296,9 @@ export interface TourBasePriceUpdate {
 }
 
 export async function updateTourBasePrices(updates: TourBasePriceUpdate[]) {
+  const denied = await assertTourAdmin();
+  if (denied.error) return denied;
+
   if (!updates.length) return { success: true };
 
   const supabase = await createServerSupabaseClient();
@@ -308,6 +332,9 @@ export async function updateTourBasePrices(updates: TourBasePriceUpdate[]) {
 }
 
 export async function deleteTour(id: string) {
+  const denied = await assertTourAdmin();
+  if (denied.error) return denied;
+
   const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.from("tours").update({ is_active: false }).eq("id", id);

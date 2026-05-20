@@ -114,10 +114,14 @@ export function Sidebar({ profile }: SidebarProps) {
   };
 
   const isAdmin = hasRole("super_admin", "admin");
+  const canViewToursNav =
+    isAdmin ||
+    (hasRole("agency_admin", "sales") && !!profile?.agency_id);
 
-  const filteredNav = navigation.filter(
-    (item) => !item.adminOnly || isAdmin
-  );
+  const filteredNav = navigation.filter((item) => {
+    if (item.href === "/tours") return canViewToursNav;
+    return !item.adminOnly || isAdmin;
+  });
 
   return (
     <aside className="hidden lg:fixed lg:inset-y-0 lg:z-40 lg:flex lg:w-64 lg:flex-col">

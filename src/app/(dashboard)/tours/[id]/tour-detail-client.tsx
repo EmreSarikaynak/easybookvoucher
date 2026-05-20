@@ -6,28 +6,21 @@ import { ArrowLeft, ExternalLink, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TourForm } from "@/components/tour/tour-form";
-import { TourPrices } from "@/components/tour/tour-prices";
+import { TourViewPanel } from "@/components/tour/tour-view-panel";
 import {
   TOUR_LANGUAGES,
   TOUR_LANG_FLAGS,
   buildTourPublicUrl,
 } from "@/lib/tour-i18n";
 import type { Tour } from "@/lib/types";
-import { useState } from "react";
 
 interface TourDetailClientProps {
   tour: Tour;
   isAdmin: boolean;
-  userAgencyId: string | null;
 }
 
-export function TourDetailClient({
-  tour,
-  isAdmin,
-  userAgencyId,
-}: TourDetailClientProps) {
+export function TourDetailClient({ tour, isAdmin }: TourDetailClientProps) {
   const router = useRouter();
-  const [pricesOpen, setPricesOpen] = useState(false);
   const publicUrl = tour.tour_url || buildTourPublicUrl(tour.id);
 
   return (
@@ -41,7 +34,9 @@ export function TourDetailClient({
           </Button>
           <div>
             <h1 className="text-2xl font-bold">{tour.name}</h1>
-            <p className="text-sm text-muted-foreground">Tur detay ve içerik yönetimi</p>
+            <p className="text-sm text-muted-foreground">
+              {isAdmin ? "Tur detay ve içerik yönetimi" : "Tur bilgileri (salt okunur)"}
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -51,71 +46,85 @@ export function TourDetailClient({
               Müşteri Sayfası
             </a>
           </Button>
-          {(isAdmin || userAgencyId) && (
-            <Button variant="outline" onClick={() => setPricesOpen(true)}>
-              Fiyatlar
-            </Button>
-          )}
         </div>
       </div>
 
-      <Tabs defaultValue="content" className="w-full">
-        <TabsList>
-          <TabsTrigger value="content">İçerik & Medya</TabsTrigger>
-          <TabsTrigger value="preview">Önizleme & PDF</TabsTrigger>
-        </TabsList>
+      {isAdmin ? (
+        <Tabs defaultValue="content" className="w-full">
+          <TabsList>
+            <TabsTrigger value="content">Düzenle</TabsTrigger>
+            <TabsTrigger value="preview">Önizleme & PDF</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="content" className="mt-6">
-          <div className="rounded-lg border bg-card p-6">
-            <TourForm
-              open={true}
-              onOpenChange={() => {}}
-              tour={tour}
-              variant="page"
-              onSave={() => router.refresh()}
-            />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="preview" className="mt-6 space-y-4">
-          <div className="rounded-lg border p-4 space-y-4">
-            <h3 className="font-semibold">PDF Broşür İndir</h3>
-            <div className="flex flex-wrap gap-2">
-              {TOUR_LANGUAGES.map((lang) => (
-                <Button key={lang} variant="outline" asChild>
-                  <a
-                    href={`/api/tours/${tour.id}/pdf?lang=${lang}`}
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    PDF {TOUR_LANG_FLAGS[lang]}
-                  </a>
-                </Button>
-              ))}
+          <TabsContent value="content" className="mt-6">
+            <div className="rounded-lg border bg-card p-6">
+              <TourForm
+                open={true}
+                onOpenChange={() => {}}
+                tour={tour}
+                variant="page"
+                onSave={() => router.refresh()}
+              />
             </div>
-          </div>
-          <div className="rounded-lg border overflow-hidden">
-            <p className="text-sm text-muted-foreground p-3 border-b bg-muted/50">
-              Müşteri görünümü önizlemesi
-            </p>
-            <iframe
-              src={`/tour/${tour.id}`}
-              title="Tur önizleme"
-              className="w-full h-[min(70vh,800px)] border-0"
-            />
-          </div>
-        </TabsContent>
-      </Tabs>
+          </TabsContent>
 
-      <TourPrices
-        open={pricesOpen}
-        onOpenChange={setPricesOpen}
-        tour={tour}
-        agencyId={isAdmin ? null : userAgencyId}
-        isAdmin={isAdmin}
-      />
+          <TabsContent value="preview" className="mt-6 space-y-4">
+            <TourPreviewSection tourId={tour.id} />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <Tabs defaultValue="info" className="w-full">
+          <TabsList>
+            <TabsTrigger value="info">Tur Bilgileri</TabsTrigger>
+            <TabsTrigger value="preview">Önizleme & PDF</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="info" className="mt-6">
+            <div className="rounded-lg border bg-card p-6">
+              <TourViewPanel tour={tour} />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="preview" className="mt-6 space-y-4">
+            <TourPreviewSection tourId={tour.id} />
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
+  );
+}
+
+function TourPreviewSection({ tourId }: { tourId: string }) {
+  return (
+    <>
+      <div className="rounded-lg border p-4 space-y-4">
+        <h3 className="font-semibold">PDF Broşür İndir</h3>
+        <div className="flex flex-wrap gap-2">
+          {TOUR_LANGUAGES.map((lang) => (
+            <Button key={lang} variant="outline" asChild>
+              <a
+                href={`/api/tours/${tourId}/pdf?lang=${lang}`}
+                download
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                PDF {TOUR_LANG_FLAGS[lang]}
+              </a>
+            </Button>
+          ))}
+        </div>
+      </div>
+      <div className="rounded-lg border overflow-hidden">
+        <p className="text-sm text-muted-foreground p-3 border-b bg-muted/50">
+          Müşteri görünümü önizlemesi
+        </p>
+        <iframe
+          src={`/tour/${tourId}`}
+          title="Tur önizleme"
+          className="w-full h-[min(70vh,800px)] border-0"
+        />
+      </div>
+    </>
   );
 }

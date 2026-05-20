@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { canManageTours, canViewTours } from "@/lib/auth-helpers";
 import { TourDetailClient } from "./tour-detail-client";
 import type { Tour } from "@/lib/types";
 
@@ -23,21 +24,19 @@ export default async function TourDetailPage({ params }: PageProps) {
     .eq("id", user.id)
     .single();
 
-  const isAdmin = profile?.role === "super_admin" || profile?.role === "admin";
+  if (!canViewTours(profile)) {
+    redirect("/dashboard");
+  }
+
+  const isAdmin = canManageTours(profile);
 
   const { data: tour, error } = await supabase.from("tours").select("*").eq("id", id).single();
 
   if (error || !tour) notFound();
 
-  if (!isAdmin && profile?.role !== "agency_admin") {
+  if (!isAdmin && !tour.is_active) {
     redirect("/tours");
   }
 
-  return (
-    <TourDetailClient
-      tour={tour as Tour}
-      isAdmin={isAdmin}
-      userAgencyId={profile?.agency_id ?? null}
-    />
-  );
+  return <TourDetailClient tour={tour as Tour} isAdmin={isAdmin} />;
 }

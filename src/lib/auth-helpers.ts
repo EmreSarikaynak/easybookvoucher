@@ -28,3 +28,16 @@ export function isAdmin(profile: Profile | null): boolean {
 export function isAgencyUser(profile: Profile | null): boolean {
     return profile?.role === "agency_admin" || profile?.role === "sales";
 }
+
+export function canManageTours(profile: Profile | null): boolean {
+    return isAdmin(profile);
+}
+
+export function canViewTours(profile: Profile | null): boolean {
+    if (!profile) return false;
+    if (isAdmin(profile)) return true;
+    return (
+        (profile.role === "agency_admin" || profile.role === "sales") &&
+        !!profile.agency_id
+    );
+}
