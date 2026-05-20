@@ -76,6 +76,7 @@ export async function createAnnouncement(
 
   revalidatePath("/settings");
   revalidatePath("/dashboard");
+  revalidatePath("/announcements");
 
   return { success: true, pushSent };
 }
@@ -136,5 +137,6 @@ export async function deleteAnnouncement(
 
   revalidatePath("/settings");
   revalidatePath("/dashboard");
+  revalidatePath("/announcements");
   return { success: true };
 }

@@ -2,104 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  FileText,
-  PlusCircle,
-  BarChart3,
-  Building2,
-  Users,
-  Settings,
-  MapPin,
-  Anchor,
-  Calendar,
-  Ship,
-  DollarSign,
-  MessageSquare,
-  Headphones,
-} from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Profile, UserRole } from "@/lib/types";
+import type { Profile } from "@/lib/types";
 import { Logo } from "./logo";
-
-const navigation = [
-  {
-    name: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    name: "Biletler",
-    href: "/vouchers",
-    icon: FileText,
-  },
-  {
-    name: "Yeni Bilet",
-    href: "/vouchers/new",
-    icon: PlusCircle,
-  },
-  {
-    name: "Raporlar",
-    href: "/reports",
-    icon: BarChart3,
-  },
-  {
-    name: "Turlar",
-    href: "/tours",
-    icon: MapPin,
-    adminOnly: true,
-  },
-  {
-    name: "Filo Yönetimi",
-    href: "/fleet",
-    icon: Anchor,
-    adminOnly: true,
-  },
-  {
-    name: "Operasyon Takvimi",
-    href: "/operations",
-    icon: Calendar,
-    adminOnly: true,
-  },
-  {
-    name: "Tekne Kiralamaları",
-    href: "/bookings",
-    icon: Ship,
-  },
-  {
-    name: "Tur Maliyetleri",
-    href: "/tour-costs",
-    icon: DollarSign,
-  },
-  {
-    name: "Acenteler",
-    href: "/agencies",
-    icon: Building2,
-    adminOnly: true,
-  },
-  {
-    name: "Kullanıcılar",
-    href: "/users",
-    icon: Users,
-    adminOnly: true,
-  },
-  {
-    name: "WhatsApp Logları",
-    href: "/whatsapp-logs",
-    icon: MessageSquare,
-    adminOnly: true,
-  },
-  {
-    name: "Destek Talepleri",
-    href: "/support",
-    icon: Headphones,
-  },
-  {
-    name: "Ayarlar",
-    href: "/settings",
-    icon: Settings,
-  },
-];
+import { filterDashboardNav } from "@/lib/dashboard-nav";
 
 interface SidebarProps {
   profile: Profile | null;
@@ -107,21 +13,7 @@ interface SidebarProps {
 
 export function Sidebar({ profile }: SidebarProps) {
   const pathname = usePathname();
-
-  const hasRole = (...roles: UserRole[]): boolean => {
-    if (!profile) return false;
-    return roles.includes(profile.role);
-  };
-
-  const isAdmin = hasRole("super_admin", "admin");
-  const canViewToursNav =
-    isAdmin ||
-    (hasRole("agency_admin", "sales") && !!profile?.agency_id);
-
-  const filteredNav = navigation.filter((item) => {
-    if (item.href === "/tours") return canViewToursNav;
-    return !item.adminOnly || isAdmin;
-  });
+  const filteredNav = filterDashboardNav(profile);
 
   return (
     <aside className="hidden lg:fixed lg:inset-y-0 lg:z-40 lg:flex lg:w-64 lg:flex-col">
@@ -136,10 +28,9 @@ export function Sidebar({ profile }: SidebarProps) {
             {filteredNav.map((item) => {
               const isActive =
                 pathname === item.href ||
-                (item.href !== "/dashboard" &&
-                  pathname.startsWith(item.href));
+                (item.href !== "/dashboard" && pathname.startsWith(item.href));
               return (
-                <li key={item.name}>
+                <li key={item.href}>
                   <Link
                     href={item.href}
                     className={cn(

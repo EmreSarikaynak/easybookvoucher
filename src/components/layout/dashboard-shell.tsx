@@ -42,7 +42,7 @@ export function DashboardShell({ children, profile }: DashboardShellProps) {
       </div>
 
       {/* Mobil Alt Navigasyon */}
-      <BottomNav />
+      <BottomNav profile={profile} />
 
       {/* Bildirim İzin Banner'ı */}
       <NotificationPrompt />
