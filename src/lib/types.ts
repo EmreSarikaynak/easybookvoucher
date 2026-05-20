@@ -1,3 +1,5 @@
+import type { TourTranslations } from "./tour-i18n";
+
 export type UserRole = "super_admin" | "admin" | "agency_admin" | "sales";
 
 export type CurrencyType = "TRY" | "EUR" | "USD" | "GBP";
@@ -40,6 +42,8 @@ export interface Tour {
   duration: string | null;
   pickup_locations: string[];
   images: string[];
+  videos?: string[];
+  translations?: TourTranslations;
   tour_url: string | null;
   is_active: boolean;
   created_at: string;

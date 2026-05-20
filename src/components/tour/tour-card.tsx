@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { Edit, Trash2, DollarSign, ImageIcon } from "lucide-react";
+import Link from "next/link";
+import { Edit, Trash2, DollarSign, ImageIcon, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -74,13 +75,27 @@ export function TourCard({
         )}
 
         {/* Actions */}
-        <div className="flex gap-2 pt-2">
+        <div className="flex flex-wrap gap-2 pt-2">
+          {isAdmin && (
+            <Button size="sm" variant="outline" asChild>
+              <Link href={`/tours/${tour.id}`}>
+                <Edit className="mr-1 h-3 w-3" />
+                Detay
+              </Link>
+            </Button>
+          )}
           {isAdmin && onEdit && (
             <Button size="sm" variant="outline" onClick={() => onEdit(tour)}>
               <Edit className="mr-1 h-3 w-3" />
-              Düzenle
+              Hızlı Düzenle
             </Button>
           )}
+          <Button size="sm" variant="outline" asChild>
+            <Link href={`/tour/${tour.id}`} target="_blank">
+              <ExternalLink className="mr-1 h-3 w-3" />
+              Sayfa
+            </Link>
+          </Button>
           {onManagePrices && (
             <Button
               size="sm"

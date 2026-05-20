@@ -3,6 +3,10 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
 import { formatDbError } from "@/lib/error-messages";
+import {
+  primaryTranslationName,
+  type TourTranslations,
+} from "@/lib/tour-i18n";
 import type { Agency, CurrencyType } from "@/lib/types";
 
 export async function uploadTourImages(formData: FormData): Promise<{ urls?: string[]; error?: string }> {
@@ -45,6 +49,46 @@ export async function uploadTourImages(formData: FormData): Promise<{ urls?: str
   return { urls };
 }
 
+export async function uploadTourVideos(formData: FormData): Promise<{ urls?: string[]; error?: string }> {
+  const supabase = await createServerSupabaseClient();
+  const files = formData.getAll("files") as File[];
+
+  if (!files?.length) {
+    return { error: "Dosya seçilmedi" };
+  }
+
+  const urls: string[] = [];
+
+  for (const file of files) {
+    if (!file?.size || !file?.name) continue;
+
+    const fileExt = file.name.split(".").pop()?.toLowerCase() || "mp4";
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const { error } = await supabase.storage
+      .from("tour-videos")
+      .upload(fileName, buffer, {
+        contentType: file.type || "video/mp4",
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (error) {
+      console.error("Tour video upload error:", error);
+      return { error: formatDbError({ message: error.message }) };
+    }
+
+    const { data } = supabase.storage.from("tour-videos").getPublicUrl(fileName);
+    urls.push(data.publicUrl);
+  }
+
+  if (urls.length === 0) return { error: "Geçerli video yüklenemedi" };
+  return { urls };
+}
+
 interface TourPayload {
   name: string;
   description: string | null;
@@ -53,6 +97,8 @@ interface TourPayload {
   currency: CurrencyType;
   pickup_locations: string[];
   images: string[];
+  videos: string[];
+  translations: TourTranslations;
   tour_url: string | null;
   is_active: boolean;
   tour_managers?: { name: string; phone: string }[];
@@ -62,17 +108,20 @@ interface TourPayload {
   base_price_child_try?: number;
 }
 
-export async function createTour(payload: TourPayload) {
-  const supabase = await createServerSupabaseClient();
+function buildTourRow(payload: TourPayload) {
+  const primaryName = primaryTranslationName(payload.translations) || payload.name;
+  const trDesc = payload.translations.tr?.description?.trim() || payload.description;
 
-  const { error } = await supabase.from("tours").insert({
-    name: payload.name,
-    description: payload.description,
+  return {
+    name: primaryName,
+    description: trDesc || null,
     duration: payload.duration,
     default_price: payload.default_price,
     currency: payload.currency,
     pickup_locations: payload.pickup_locations ?? [],
     images: payload.images ?? [],
+    videos: payload.videos ?? [],
+    translations: payload.translations ?? {},
     tour_url: payload.tour_url,
     is_active: payload.is_active,
     tour_managers: payload.tour_managers ?? [],
@@ -80,7 +129,17 @@ export async function createTour(payload: TourPayload) {
     base_price_child_eur: payload.base_price_child_eur ?? 0,
     base_price_adult_try: payload.base_price_adult_try ?? 0,
     base_price_child_try: payload.base_price_child_try ?? 0,
-  });
+  };
+}
+
+export async function createTour(payload: TourPayload) {
+  const supabase = await createServerSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("tours")
+    .insert(buildTourRow(payload))
+    .select("id")
+    .single();
 
   if (error) {
     console.error("Tour create error:", error);
@@ -88,31 +147,13 @@ export async function createTour(payload: TourPayload) {
   }
 
   revalidatePath("/tours");
-  return { success: true };
+  return { success: true, id: data?.id as string };
 }
 
 export async function updateTour(id: string, payload: TourPayload) {
   const supabase = await createServerSupabaseClient();
 
-  const { error } = await supabase
-    .from("tours")
-    .update({
-      name: payload.name,
-      description: payload.description,
-      duration: payload.duration,
-      default_price: payload.default_price,
-      currency: payload.currency,
-      pickup_locations: payload.pickup_locations ?? [],
-      images: payload.images ?? [],
-      tour_url: payload.tour_url,
-      is_active: payload.is_active,
-      tour_managers: payload.tour_managers ?? [],
-      base_price_adult_eur: payload.base_price_adult_eur ?? 0,
-      base_price_child_eur: payload.base_price_child_eur ?? 0,
-      base_price_adult_try: payload.base_price_adult_try ?? 0,
-      base_price_child_try: payload.base_price_child_try ?? 0,
-    })
-    .eq("id", id);
+  const { error } = await supabase.from("tours").update(buildTourRow(payload)).eq("id", id);
 
   if (error) {
     console.error("Tour update error:", error);
@@ -120,7 +161,19 @@ export async function updateTour(id: string, payload: TourPayload) {
   }
 
   revalidatePath("/tours");
+  revalidatePath(`/tours/${id}`);
+  revalidatePath(`/tour/${id}`);
   return { success: true };
+}
+
+export async function getTourById(id: string) {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase.from("tours").select("*").eq("id", id).single();
+
+  if (error) {
+    return { tour: null, error: formatDbError(error) };
+  }
+  return { tour: data, error: null };
 }
 
 export interface AgencyTourPriceRow {
@@ -150,10 +203,7 @@ export async function getTourPricesData(
   const { data: agencies } = await agencyQuery;
   const agenciesList = agencies ?? [];
 
-  let pricesQuery = supabase
-    .from("agency_tour_prices")
-    .select("*")
-    .eq("tour_id", tourId);
+  let pricesQuery = supabase.from("agency_tour_prices").select("*").eq("tour_id", tourId);
   if (agencyId) pricesQuery = pricesQuery.eq("agency_id", agencyId);
   const { data: pricesData } = await pricesQuery;
 
@@ -178,7 +228,6 @@ export async function saveAgencyTourPrices(
     id?: string;
     agency_id: string;
     currency: CurrencyType;
-    // Either pass `price` (legacy, mirrored to price_adult) or new fields.
     price?: number;
     price_adult?: number | null;
     price_child?: number;
@@ -195,7 +244,6 @@ export async function saveAgencyTourPrices(
       agency_id: r.agency_id,
       tour_id: tourId,
       currency: r.currency,
-      // Mirror to legacy `price` so old readers keep working.
       price: adult,
       price_adult: adult,
       price_child: r.price_child ?? 0,
@@ -226,10 +274,6 @@ export interface TourBasePriceUpdate {
   base_price_child_try: number;
 }
 
-/**
- * Admin: bulk-update standard base prices for multiple tours at once.
- * Used by the Tour Costs page editor.
- */
 export async function updateTourBasePrices(updates: TourBasePriceUpdate[]) {
   if (!updates.length) return { success: true };
 
@@ -266,10 +310,7 @@ export async function updateTourBasePrices(updates: TourBasePriceUpdate[]) {
 export async function deleteTour(id: string) {
   const supabase = await createServerSupabaseClient();
 
-  const { error } = await supabase
-    .from("tours")
-    .update({ is_active: false })
-    .eq("id", id);
+  const { error } = await supabase.from("tours").update({ is_active: false }).eq("id", id);
 
   if (error) {
     console.error("Tour delete error:", error);

@@ -1,9 +1,9 @@
 /**
  * Multi-language support for voucher tickets
- * Supports English (en) and Turkish (tr)
+ * Voucher UI: en, tr. Tour panel also uses ru, pl via tour-i18n.ts
  */
 
-export type Language = 'en' | 'tr';
+export type Language = 'en' | 'tr' | 'ru' | 'pl';
 
 export interface VoucherTranslations {
     // Header
@@ -108,7 +108,8 @@ export const translations: Record<Language, VoucherTranslations> = {
  * @returns Translation object
  */
 export function getTranslations(lang: Language = 'tr'): VoucherTranslations {
-    return translations[lang] || translations.tr;
+    if (lang === 'en') return translations.en;
+    return translations.tr;
 }
 
 /**
