@@ -10,9 +10,8 @@ create table if not exists public.announcements (
   created_at timestamptz not null default now()
 );
 
-create index if not exists announcements_active_idx
-  on public.announcements (expires_at desc)
-  where expires_at > now();
+create index if not exists announcements_expires_at_idx
+  on public.announcements (expires_at desc);
 
 create index if not exists announcements_target_role_idx
   on public.announcements (target_role);
