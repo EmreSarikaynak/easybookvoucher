@@ -18,7 +18,7 @@ import { ExchangeRates } from "@/components/settings/exchange-rates";
 import { LogoSettings } from "@/components/settings/logo-settings";
 import { NotificationSettings } from "@/components/settings/notification-settings";
 import { InstallAppCard } from "@/components/pwa/install-app-card";
-import { PushSendPanel } from "@/components/settings/push-send-panel";
+import { AnnouncementsManager } from "@/components/settings/announcements-manager";
 import type { Profile } from "@/lib/types";
 
 interface SettingsClientProps {
@@ -241,8 +241,8 @@ export function SettingsClient({ profile, siteLogo: initialSiteLogo, adminWhatsa
 
                     <Separator />
 
-                    {/* Push Bildirim Gönder */}
-                    <PushSendPanel />
+                    {/* Duyuru Yönetimi (kayan yazı + push) */}
+                    <AnnouncementsManager />
 
                     <Separator />
 

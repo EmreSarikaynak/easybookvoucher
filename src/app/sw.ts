@@ -67,17 +67,29 @@ const serwist = new Serwist({
 
 serwist.addEventListeners();
 
-// Push notification event handler
+// Push notification event handler — zil sesli + titreşimli uyarı
 self.addEventListener("push", ((event: any) => {
     const data = event.data?.json() ?? {};
     const title = data.title || "EasyBook Bildirim";
-    const options: NotificationOptions = {
+    const url = data.url || data.data?.url || "/dashboard";
+    const options: NotificationOptions & {
+        vibrate?: number[];
+        renotify?: boolean;
+        sound?: string;
+    } = {
         body: data.body || "Yeni bir bildiriminiz var",
         icon: "/icons/icon-192x192.png",
         badge: "/icons/icon-192x192.png",
-        data: data.data || {},
+        data: { ...(data.data || {}), url },
         tag: data.tag || "default",
-        requireInteraction: data.requireInteraction || false,
+        // requireInteraction: kullanıcı kapatana kadar gözüksün
+        requireInteraction: data.requireInteraction ?? true,
+        // silent:false — sistem varsayılan bildirim sesini çalsın
+        silent: false,
+        // Android/Chrome'da titreşim deseni (zil benzeri)
+        vibrate: [200, 100, 200, 100, 200],
+        // Aynı tag'le tekrar gelirse yeni bildirim olarak gözüksün (ses tekrar çalsın)
+        renotify: true,
     };
 
     event.waitUntil(

@@ -13,6 +13,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getCurrentUser, isAdmin } from "@/lib/auth-helpers";
+import { AnnouncementMarquee } from "@/components/dashboard/announcement-marquee";
 import Link from "next/link";
 
 interface StatCard {
@@ -246,6 +247,8 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <AnnouncementMarquee role={profile?.role ?? null} />
+
       <div>
         <h1 className="text-xl sm:text-2xl font-bold">{greeting}</h1>
         <p className="text-sm text-muted-foreground">
