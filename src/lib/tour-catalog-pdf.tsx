@@ -57,23 +57,55 @@ export interface CatalogPriceInput {
 }
 
 // --- Font kaydı ---
-let fontsRegistered = false;
-function registerFonts() {
-  if (fontsRegistered) return;
-  const reg = path.join(process.cwd(), "public", "fonts", "NotoSans-Regular.ttf");
-  const bold = path.join(process.cwd(), "public", "fonts", "NotoSans-Bold.ttf");
-  const display = path.join(process.cwd(), "public", "fonts", "Fredoka-Variable.ttf");
+// Cloudflare Workers'da local filesystem yok; URL ile register etmek gerekiyor.
+// Node dev modunda lokal yol çalışır. Üretim: bir baseUrl (deploy origin) gerekir.
+// generateTourCatalogPdfBuffer çağrılırken baseUrl iletilirse fontlar oradan fetch edilir.
+let fontsRegisteredFor: string | null = null;
+
+function isNodeWithFs(): boolean {
+  // Cloudflare Workers'da process.versions.node yok ama nodejs_compat varsa olabilir.
+  // Asıl ölçü: fs/sync read mümkün mü? Heuristik: process.cwd() != "/" değilse local kullan.
+  try {
+    return typeof process !== "undefined" && !!process.versions?.node && process.cwd() !== "/";
+  } catch {
+    return false;
+  }
+}
+
+function registerFonts(baseUrl?: string | null) {
+  // Aynı kaynak için tekrar register yapma (cache)
+  const key = baseUrl ?? (isNodeWithFs() ? "__local__" : "__missing__");
+  if (fontsRegisteredFor === key) return;
+
+  let regular: string;
+  let bold: string;
+  let display: string;
+
+  if (baseUrl) {
+    const base = baseUrl.replace(/\/$/, "");
+    regular = `${base}/fonts/NotoSans-Regular.ttf`;
+    bold = `${base}/fonts/NotoSans-Bold.ttf`;
+    display = `${base}/fonts/Fredoka-Variable.ttf`;
+  } else if (isNodeWithFs()) {
+    regular = path.join(process.cwd(), "public", "fonts", "NotoSans-Regular.ttf");
+    bold = path.join(process.cwd(), "public", "fonts", "NotoSans-Bold.ttf");
+    display = path.join(process.cwd(), "public", "fonts", "Fredoka-Variable.ttf");
+  } else {
+    throw new Error(
+      "Font yüklenemedi: ne baseUrl ne de local FS erişimi var. generateTourCatalogPdfBuffer'a logoUrl/baseUrl geçirin veya yerel Node'da çalıştırın."
+    );
+  }
 
   Font.register({
     family: "NotoSans",
     fonts: [
-      { src: reg, fontWeight: 400 },
+      { src: regular, fontWeight: 400 },
       { src: bold, fontWeight: 700 },
     ],
   });
   Font.register({ family: "Display", fonts: [{ src: display, fontWeight: 700 }] });
   Font.registerHyphenationCallback((w) => [w]);
-  fontsRegistered = true;
+  fontsRegisteredFor = key;
 }
 
 // --- Marka & palet ---
@@ -861,6 +893,9 @@ export interface GenerateCatalogOpts {
   lang: CatalogLang;
   agencyName?: string | null;
   logoUrl?: string | null;
+  /** Cloudflare Workers'da fontları URL'den fetch etmek için gerekli (ör. "https://bodrumdayiz.com.tr").
+   *  Verilmezse Node FS'den yüklenir; Workers'da bu başarısız olur. */
+  baseUrl?: string | null;
 }
 
 function chunkPairs<T>(arr: T[]): T[][] {
@@ -872,7 +907,7 @@ function chunkPairs<T>(arr: T[]): T[][] {
 export async function generateTourCatalogPdfBuffer(
   opts: GenerateCatalogOpts
 ): Promise<Buffer> {
-  registerFonts();
+  registerFonts(opts.baseUrl ?? null);
 
   const { tours, prices, lang, agencyName, logoUrl } = opts;
   const priceMap = new Map(prices.map((p) => [p.tour_id, p]));

@@ -56,12 +56,17 @@ export async function GET(request: NextRequest) {
 
   try {
     const logoUrl = (await getSetting("site_logo")) as string | null;
+    const baseUrl =
+      request.nextUrl.origin ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      "https://bodrumdayiz.com.tr";
     const buffer = await generateTourCatalogPdfBuffer({
       tours: dataset.tours,
       prices: dataset.prices,
       lang,
       agencyName: dataset.agencyName,
       logoUrl,
+      baseUrl,
     });
 
     const safeAgency = dataset.agencyName
@@ -78,9 +83,10 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (e) {
+    const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
     console.error("Catalog PDF error:", e);
     return NextResponse.json(
-      { error: "PDF oluşturulamadı" },
+      { error: "PDF oluşturulamadı", detail: msg },
       { status: 500 }
     );
   }

@@ -81,12 +81,17 @@ export async function POST(request: Request) {
     }
 
     const logoUrl = (await getSetting("site_logo")) as string | null;
+    const baseUrl =
+      new URL(request.url).origin ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      "https://bodrumdayiz.com.tr";
     const pdfBuffer = await generateTourCatalogPdfBuffer({
       tours: dataset.tours,
       prices: dataset.prices,
       lang,
       agencyName: dataset.agencyName,
       logoUrl,
+      baseUrl,
     });
 
     const serviceSupabase = createServiceRoleClient();
