@@ -388,7 +388,8 @@ export async function sendVoucherPDFNotifications(
     const { adminBody, agencyBody, customerBody } = buildPdfWhatsAppBodies(
         opts.pdfUrl,
         v,
-        opts.isRevised
+        opts.isRevised,
+        opts.imageUrl  // JPEG linki mesaj body'ye de dahil edilir
     );
 
     const easybookNorm = normalisePhone(easybookPhone);

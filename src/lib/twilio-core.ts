@@ -76,11 +76,13 @@ function buildWaMeLink(phone: string | null | undefined): string {
  * - admin: tüm operasyonel detay + müşteri wa.me linki
  * - agency: acenteye özel özet (iç link yok)
  * - customer: misafire nazik TR/EN metin (acente adı yok)
+ * imageUrl varsa mesaj body'e de eklenir — media attachment gitmese bile link görünür.
  */
 export function buildPdfWhatsAppBodies(
   pdfUrl: string,
   voucher: VoucherPDFInfo,
-  isRevised?: boolean
+  isRevised?: boolean,
+  imageUrl?: string | null
 ): PdfWhatsAppBodies {
   const dateTr = formatTourDate(voucher.tourDate, tr);
   const dateEn = formatTourDate(voucher.tourDate);
@@ -112,6 +114,7 @@ export function buildPdfWhatsAppBodies(
     `👥 PAX: ${paxStr}\n` +
     `🏢 Acente: ${agencyName}\n` +
     (waCustomerLink ? `💬 Müşteri İle Yazış: ${waCustomerLink}\n` : "") +
+    (imageUrl ? `\n🖼 *Bilet Görseli (JPEG):*\n${imageUrl}\n` : "") +
     `\n📄 *PDF Bilet:*\n${pdfUrl}\n\n` +
     `Bu otomatik bir bildirimdir.`;
 
@@ -132,6 +135,7 @@ export function buildPdfWhatsAppBodies(
     (voucher.pickupPlace ? `📍 Alış: ${voucher.pickupPlace}\n` : "") +
     (pickupLabel ? `⏰ Saat: ${pickupLabel}\n` : "") +
     `👥 PAX: ${paxStr}\n` +
+    (imageUrl ? `\n🖼 *Bilet Görseli:*\n${imageUrl}\n` : "") +
     `\n📄 *PDF Bilet:*\n${pdfUrl}\n\n` +
     `İyi çalışmalar.`;
 
@@ -150,6 +154,7 @@ export function buildPdfWhatsAppBodies(
       (voucher.pickupPlace ? `📍 Alış Noktası: ${voucher.pickupPlace}\n` : "") +
       (pickupLabel ? `⏰ Alış Saati: ${pickupLabel}\n` : "") +
       `👥 Kişi Sayısı: ${paxStr}\n` +
+      (imageUrl ? `\n🖼 *Bilet Görseli:*\n${imageUrl}\n` : "") +
       `\n📄 *Biletiniz (PDF):*\n${pdfUrl}\n\n` +
       `Sorularınız için bize WhatsApp üzerinden ulaşabilirsiniz.\n` +
       `İyi tatiller dileriz! 🌊`
@@ -163,6 +168,7 @@ export function buildPdfWhatsAppBodies(
       (voucher.pickupPlace ? `📍 Pickup: ${voucher.pickupPlace}\n` : "") +
       (pickupLabel ? `⏰ Pickup Time: ${pickupLabel}\n` : "") +
       `👥 Guests: ${paxStr}\n` +
+      (imageUrl ? `\n🖼 *Ticket Image:*\n${imageUrl}\n` : "") +
       `\n📄 *Your Ticket (PDF):*\n${pdfUrl}\n\n` +
       `If you have any questions, please contact us via WhatsApp.\n` +
       `Have a wonderful holiday! 🌊`;
@@ -195,15 +201,11 @@ function resolveWhatsAppMediaUrl(
   return undefined;
 }
 
+/** Media template variable "1" için tam URL döndürür.
+ *  Twilio media header'ı tam URL bekler, sadece dosya adı değil. */
 function getMediaVariableFromUrl(mediaUrl?: string | null): string | null {
   if (!mediaUrl) return null;
-  try {
-    const url = new URL(mediaUrl);
-    const filename = url.pathname.split("/").filter(Boolean).pop();
-    return filename || null;
-  } catch {
-    return mediaUrl.split("/").filter(Boolean).pop() || null;
-  }
+  return mediaUrl; // tam URL (örn. https://…/voucher-pdfs/abc.jpg)
 }
 
 /** Cloudflare Workers uyumlu — Twilio REST API (SDK yok). */
@@ -394,7 +396,8 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
   const { adminBody, agencyBody, customerBody } = buildPdfWhatsAppBodies(
     opts.pdfUrl,
     opts.voucher,
-    opts.isRevised
+    opts.isRevised,
+    opts.imageUrl  // JPEG URL mesaj body'e de eklenir (ek gönderilemese bile link kalır)
   );
 
   const easybookNorm = normalisePhone(easybookPhone);
