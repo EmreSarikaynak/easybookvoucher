@@ -8,6 +8,10 @@ import {
   fetchCatalogPdfDataset,
 } from "@/lib/tour-catalog-data";
 import { sendWhatsAppViaFetch } from "@/lib/twilio-core";
+import { getSetting } from "@/app/actions/settings";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
 /**
  * Tur kataloğu PDF'ini sunucuda üretir, Storage'a yükler ve
@@ -76,11 +80,13 @@ export async function POST(request: Request) {
       );
     }
 
+    const logoUrl = (await getSetting("site_logo")) as string | null;
     const pdfBuffer = await generateTourCatalogPdfBuffer({
       tours: dataset.tours,
       prices: dataset.prices,
       lang,
       agencyName: dataset.agencyName,
+      logoUrl,
     });
 
     const serviceSupabase = createServiceRoleClient();

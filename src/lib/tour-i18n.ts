@@ -13,6 +13,9 @@ export interface TourTranslationContent {
   name: string;
   description: string;
   highlights: string[];
+  included: string[];
+  excluded: string[];
+  details: string[];
 }
 
 export type TourTranslations = Partial<Record<TourLang, TourTranslationContent>>;
@@ -32,7 +35,14 @@ export const TOUR_LANG_FLAGS: Record<TourLang, string> = {
 };
 
 export function emptyTourTranslation(): TourTranslationContent {
-  return { name: "", description: "", highlights: [] };
+  return {
+    name: "",
+    description: "",
+    highlights: [],
+    included: [],
+    excluded: [],
+    details: [],
+  };
 }
 
 export function emptyTourTranslations(): TourTranslations {
@@ -59,6 +69,9 @@ export function normalizeTourTranslations(
       name: t?.name ?? (lang === "tr" ? legacyName : ""),
       description: t?.description ?? (lang === "tr" ? legacyDescription ?? "" : ""),
       highlights: t?.highlights ?? [],
+      included: t?.included ?? [],
+      excluded: t?.excluded ?? [],
+      details: t?.details ?? [],
     };
   }
   return base;
@@ -77,7 +90,14 @@ export function getTourContentForLang(
     const c = normalized[fallback];
     if (c?.name?.trim()) return c;
   }
-  return { name: legacyName, description: legacyDescription ?? "", highlights: [] };
+  return {
+    name: legacyName,
+    description: legacyDescription ?? "",
+    highlights: [],
+    included: [],
+    excluded: [],
+    details: [],
+  };
 }
 
 export function primaryTranslationName(translations: TourTranslations): string {
@@ -185,35 +205,127 @@ export interface CatalogUiStrings {
   pricesEur: string;
   allTours: string;
   generatedOn: string;
+  /** Yeni katalog şablonu (Faz 3) */
+  tableOfContents: string;
+  contactPage: string;
+  duration: string;
+  departure: string;
+  departureDays: string;
+  departureTime: string;
+  meetingPoint: string;
+  included: string;
+  excluded: string;
+  highlights: string;
+  tourDetails: string;
+  priceOnRequest: string;
+  page: string;
+  pageOf: (a: number, b: number) => string;
+  toursCountSuffix: (n: number) => string;
+  weekdays: Record<
+    "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday",
+    string
+  >;
 }
 
 export const CATALOG_PAGE_UI: Record<CatalogLang, CatalogUiStrings> = {
   tr: {
-    catalogTitle: "Tur Kataloğu",
-    tourCatalog: "Easy Book Tours — Tur Kataloğu",
+    catalogTitle: "Tur Kataloğu 2026",
+    tourCatalog: "Tur Kataloğu 2026",
     adultPrice: "Yetişkin",
     childPrice: "Çocuk",
     pricesEur: "Fiyatlar (EUR)",
     allTours: "Tüm Turlar",
     generatedOn: "Oluşturulma",
+    tableOfContents: "İçindekiler",
+    contactPage: "İletişim",
+    duration: "Süre",
+    departure: "Kalkış",
+    departureDays: "Kalkış Günleri",
+    departureTime: "Kalkış Saati",
+    meetingPoint: "Buluşma Noktası",
+    included: "Dahil Olanlar",
+    excluded: "Dahil Olmayanlar",
+    highlights: "Tur Programı",
+    tourDetails: "Tur Detayları",
+    priceOnRequest: "Fiyat: Talep üzerine",
+    page: "Sayfa",
+    pageOf: (a, b) => `Sayfa ${a} / ${b}`,
+    toursCountSuffix: (n) => `${n} tur`,
+    weekdays: {
+      monday: "Pazartesi",
+      tuesday: "Salı",
+      wednesday: "Çarşamba",
+      thursday: "Perşembe",
+      friday: "Cuma",
+      saturday: "Cumartesi",
+      sunday: "Pazar",
+    },
   },
   en: {
-    catalogTitle: "Tour Catalog",
-    tourCatalog: "Easy Book Tours — Tour Catalog",
+    catalogTitle: "Tour Catalog 2026",
+    tourCatalog: "Tour Catalog 2026",
     adultPrice: "Adult",
     childPrice: "Child",
     pricesEur: "Prices (EUR)",
     allTours: "All Tours",
     generatedOn: "Generated",
+    tableOfContents: "Contents",
+    contactPage: "Contact",
+    duration: "Duration",
+    departure: "Departure",
+    departureDays: "Departure Days",
+    departureTime: "Departure Time",
+    meetingPoint: "Meeting Point",
+    included: "Included",
+    excluded: "Not Included",
+    highlights: "Tour Highlights",
+    tourDetails: "Tour Details",
+    priceOnRequest: "Price on request",
+    page: "Page",
+    pageOf: (a, b) => `Page ${a} / ${b}`,
+    toursCountSuffix: (n) => `${n} tours`,
+    weekdays: {
+      monday: "Monday",
+      tuesday: "Tuesday",
+      wednesday: "Wednesday",
+      thursday: "Thursday",
+      friday: "Friday",
+      saturday: "Saturday",
+      sunday: "Sunday",
+    },
   },
   ru: {
-    catalogTitle: "Каталог туров",
-    tourCatalog: "Easy Book Tours — Каталог туров",
+    catalogTitle: "Каталог туров 2026",
+    tourCatalog: "Каталог туров 2026",
     adultPrice: "Взрослый",
     childPrice: "Ребёнок",
     pricesEur: "Цены (EUR)",
     allTours: "Все туры",
     generatedOn: "Дата",
+    tableOfContents: "Содержание",
+    contactPage: "Контакты",
+    duration: "Длительность",
+    departure: "Отправление",
+    departureDays: "Дни отправления",
+    departureTime: "Время отправления",
+    meetingPoint: "Место встречи",
+    included: "Включено",
+    excluded: "Не включено",
+    highlights: "Программа тура",
+    tourDetails: "Подробности тура",
+    priceOnRequest: "Цена по запросу",
+    page: "Страница",
+    pageOf: (a, b) => `Страница ${a} / ${b}`,
+    toursCountSuffix: (n) => `${n} туров`,
+    weekdays: {
+      monday: "Понедельник",
+      tuesday: "Вторник",
+      wednesday: "Среда",
+      thursday: "Четверг",
+      friday: "Пятница",
+      saturday: "Суббота",
+      sunday: "Воскресенье",
+    },
   },
 };
 

@@ -7,6 +7,10 @@ import {
 } from "@/lib/tour-i18n";
 import { generateTourCatalogPdfBuffer } from "@/lib/tour-catalog-pdf";
 import { fetchCatalogPdfDataset } from "@/lib/tour-catalog-data";
+import { getSetting } from "@/app/actions/settings";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   const profile = await getCurrentUser();
@@ -51,11 +55,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const logoUrl = (await getSetting("site_logo")) as string | null;
     const buffer = await generateTourCatalogPdfBuffer({
       tours: dataset.tours,
       prices: dataset.prices,
       lang,
       agencyName: dataset.agencyName,
+      logoUrl,
     });
 
     const safeAgency = dataset.agencyName

@@ -6,8 +6,12 @@ import { formatDbError } from "@/lib/error-messages";
 import { canManageTours, getCurrentUser } from "@/lib/auth-helpers";
 import {
   primaryTranslationName,
+  TOUR_LANGUAGES,
+  type TourLang,
+  type TourTranslationContent,
   type TourTranslations,
 } from "@/lib/tour-i18n";
+import { translateTourBundle } from "@/lib/deepl";
 import type { Agency, CurrencyType } from "@/lib/types";
 
 async function assertTourAdmin(): Promise<{ error?: string }> {
@@ -121,6 +125,72 @@ interface TourPayload {
   base_price_child_eur?: number;
   base_price_adult_try?: number;
   base_price_child_try?: number;
+  departure_days?: string[];
+  departure_time?: string | null;
+  meeting_point?: string | null;
+}
+
+/** Bir TourTranslationContent tamamen boş mu (kullanıcı hiçbir alan girmemiş mi)? */
+function isLangEmpty(t: TourTranslationContent | undefined | null): boolean {
+  if (!t) return true;
+  const hasText =
+    t.name?.trim() ||
+    t.description?.trim() ||
+    (t.highlights ?? []).some((x) => x.trim()) ||
+    (t.details ?? []).some((x) => x.trim()) ||
+    (t.included ?? []).some((x) => x.trim()) ||
+    (t.excluded ?? []).some((x) => x.trim());
+  return !hasText;
+}
+
+/**
+ * TR doluysa, EN/RU/PL içinden tamamen boş olanları DeepL ile otomatik doldurur.
+ * DEEPL_API_KEY tanımlı değilse veya çeviri başarısızsa sessizce mevcut değerleri korur
+ * (kaydetme durmaz).
+ */
+async function autoTranslateEmptyLangs(
+  translations: TourTranslations
+): Promise<TourTranslations> {
+  if (!process.env.DEEPL_API_KEY) return translations;
+  const tr = translations.tr;
+  if (!tr || isLangEmpty(tr)) return translations;
+
+  const out: TourTranslations = { ...translations };
+  const targets: TourLang[] = TOUR_LANGUAGES.filter(
+    (l) => l !== "tr" && isLangEmpty(out[l])
+  );
+  if (!targets.length) return translations;
+
+  try {
+    await Promise.all(
+      targets.map(async (lang) => {
+        const r = await translateTourBundle(
+          {
+            name: tr.name,
+            description: tr.description,
+            highlights: tr.highlights ?? [],
+            details: tr.details ?? [],
+            included: tr.included ?? [],
+            excluded: tr.excluded ?? [],
+          },
+          lang,
+          "tr"
+        );
+        out[lang] = {
+          name: r.name ?? "",
+          description: r.description ?? "",
+          highlights: r.highlights ?? [],
+          details: r.details ?? [],
+          included: r.included ?? [],
+          excluded: r.excluded ?? [],
+        };
+      })
+    );
+  } catch (err) {
+    console.error("auto-translate failed:", err);
+    return translations; // sessiz fallback
+  }
+  return out;
 }
 
 function buildTourRow(payload: TourPayload) {
@@ -144,6 +214,9 @@ function buildTourRow(payload: TourPayload) {
     base_price_child_eur: payload.base_price_child_eur ?? 0,
     base_price_adult_try: payload.base_price_adult_try ?? 0,
     base_price_child_try: payload.base_price_child_try ?? 0,
+    departure_days: payload.departure_days ?? [],
+    departure_time: payload.departure_time || null,
+    meeting_point: payload.meeting_point?.trim() || null,
   };
 }
 
@@ -153,9 +226,12 @@ export async function createTour(payload: TourPayload) {
 
   const supabase = await createServerSupabaseClient();
 
+  const filledTranslations = await autoTranslateEmptyLangs(payload.translations);
+  const finalPayload: TourPayload = { ...payload, translations: filledTranslations };
+
   const { data, error } = await supabase
     .from("tours")
-    .insert(buildTourRow(payload))
+    .insert(buildTourRow(finalPayload))
     .select("id")
     .single();
 
@@ -174,7 +250,10 @@ export async function updateTour(id: string, payload: TourPayload) {
 
   const supabase = await createServerSupabaseClient();
 
-  const { error } = await supabase.from("tours").update(buildTourRow(payload)).eq("id", id);
+  const filledTranslations = await autoTranslateEmptyLangs(payload.translations);
+  const finalPayload: TourPayload = { ...payload, translations: filledTranslations };
+
+  const { error } = await supabase.from("tours").update(buildTourRow(finalPayload)).eq("id", id);
 
   if (error) {
     console.error("Tour update error:", error);

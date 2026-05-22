@@ -71,6 +71,9 @@ export function TourForm({
     base_price_child_eur: 0,
     base_price_adult_try: 0,
     base_price_child_try: 0,
+    departure_days: [] as string[],
+    departure_time: "" as string,
+    meeting_point: "" as string,
   });
 
   useEffect(() => {
@@ -96,6 +99,9 @@ export function TourForm({
         base_price_child_eur: tour.base_price_child_eur ?? 0,
         base_price_adult_try: tour.base_price_adult_try ?? 0,
         base_price_child_try: tour.base_price_child_try ?? 0,
+        departure_days: tour.departure_days ?? [],
+        departure_time: tour.departure_time ?? "",
+        meeting_point: tour.meeting_point ?? "",
       });
     } else {
       setFormData({
@@ -113,6 +119,9 @@ export function TourForm({
         base_price_child_eur: 0,
         base_price_adult_try: 0,
         base_price_child_try: 0,
+        departure_days: [],
+        departure_time: "",
+        meeting_point: "",
       });
     }
   }, [visible, tour]);
@@ -144,6 +153,9 @@ export function TourForm({
         base_price_child_eur: formData.base_price_child_eur,
         base_price_adult_try: formData.base_price_adult_try,
         base_price_child_try: formData.base_price_child_try,
+        departure_days: formData.departure_days,
+        departure_time: formData.departure_time || null,
+        meeting_point: formData.meeting_point || null,
       };
 
       const result =
@@ -253,6 +265,77 @@ export function TourForm({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3 rounded-md border p-3 bg-slate-50">
+        <Label className="text-sm font-semibold">Kalkış & Buluşma (Katalog PDF)</Label>
+        <div className="space-y-2">
+          <Label className="text-xs">Kalkış Günleri</Label>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["monday", "Pzt"],
+                ["tuesday", "Sal"],
+                ["wednesday", "Çar"],
+                ["thursday", "Per"],
+                ["friday", "Cum"],
+                ["saturday", "Cmt"],
+                ["sunday", "Paz"],
+              ] as const
+            ).map(([key, label]) => {
+              const active = formData.departure_days.includes(key);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() =>
+                    setFormData((p) => ({
+                      ...p,
+                      departure_days: active
+                        ? p.departure_days.filter((d) => d !== key)
+                        : [...p.departure_days, key],
+                    }))
+                  }
+                  className={`px-3 py-1 rounded-full text-xs border transition ${
+                    active
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="departure_time" className="text-xs">
+              Kalkış Saati
+            </Label>
+            <Input
+              id="departure_time"
+              type="time"
+              value={formData.departure_time}
+              onChange={(e) =>
+                setFormData((p) => ({ ...p, departure_time: e.target.value }))
+              }
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="meeting_point" className="text-xs">
+              Buluşma Noktası
+            </Label>
+            <Input
+              id="meeting_point"
+              placeholder="Bodrum Marina Liman Girişi"
+              value={formData.meeting_point}
+              onChange={(e) =>
+                setFormData((p) => ({ ...p, meeting_point: e.target.value }))
+              }
+            />
           </div>
         </div>
       </div>

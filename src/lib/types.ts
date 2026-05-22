@@ -48,6 +48,9 @@ export interface Tour {
   is_active: boolean;
   created_at: string;
   tour_managers?: { name: string; phone: string }[];
+  departure_days?: string[];
+  departure_time?: string | null;
+  meeting_point?: string | null;
   base_price_adult_eur?: number;
   base_price_child_eur?: number;
   base_price_adult_try?: number;
