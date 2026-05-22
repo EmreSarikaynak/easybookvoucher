@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, MapPin } from "lucide-react";
+import { Plus, MapPin, BookOpen } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { TourCard } from "./tour-card";
 import { TourForm } from "./tour-form";
@@ -61,12 +62,20 @@ export function ToursContent({ initialTours, isAdmin }: ToursContentProps) {
               : "Turları görüntüleyin, müşteri URL ve PDF broşür indirin"}
           </p>
         </div>
-        {isAdmin && (
-          <Button onClick={handleNewTour}>
-            <Plus className="mr-2 h-4 w-4" />
-            Yeni Tur
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/tours/catalog">
+              <BookOpen className="mr-2 h-4 w-4" />
+              Tur Kataloğu
+            </Link>
           </Button>
-        )}
+          {isAdmin && (
+            <Button onClick={handleNewTour}>
+              <Plus className="mr-2 h-4 w-4" />
+              Yeni Tur
+            </Button>
+          )}
+        </div>
       </div>
 
       {tours.length === 0 ? (

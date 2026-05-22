@@ -199,6 +199,10 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
       setError("PDF için acente seçin");
       return;
     }
+    if (dirtyCount > 0) {
+      setError("Kaydedilmemiş fiyatlar var. Önce Kaydet'e basın.");
+      return;
+    }
     setDownloading(lang);
     setError(null);
     try {
