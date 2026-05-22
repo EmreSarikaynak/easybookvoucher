@@ -11,6 +11,7 @@ import {
   ImageIcon,
   Euro,
   MessageCircle,
+  Languages,
 } from "lucide-react";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Button } from "@/components/ui/button";
@@ -74,6 +75,60 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
     type: "success" | "error";
     text: string;
   } | null>(null);
+  const [bulkTranslating, setBulkTranslating] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  const handleBulkTranslate = useCallback(async () => {
+    if (
+      !confirm(
+        "Tüm aktif turlar taranır. TR'si dolu ama EN/RU/PL'si tamamen boş olan diller DeepL ile doldurulur. Devam edilsin mi?"
+      )
+    ) {
+      return;
+    }
+    setBulkTranslating(true);
+    setBulkResult(null);
+    try {
+      const res = await fetch("/api/translate/bulk-tours", { method: "POST" });
+      const data = (await res.json()) as {
+        success?: boolean;
+        summary?: {
+          total: number;
+          translated: number;
+          skipped: number;
+          failed: number;
+          perLang: Record<string, number>;
+        };
+        errors?: string[];
+        error?: string;
+      };
+      if (!res.ok || !data.success || !data.summary) {
+        setBulkResult({
+          type: "error",
+          text: `Çeviri hatası: ${data.error ?? res.statusText}`,
+        });
+        return;
+      }
+      const s = data.summary;
+      const perLang = `EN: ${s.perLang.en ?? 0} · RU: ${s.perLang.ru ?? 0} · PL: ${s.perLang.pl ?? 0}`;
+      setBulkResult({
+        type: s.failed > 0 ? "error" : "success",
+        text: `Tarandı: ${s.total} tur · Çevrildi: ${s.translated} · Atlandı: ${s.skipped} · Hata: ${s.failed}\n${perLang}`,
+      });
+      // Sayfayı yenile ki yeni çeviriler önizleme tablosunda görünsün
+      router.refresh();
+    } catch (err) {
+      setBulkResult({
+        type: "error",
+        text: err instanceof Error ? err.message : "Ağ hatası",
+      });
+    } finally {
+      setBulkTranslating(false);
+    }
+  }, [router]);
 
   const [drafts, setDrafts] = useState<Record<string, PriceDraft>>(() => {
     const init: Record<string, PriceDraft> = {};
@@ -259,24 +314,51 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {CATALOG_LANGUAGES.map((lang) => (
-            <Button
-              key={lang}
-              variant="outline"
-              size="sm"
-              disabled={!selectedAgencyId || downloading !== null}
-              onClick={() => handleDownload(lang)}
+        <div className="flex flex-col items-stretch gap-2 sm:items-end">
+          <div className="flex flex-wrap gap-2">
+            {CATALOG_LANGUAGES.map((lang) => (
+              <Button
+                key={lang}
+                variant="outline"
+                size="sm"
+                disabled={!selectedAgencyId || downloading !== null}
+                onClick={() => handleDownload(lang)}
+              >
+                {downloading === lang ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-1.5 h-4 w-4" />
+                )}
+                <span className="mr-1">{TOUR_LANG_FLAGS[lang]}</span>
+                {TOUR_LANG_LABELS[lang]} PDF
+              </Button>
+            ))}
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={bulkTranslating}
+            onClick={handleBulkTranslate}
+            title="Tüm aktif turlarda TR doluysa boş EN/RU/PL alanlarını DeepL ile doldur"
+          >
+            {bulkTranslating ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <Languages className="mr-1.5 h-4 w-4" />
+            )}
+            {bulkTranslating ? "Çevriliyor… (30sn)" : "Tüm Boş Çevirileri Doldur"}
+          </Button>
+          {bulkResult ? (
+            <div
+              className={`text-xs whitespace-pre-line max-w-xs rounded border px-2 py-1.5 ${
+                bulkResult.type === "success"
+                  ? "border-green-300 bg-green-50 text-green-800"
+                  : "border-red-300 bg-red-50 text-red-800"
+              }`}
             >
-              {downloading === lang ? (
-                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="mr-1.5 h-4 w-4" />
-              )}
-              <span className="mr-1">{TOUR_LANG_FLAGS[lang]}</span>
-              {TOUR_LANG_LABELS[lang]} PDF
-            </Button>
-          ))}
+              {bulkResult.text}
+            </div>
+          ) : null}
         </div>
       </div>
 
