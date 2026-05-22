@@ -3,6 +3,10 @@
  */
 
 export const TOUR_LANGUAGES = ["tr", "en", "ru", "pl"] as const;
+
+/** Tur kataloğu PDF — indirilebilir diller */
+export const CATALOG_LANGUAGES = ["tr", "en", "ru"] as const;
+export type CatalogLang = (typeof CATALOG_LANGUAGES)[number];
 export type TourLang = (typeof TOUR_LANGUAGES)[number];
 
 export interface TourTranslationContent {
@@ -171,6 +175,50 @@ export const TOUR_PAGE_UI: Record<TourLang, TourPageUiStrings> = {
 
 export function getTourPageUi(lang: TourLang): TourPageUiStrings {
   return TOUR_PAGE_UI[lang] ?? TOUR_PAGE_UI.tr;
+}
+
+export interface CatalogUiStrings {
+  catalogTitle: string;
+  tourCatalog: string;
+  adultPrice: string;
+  childPrice: string;
+  pricesEur: string;
+  allTours: string;
+  generatedOn: string;
+}
+
+export const CATALOG_PAGE_UI: Record<CatalogLang, CatalogUiStrings> = {
+  tr: {
+    catalogTitle: "Tur Kataloğu",
+    tourCatalog: "Easy Book Tours — Tur Kataloğu",
+    adultPrice: "Yetişkin",
+    childPrice: "Çocuk",
+    pricesEur: "Fiyatlar (EUR)",
+    allTours: "Tüm Turlar",
+    generatedOn: "Oluşturulma",
+  },
+  en: {
+    catalogTitle: "Tour Catalog",
+    tourCatalog: "Easy Book Tours — Tour Catalog",
+    adultPrice: "Adult",
+    childPrice: "Child",
+    pricesEur: "Prices (EUR)",
+    allTours: "All Tours",
+    generatedOn: "Generated",
+  },
+  ru: {
+    catalogTitle: "Каталог туров",
+    tourCatalog: "Easy Book Tours — Каталог туров",
+    adultPrice: "Взрослый",
+    childPrice: "Ребёнок",
+    pricesEur: "Цены (EUR)",
+    allTours: "Все туры",
+    generatedOn: "Дата",
+  },
+};
+
+export function getCatalogPageUi(lang: CatalogLang): CatalogUiStrings {
+  return CATALOG_PAGE_UI[lang] ?? CATALOG_PAGE_UI.tr;
 }
 
 export function getYoutubeEmbedUrl(url: string): string | null {

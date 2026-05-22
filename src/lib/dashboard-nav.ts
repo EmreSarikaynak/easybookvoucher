@@ -15,6 +15,7 @@ import {
   MessageSquare,
   Headphones,
   Megaphone,
+  BookOpen,
 } from "lucide-react";
 import type { Profile, UserRole } from "@/lib/types";
 
@@ -38,6 +39,7 @@ export const DASHBOARD_NAV: DashboardNavItem[] = [
   { name: "Yeni Bilet", href: "/vouchers/new", icon: PlusCircle, bottomNavPriority: 3 },
   { name: "Raporlar", href: "/reports", icon: BarChart3 },
   { name: "Turlar", href: "/tours", icon: MapPin, toursMenu: true, bottomNavPriority: 4 },
+  { name: "Tur Kataloğu", href: "/tours/catalog", icon: BookOpen, toursMenu: true },
   { name: "Duyurular", href: "/announcements", icon: Megaphone, announcementsMenu: true, bottomNavPriority: 5 },
   { name: "Filo Yönetimi", href: "/fleet", icon: Anchor, adminOnly: true },
   { name: "Operasyon Takvimi", href: "/operations", icon: Calendar, adminOnly: true },
