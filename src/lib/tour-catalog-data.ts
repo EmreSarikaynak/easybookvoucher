@@ -85,6 +85,7 @@ export async function fetchCatalogPdfDataset(
         departure_days: t.departure_days ?? [],
         departure_time: t.departure_time ?? null,
         meeting_point: t.meeting_point ?? null,
+        catalog_background_url: t.catalog_background_url ?? null,
       })),
       prices,
     },

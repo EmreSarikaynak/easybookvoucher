@@ -128,6 +128,7 @@ interface TourPayload {
   departure_days?: string[];
   departure_time?: string | null;
   meeting_point?: string | null;
+  catalog_background_url?: string | null;
 }
 
 /** Bir TourTranslationContent tamamen boş mu (kullanıcı hiçbir alan girmemiş mi)? */
@@ -217,6 +218,7 @@ function buildTourRow(payload: TourPayload) {
     departure_days: payload.departure_days ?? [],
     departure_time: payload.departure_time || null,
     meeting_point: payload.meeting_point?.trim() || null,
+    catalog_background_url: payload.catalog_background_url?.trim() || null,
   };
 }
 

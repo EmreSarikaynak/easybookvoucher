@@ -47,6 +47,7 @@ export interface CatalogTourInput {
   departure_days?: string[];
   departure_time?: string | null;
   meeting_point?: string | null;
+  catalog_background_url?: string | null;
 }
 
 export interface CatalogPriceInput {
@@ -131,6 +132,27 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   footerText: { color: "#FFFFFF", fontSize: 8.5, fontWeight: 700 },
+
+  // -- A4 arkaplan (sayfanın ilk turunun catalog_background_url'i) --
+  pageBackground: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: PAGE_W,
+    height: PAGE_H,
+    opacity: 0.22,
+  },
+  pageBackgroundImg: { width: PAGE_W, height: PAGE_H, objectFit: "cover" },
+  // hafif beyaz overlay - okunabilirlik için
+  pageBackgroundWash: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: PAGE_W,
+    height: PAGE_H,
+    backgroundColor: "#FFFFFF",
+    opacity: 0.35,
+  },
 
   // -- 2-kart layout --
   cardsContainer: { flex: 1, justifyContent: "space-between" },
@@ -714,11 +736,20 @@ function TourCard({ lang, tour, imgs, price }: TourCardProps) {
 
 interface TourPageProps extends HFProps {
   pair: { tour: CatalogTourInput; imgs: (string | null)[]; price: { price_adult: number; price_child: number } }[];
+  backgroundDataUrl?: string | null;
 }
 
-function ToursPage({ lang, logoDataUrl, pair }: TourPageProps) {
+function ToursPage({ lang, logoDataUrl, pair, backgroundDataUrl }: TourPageProps) {
   return (
     <Page size="A4" style={styles.page}>
+      {backgroundDataUrl ? (
+        <>
+          <View style={styles.pageBackground}>
+            <Image style={styles.pageBackgroundImg} src={backgroundDataUrl} />
+          </View>
+          <View style={styles.pageBackgroundWash} />
+        </>
+      ) : null}
       <CatalogHeader lang={lang} logoDataUrl={logoDataUrl} />
       <View style={styles.cardsContainer}>
         {pair[0] && <TourCard lang={lang} {...pair[0]} />}
@@ -848,9 +879,12 @@ export async function generateTourCatalogPdfBuffer(
 
   const logoDataUrl = logoUrl ? await fetchImageAsDataUrl(logoUrl) : null;
 
-  // İlk 3 görsel her tur için (strip)
+  // İlk 3 görsel + her turun A4 arkaplan görseli (varsa)
   const urlSet = new Set<string>();
-  for (const t of tours) for (const u of (t.images ?? []).slice(0, 3)) if (u) urlSet.add(u);
+  for (const t of tours) {
+    for (const u of (t.images ?? []).slice(0, 3)) if (u) urlSet.add(u);
+    if (t.catalog_background_url) urlSet.add(t.catalog_background_url);
+  }
   const cache = new Map<string, string | null>();
   await Promise.all(
     Array.from(urlSet).map(async (u) => cache.set(u, await fetchImageAsDataUrl(u)))
@@ -876,9 +910,19 @@ export async function generateTourCatalogPdfBuffer(
     <Document>
       <CoverPage lang={lang} logoDataUrl={logoDataUrl} tourCount={tours.length} />
       <TocPage lang={lang} logoDataUrl={logoDataUrl} entries={tocEntries} />
-      {pairs.map((pair, i) => (
-        <ToursPage key={i} lang={lang} logoDataUrl={logoDataUrl} pair={pair} />
-      ))}
+      {pairs.map((pair, i) => {
+        const bgUrl = pair[0]?.tour.catalog_background_url ?? null;
+        const bgData = bgUrl ? cache.get(bgUrl) ?? null : null;
+        return (
+          <ToursPage
+            key={i}
+            lang={lang}
+            logoDataUrl={logoDataUrl}
+            pair={pair}
+            backgroundDataUrl={bgData}
+          />
+        );
+      })}
       <ContactPage lang={lang} logoDataUrl={logoDataUrl} agencyName={agencyName} />
     </Document>
   );
