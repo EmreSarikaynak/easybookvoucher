@@ -98,7 +98,13 @@ export function buildCatalogWhatsAppBody(
   agencyName?: string | null
 ): string {
   const today = new Date().toLocaleDateString(
-    lang === "tr" ? "tr-TR" : lang === "ru" ? "ru-RU" : "en-GB",
+    lang === "tr"
+      ? "tr-TR"
+      : lang === "ru"
+        ? "ru-RU"
+        : lang === "pl"
+          ? "pl-PL"
+          : "en-GB",
     { day: "2-digit", month: "long", year: "numeric" }
   );
 
@@ -124,6 +130,19 @@ export function buildCatalogWhatsAppBody(
       `📄 *Каталог туров (PDF):*\n${pdfUrl}\n\n` +
       `По всем вопросам пишите нам в WhatsApp.\n` +
       `Желаем отличного отдыха! 🌊\n\n` +
+      `EasyBook Tours`
+    );
+  }
+
+  if (lang === "pl") {
+    return (
+      `Szanowny Gościu,\n\n` +
+      `Witamy w EasyBook Tours Bodrum! Pełny katalog naszych wycieczek z aktualnymi cenami (EUR) znajdziesz w poniższym pliku PDF.\n\n` +
+      (agencyName ? `🏢 ${agencyName}\n` : "") +
+      `📅 ${today}\n\n` +
+      `📄 *Katalog wycieczek (PDF):*\n${pdfUrl}\n\n` +
+      `W razie pytań skontaktuj się z nami przez WhatsApp.\n` +
+      `Życzymy wspaniałych wakacji! 🌊\n\n` +
       `EasyBook Tours`
     );
   }

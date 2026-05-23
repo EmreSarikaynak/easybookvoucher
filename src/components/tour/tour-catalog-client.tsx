@@ -361,63 +361,76 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <BookOpen className="h-7 w-7 text-primary" />
             Tur Kataloğu
           </h1>
-          <p className="text-muted-foreground text-sm mt-1 max-w-xl">
-            Tüm aktif turlar için EUR satış fiyatlarını girin, önizleyin, PDF
-            indirin veya müşteriye WhatsApp ile katalog gönderin.
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1 max-w-xl">
+            {initialData.isAdmin
+              ? "Tüm aktif turlar için EUR satış fiyatlarını girin, önizleyin, PDF indirin veya müşteriye WhatsApp ile katalog gönderin."
+              : "Aktif turları önizleyin, PDF indirin veya müşteriye WhatsApp ile katalog gönderin."}
           </p>
         </div>
 
-        <div className="flex flex-col items-stretch gap-2 sm:items-end">
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-row flex-wrap gap-2 sm:flex-col sm:items-end">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
             {CATALOG_LANGUAGES.map((lang) => (
               <Button
                 key={lang}
                 variant="outline"
                 size="sm"
+                className="h-8 px-2 sm:h-9 sm:px-3"
                 disabled={!selectedAgencyId || downloading !== null}
                 onClick={() => handleDownload(lang)}
               >
                 {downloading === lang ? (
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin sm:mr-1.5 sm:h-4 sm:w-4" />
                 ) : (
-                  <Download className="mr-1.5 h-4 w-4" />
+                  <Download className="mr-1 h-3.5 w-3.5 sm:mr-1.5 sm:h-4 sm:w-4" />
                 )}
                 <span className="mr-1">{TOUR_LANG_FLAGS[lang]}</span>
-                {TOUR_LANG_LABELS[lang]} PDF
+                <span className="text-xs font-semibold uppercase sm:hidden">
+                  {lang}
+                </span>
+                <span className="hidden sm:inline">
+                  {TOUR_LANG_LABELS[lang]} PDF
+                </span>
               </Button>
             ))}
           </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={bulkTranslating}
-            onClick={handleBulkTranslate}
-            title="Tüm aktif turlarda TR doluysa boş EN/RU/PL alanlarını DeepL ile doldur"
-          >
-            {bulkTranslating ? (
-              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-            ) : (
-              <Languages className="mr-1.5 h-4 w-4" />
-            )}
-            {bulkTranslating ? "Çevriliyor… (30sn)" : "Tüm Boş Çevirileri Doldur"}
-          </Button>
-          {bulkResult ? (
-            <div
-              className={`text-xs whitespace-pre-line max-w-xs rounded border px-2 py-1.5 ${
-                bulkResult.type === "success"
-                  ? "border-green-300 bg-green-50 text-green-800"
-                  : "border-red-300 bg-red-50 text-red-800"
-              }`}
-            >
-              {bulkResult.text}
-            </div>
-          ) : null}
+          {initialData.isAdmin && (
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={bulkTranslating}
+                onClick={handleBulkTranslate}
+                title="Tüm aktif turlarda TR doluysa boş EN/RU/PL alanlarını DeepL ile doldur"
+              >
+                {bulkTranslating ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <Languages className="mr-1.5 h-4 w-4" />
+                )}
+                {bulkTranslating
+                  ? "Çevriliyor… (30sn)"
+                  : "Tüm Boş Çevirileri Doldur"}
+              </Button>
+              {bulkResult ? (
+                <div
+                  className={`text-xs whitespace-pre-line max-w-xs rounded border px-2 py-1.5 ${
+                    bulkResult.type === "success"
+                      ? "border-green-300 bg-green-50 text-green-800"
+                      : "border-red-300 bg-red-50 text-red-800"
+                  }`}
+                >
+                  {bulkResult.text}
+                </div>
+              ) : null}
+            </>
+          )}
         </div>
       </div>
 
@@ -543,96 +556,120 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4 pb-3">
-          <div>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Euro className="h-4 w-4" />
-              Satış Fiyatları (EUR)
-            </CardTitle>
-            {initialData.selectedAgencyName && (
-              <CardDescription>{initialData.selectedAgencyName}</CardDescription>
-            )}
-          </div>
-          <Button
-            onClick={handleSave}
-            disabled={saving || !selectedAgencyId || dirtyCount === 0}
-            size="sm"
-          >
-            {saving ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="mr-2 h-4 w-4" />
-            )}
-            Kaydet
-            {dirtyCount > 0 ? ` (${dirtyCount})` : ""}
-          </Button>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="min-w-[180px]">Tur</TableHead>
-                <TableHead className="text-right w-28">Yetişkin €</TableHead>
-                <TableHead className="text-right w-28">Çocuk €</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedTours.map((tour) => (
-                <TableRow key={tour.id}>
-                  <TableCell className="font-medium">{tour.name}</TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      min={0}
-                      step={1}
-                      className="text-right h-9"
-                      value={drafts[tour.id]?.price_adult ?? 0}
-                      onChange={(e) =>
-                        updateField(tour.id, "price_adult", e.target.value)
-                      }
-                      disabled={!selectedAgencyId}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      min={0}
-                      step={1}
-                      className="text-right h-9"
-                      value={drafts[tour.id]?.price_child ?? 0}
-                      onChange={(e) =>
-                        updateField(tour.id, "price_child", e.target.value)
-                      }
-                      disabled={!selectedAgencyId}
-                    />
-                  </TableCell>
+      {initialData.isAdmin && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4 pb-3">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Euro className="h-4 w-4" />
+                Satış Fiyatları (EUR)
+              </CardTitle>
+              {initialData.selectedAgencyName && (
+                <CardDescription>{initialData.selectedAgencyName}</CardDescription>
+              )}
+            </div>
+            <Button
+              onClick={handleSave}
+              disabled={saving || !selectedAgencyId || dirtyCount === 0}
+              size="sm"
+            >
+              {saving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
+              Kaydet
+              {dirtyCount > 0 ? ` (${dirtyCount})` : ""}
+            </Button>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-[180px]">Tur</TableHead>
+                  <TableHead className="text-right w-28">Yetişkin €</TableHead>
+                  <TableHead className="text-right w-28">Çocuk €</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </TableHeader>
+              <TableBody>
+                {sortedTours.map((tour) => (
+                  <TableRow key={tour.id}>
+                    <TableCell className="font-medium">{tour.name}</TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={1}
+                        className="text-right h-9"
+                        value={drafts[tour.id]?.price_adult ?? 0}
+                        onChange={(e) =>
+                          updateField(tour.id, "price_adult", e.target.value)
+                        }
+                        disabled={!selectedAgencyId}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={1}
+                        className="text-right h-9"
+                        value={drafts[tour.id]?.price_child ?? 0}
+                        onChange={(e) =>
+                          updateField(tour.id, "price_child", e.target.value)
+                        }
+                        disabled={!selectedAgencyId}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* HTML önizleme */}
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold">Katalog Önizleme</h2>
-          <div className="flex gap-2">
-            {CATALOG_LANGUAGES.map((lang) => (
-              <button
-                key={lang}
-                type="button"
-                onClick={() => setPreviewLang(lang)}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  previewLang === lang
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
-                }`}
-              >
-                {TOUR_LANG_FLAGS[lang]} {TOUR_LANG_LABELS[lang]}
-              </button>
-            ))}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+            <div className="flex flex-wrap gap-1.5">
+              {CATALOG_LANGUAGES.map((lang) => (
+                <Button
+                  key={`preview-download-${lang}`}
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2"
+                  disabled={!selectedAgencyId || downloading !== null}
+                  onClick={() => handleDownload(lang)}
+                >
+                  {downloading === lang ? (
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Download className="mr-1 h-3.5 w-3.5" />
+                  )}
+                  <span className="mr-1">{TOUR_LANG_FLAGS[lang]}</span>
+                  <span className="text-xs font-semibold uppercase">{lang}</span>
+                </Button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {CATALOG_LANGUAGES.map((lang) => (
+                <button
+                  key={lang}
+                  type="button"
+                  onClick={() => setPreviewLang(lang)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    previewLang === lang
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}
+                >
+                  {TOUR_LANG_FLAGS[lang]} {TOUR_LANG_LABELS[lang]}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

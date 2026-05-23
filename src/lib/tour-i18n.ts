@@ -5,7 +5,7 @@
 export const TOUR_LANGUAGES = ["tr", "en", "ru", "pl"] as const;
 
 /** Tur kataloğu PDF — indirilebilir diller */
-export const CATALOG_LANGUAGES = ["tr", "en", "ru"] as const;
+export const CATALOG_LANGUAGES = ["tr", "en", "ru", "pl"] as const;
 export type CatalogLang = (typeof CATALOG_LANGUAGES)[number];
 export type TourLang = (typeof TOUR_LANGUAGES)[number];
 
@@ -325,6 +325,39 @@ export const CATALOG_PAGE_UI: Record<CatalogLang, CatalogUiStrings> = {
       friday: "Пятница",
       saturday: "Суббота",
       sunday: "Воскресенье",
+    },
+  },
+  pl: {
+    catalogTitle: "Katalog Wycieczek 2026",
+    tourCatalog: "Katalog Wycieczek 2026",
+    adultPrice: "Dorosły",
+    childPrice: "Dziecko",
+    pricesEur: "Ceny (EUR)",
+    allTours: "Wszystkie wycieczki",
+    generatedOn: "Wygenerowano",
+    tableOfContents: "Spis treści",
+    contactPage: "Kontakt",
+    duration: "Czas trwania",
+    departure: "Wyjazd",
+    departureDays: "Dni wyjazdu",
+    departureTime: "Godzina wyjazdu",
+    meetingPoint: "Miejsce zbiórki",
+    included: "W cenie",
+    excluded: "Nie w cenie",
+    highlights: "Program wycieczki",
+    tourDetails: "Szczegóły wycieczki",
+    priceOnRequest: "Cena na zapytanie",
+    page: "Strona",
+    pageOf: (a, b) => `Strona ${a} / ${b}`,
+    toursCountSuffix: (n) => `${n} wycieczek`,
+    weekdays: {
+      monday: "Poniedziałek",
+      tuesday: "Wtorek",
+      wednesday: "Środa",
+      thursday: "Czwartek",
+      friday: "Piątek",
+      saturday: "Sobota",
+      sunday: "Niedziela",
     },
   },
 };
