@@ -56,6 +56,9 @@ export function TourForm({
   const visible = isPage || open;
 
   const [loading, setLoading] = useState(false);
+  const [saveResult, setSaveResult] = useState<
+    { type: "success" | "error"; text: string } | null
+  >(null);
   const [formData, setFormData] = useState({
     duration: "",
     default_price: 0,
@@ -79,6 +82,7 @@ export function TourForm({
 
   useEffect(() => {
     if (!visible) return;
+    setSaveResult(null);
     if (tour) {
       const translations = normalizeTourTranslations(
         tour.translations,
@@ -132,11 +136,15 @@ export function TourForm({
   const handleSubmit = async () => {
     const primaryName = primaryTranslationName(formData.translations);
     if (!primaryName.trim()) {
-      alert("En az bir dilde tur adı zorunludur (Türkçe önerilir).");
+      setSaveResult({
+        type: "error",
+        text: "En az bir dilde tur adı zorunludur (Türkçe önerilir).",
+      });
       return;
     }
 
     setLoading(true);
+    setSaveResult(null);
     try {
       const trDesc = formData.translations.tr?.description?.trim() || null;
       const payload = {
@@ -166,7 +174,7 @@ export function TourForm({
         isEditing && tour ? await updateTour(tour.id, payload) : await createTour(payload);
 
       if (result.error) {
-        alert(result.error);
+        setSaveResult({ type: "error", text: result.error });
         return;
       }
 
@@ -178,11 +186,20 @@ export function TourForm({
         });
       }
 
+      setSaveResult({
+        type: "success",
+        text: isEditing
+          ? "Değişiklikler başarıyla kaydedildi ✓"
+          : "Tur başarıyla oluşturuldu ✓",
+      });
       onSave(newId);
-      if (!isPage) onOpenChange(false);
+      // Dialog modunda 1sn sonra kapansın ki kullanıcı yeşil onayı görebilsin
+      if (!isPage) {
+        setTimeout(() => onOpenChange(false), 1000);
+      }
     } catch (error) {
       console.error("Save error:", error);
-      alert("Kaydetme sırasında bir hata oluştu!");
+      setSaveResult({ type: "error", text: "Kaydetme sırasında bir hata oluştu!" });
     } finally {
       setLoading(false);
     }
@@ -218,22 +235,26 @@ export function TourForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="duration">Süre</Label>
-          <Select
+          <Label htmlFor="duration">
+            Süre{" "}
+            <span className="text-xs text-muted-foreground">
+              (listeden seç veya elle yaz)
+            </span>
+          </Label>
+          <Input
+            id="duration"
+            list="duration-options"
             value={formData.duration}
-            onValueChange={(val) => setFormData((p) => ({ ...p, duration: val }))}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Süre seçin" />
-            </SelectTrigger>
-            <SelectContent>
-              {DURATION_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onChange={(e) =>
+              setFormData((p) => ({ ...p, duration: e.target.value }))
+            }
+            placeholder="Örn: 1 Saat, 5 Saat, Yarım Gün"
+          />
+          <datalist id="duration-options">
+            {DURATION_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.label} />
+            ))}
+          </datalist>
         </div>
         <div className="space-y-2">
           <Label htmlFor="default_price">Varsayılan Fiyat</Label>
@@ -486,6 +507,18 @@ export function TourForm({
         />
         <Label htmlFor="is_active">Aktif</Label>
       </div>
+
+      {saveResult ? (
+        <div
+          className={`rounded-md border px-3 py-2 text-sm ${
+            saveResult.type === "success"
+              ? "border-green-300 bg-green-50 text-green-800"
+              : "border-red-300 bg-red-50 text-red-800"
+          }`}
+        >
+          {saveResult.text}
+        </div>
+      ) : null}
 
       <div className="flex justify-end gap-2 pt-4 border-t">
         {!isPage && (

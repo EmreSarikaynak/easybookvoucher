@@ -200,10 +200,14 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 export const DURATION_OPTIONS = [
   { value: "half_day", label: "Yarım Gün" },
   { value: "full_day", label: "Tam Gün" },
+  { value: "1_hour", label: "1 Saat" },
   { value: "2_hours", label: "2 Saat" },
   { value: "3_hours", label: "3 Saat" },
   { value: "4_hours", label: "4 Saat" },
+  { value: "5_hours", label: "5 Saat" },
+  { value: "6_hours", label: "6 Saat" },
   { value: "7_hours", label: "7 Saat" },
+  { value: "8_hours", label: "8 Saat" },
   { value: "multi_day", label: "Çok Günlü" },
 ] as const;
 
