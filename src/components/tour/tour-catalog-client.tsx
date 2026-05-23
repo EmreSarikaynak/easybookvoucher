@@ -51,6 +51,10 @@ import {
   type CatalogLang,
 } from "@/lib/tour-i18n";
 import type { Tour } from "@/lib/types";
+import type {
+  CatalogTourInput,
+  CatalogPriceInput,
+} from "@/lib/tour-catalog-pdf";
 
 interface PriceDraft {
   price_adult: number;
@@ -217,14 +221,45 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
     setSendingWa(true);
     setWaMessage(null);
     try {
+      // 1) Dataset al + PDF'i browser'da üret
+      const dsRes = await fetch(
+        `/api/tours/catalog/dataset?agencyId=${encodeURIComponent(selectedAgencyId)}`
+      );
+      if (!dsRes.ok) {
+        const body = (await dsRes.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(body.error || `Veri alınamadı (${dsRes.status})`);
+      }
+      const dataset = (await dsRes.json()) as {
+        tours: CatalogTourInput[];
+        prices: CatalogPriceInput[];
+        agencyName: string;
+        logoUrl?: string | null;
+      };
+      const { generateTourCatalogPdfBlob } = await import(
+        "@/lib/tour-catalog-pdf"
+      );
+      const pdfBlob = await generateTourCatalogPdfBlob({
+        tours: dataset.tours,
+        prices: dataset.prices,
+        lang: whatsappLang,
+        agencyName: dataset.agencyName,
+        logoUrl: dataset.logoUrl ?? null,
+        baseUrl: window.location.origin,
+      });
+
+      // 2) Multipart ile sunucuya yolla — sunucu sadece storage upload + WhatsApp
+      const form = new FormData();
+      form.append("pdf", pdfBlob, "katalog.pdf");
+      form.append("phone", customerPhone.trim());
+      form.append("lang", whatsappLang);
+      form.append("agencyId", selectedAgencyId);
+      form.append("agencyName", dataset.agencyName);
+
       const res = await fetch("/api/tours/catalog/send-whatsapp", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: customerPhone.trim(),
-          lang: whatsappLang,
-          agencyId: selectedAgencyId,
-        }),
+        body: form,
       });
       const data = (await res.json()) as {
         success?: boolean;
@@ -261,13 +296,37 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
     setDownloading(lang);
     setError(null);
     try {
-      const url = `/api/tours/catalog/pdf?lang=${lang}&agencyId=${encodeURIComponent(selectedAgencyId)}`;
-      const res = await fetch(url);
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error || `İndirme başarısız (${res.status})`);
+      // 1) Sunucudan dataset JSON al (Cloudflare Workers'da bu çalışır)
+      const dsRes = await fetch(
+        `/api/tours/catalog/dataset?agencyId=${encodeURIComponent(selectedAgencyId)}`
+      );
+      if (!dsRes.ok) {
+        const body = (await dsRes.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(body.error || `Veri alınamadı (${dsRes.status})`);
       }
-      const blob = await res.blob();
+      const dataset = (await dsRes.json()) as {
+        tours: CatalogTourInput[];
+        prices: CatalogPriceInput[];
+        agencyName: string;
+        logoUrl?: string | null;
+      };
+
+      // 2) PDF'i tarayıcıda render et (yoga WASM browser'da çalışır)
+      const { generateTourCatalogPdfBlob } = await import(
+        "@/lib/tour-catalog-pdf"
+      );
+      const blob = await generateTourCatalogPdfBlob({
+        tours: dataset.tours,
+        prices: dataset.prices,
+        lang,
+        agencyName: dataset.agencyName,
+        logoUrl: dataset.logoUrl ?? null,
+        baseUrl: window.location.origin,
+      });
+
+      // 3) İndir
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       const agencySlug =

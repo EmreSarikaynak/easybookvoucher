@@ -9,7 +9,6 @@
  */
 
 import React from "react";
-import path from "node:path";
 import {
   Document,
   Page,
@@ -87,9 +86,12 @@ function registerFonts(baseUrl?: string | null) {
     bold = `${base}/fonts/NotoSans-Bold.ttf`;
     display = `${base}/fonts/Fredoka-Variable.ttf`;
   } else if (isNodeWithFs()) {
-    regular = path.join(process.cwd(), "public", "fonts", "NotoSans-Regular.ttf");
-    bold = path.join(process.cwd(), "public", "fonts", "NotoSans-Bold.ttf");
-    display = path.join(process.cwd(), "public", "fonts", "Fredoka-Variable.ttf");
+    // Node FS yolu — string concat yeterli (node:path import'una gerek yok,
+    // tarayıcı bundle'ı temiz kalsın diye)
+    const cwd = process.cwd().replace(/\\/g, "/");
+    regular = `${cwd}/public/fonts/NotoSans-Regular.ttf`;
+    bold = `${cwd}/public/fonts/NotoSans-Bold.ttf`;
+    display = `${cwd}/public/fonts/Fredoka-Variable.ttf`;
   } else {
     throw new Error(
       "Font yüklenemedi: ne baseUrl ne de local FS erişimi var. generateTourCatalogPdfBuffer'a logoUrl/baseUrl geçirin veya yerel Node'da çalıştırın."
@@ -417,12 +419,29 @@ const styles = StyleSheet.create({
 
 // --- Yardımcılar ---
 
+function arrayBufferToBase64(buf: ArrayBuffer): string {
+  // Node tarafında Buffer hızlı; tarayıcıda btoa kullan.
+  if (typeof globalThis.Buffer !== "undefined") {
+    return globalThis.Buffer.from(buf).toString("base64");
+  }
+  const bytes = new Uint8Array(buf);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(
+      null,
+      Array.from(bytes.subarray(i, i + chunk))
+    );
+  }
+  return btoa(binary);
+}
+
 async function fetchImageAsDataUrl(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return null;
     const buf = await res.arrayBuffer();
-    const base64 = Buffer.from(buf).toString("base64");
+    const base64 = arrayBufferToBase64(buf);
     const contentType = res.headers.get("content-type") || "image/jpeg";
     return `data:${contentType};base64,${base64}`;
   } catch {
@@ -904,9 +923,8 @@ function chunkPairs<T>(arr: T[]): T[][] {
   return out;
 }
 
-export async function generateTourCatalogPdfBuffer(
-  opts: GenerateCatalogOpts
-): Promise<Buffer> {
+/** Ortak: opts'tan Document JSX'i kurar + tüm görselleri data URL'e dönüştürür. */
+async function buildCatalogDocument(opts: GenerateCatalogOpts) {
   registerFonts(opts.baseUrl ?? null);
 
   const { tours, prices, lang, agencyName, logoUrl } = opts;
@@ -914,7 +932,6 @@ export async function generateTourCatalogPdfBuffer(
 
   const logoDataUrl = logoUrl ? await fetchImageAsDataUrl(logoUrl) : null;
 
-  // İlk 3 görsel + her turun A4 arkaplan görseli (varsa)
   const urlSet = new Set<string>();
   for (const t of tours) {
     for (const u of (t.images ?? []).slice(0, 3)) if (u) urlSet.add(u);
@@ -933,15 +950,12 @@ export async function generateTourCatalogPdfBuffer(
 
   const pairs = chunkPairs(cards);
 
-  // TOC sayfa hesabı: kapak=1, TOC=2, ilk tur sayfası 3'ten başlar.
-  // Her tur çifti tek sayfada → tur i → 3 + floor(i/2)
-  // (Overflow olursa offsetler oynayabilir, en iyi tahmin.)
   const tocEntries = tours.map((t, i) => {
     const c = getTourContentForLang(t.translations, lang, t.name, t.description);
     return { name: c.name, page: 3 + Math.floor(i / 2) };
   });
 
-  const doc = (
+  return (
     <Document>
       <CoverPage lang={lang} logoDataUrl={logoDataUrl} tourCount={tours.length} />
       <TocPage lang={lang} logoDataUrl={logoDataUrl} entries={tocEntries} />
@@ -961,7 +975,29 @@ export async function generateTourCatalogPdfBuffer(
       <ContactPage lang={lang} logoDataUrl={logoDataUrl} agencyName={agencyName} />
     </Document>
   );
+}
 
+/**
+ * Tarayıcıda çağrılır. Cloudflare Workers'da yoga-layout WASM çalışmadığı için
+ * üretim akışı bu fonksiyondur — sunucu sadece dataset'i JSON olarak döner,
+ * client PDF'i kendi render eder.
+ */
+export async function generateTourCatalogPdfBlob(
+  opts: GenerateCatalogOpts
+): Promise<Blob> {
+  const doc = await buildCatalogDocument(opts);
+  const instance = pdf(doc);
+  return instance.toBlob();
+}
+
+/**
+ * Node tarafı (geliştirme + WhatsApp upload flow için Storage'a yüklenecek
+ * binary'i alır). Workers'da çağırma — yoga WASM hatası verir.
+ */
+export async function generateTourCatalogPdfBuffer(
+  opts: GenerateCatalogOpts
+): Promise<Buffer> {
+  const doc = await buildCatalogDocument(opts);
   const instance = pdf(doc);
   const blob = await instance.toBlob();
   const ab = await blob.arrayBuffer();
