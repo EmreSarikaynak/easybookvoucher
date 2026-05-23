@@ -9,7 +9,7 @@ type SecestaFooterVariant = "default" | "compact" | "login" | "minimal";
 interface SecestaFooterProps {
   variant?: SecestaFooterVariant;
   className?: string;
-  /** EasyBook bağlamında kısa platform notu göster */
+  /** Show a short EasyBook platform credit. */
   showPlatformNote?: boolean;
 }
 
@@ -57,25 +57,22 @@ export function SecestaFooter({
         s.wrapper,
         className
       )}
-      aria-label="Secesta yazılım kredisi"
+      aria-label="Secesta software credit"
     >
       <div className="mx-auto max-w-4xl text-center space-y-2">
         {showPlatformNote && (
           <p className={cn("text-xs sm:text-sm leading-relaxed", s.text)}>
-            Bu platform{" "}
-            <span className={cn("font-medium", s.accent)}>
-              Secesta Software Solutions®
-            </span>{" "}
-            tarafından tasarlanıp geliştirilmiştir.
+            EasyBook Voucher is designed and developed by{" "}
+            <span className={cn("font-medium", s.accent)}>Secesta Software Solutions®</span>.
           </p>
         )}
 
         <p className={cn("text-[11px] sm:text-xs leading-relaxed max-w-2xl mx-auto", s.text)}>
-          Lider markaların dijital pazarlama &amp; SEO ajansı · özel yazılım çözümleri
+          Professional travel booking, voucher management, and digital operations software for modern agencies.
         </p>
 
         <div className={cn("flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] sm:text-xs", s.text)}>
-          <span>Copyright © {YEAR}</span>
+          <span>Copyright © {YEAR}. All rights reserved.</span>
           <span className="opacity-40" aria-hidden>
             |
           </span>
