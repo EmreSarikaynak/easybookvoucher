@@ -2,9 +2,14 @@ import type { HelpNavLink } from "./types";
 
 export const HELP_HUB_PATH = "/help";
 
-/** Footer — öne çıkan rehber linkleri */
+export const FOOTER_HUB_LINK: HelpNavLink = {
+  href: HELP_HUB_PATH,
+  label: "Tüm rehber",
+};
+
+/** Footer — öne çıkan rehber linkleri (DB yokken yedek) */
 export const FOOTER_HELP_FEATURED: HelpNavLink[] = [
-  { href: "/help", label: "Tüm rehber" },
+  FOOTER_HUB_LINK,
   { href: "/help/baslangic", label: "Başlangıç" },
   { href: "/help/bilet-islemleri", label: "Bilet işlemleri" },
   { href: "/help/tur-katalogu", label: "Tur kataloğu" },

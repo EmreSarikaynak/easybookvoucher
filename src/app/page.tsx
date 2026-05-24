@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/card";
 import { signInWithIdentifier } from "@/app/actions/auth";
 import { Mail, Lock, Loader2, Waves } from "lucide-react";
-import { PlatformFooter } from "@/components/layout/platform-footer";
+import { PlatformFooterClient } from "@/components/layout/platform-footer-client";
 import { SecestaFooter } from "@/components/layout/secesta-footer";
 
 export default function LoginPage() {
@@ -172,7 +172,7 @@ export default function LoginPage() {
       </Card>
       </div>
 
-      <PlatformFooter variant="login" className="relative z-10" />
+      <PlatformFooterClient variant="login" className="relative z-10" />
       <SecestaFooter variant="login" showPlatformNote />
 
       {/* Mobile-optimized spacing */}

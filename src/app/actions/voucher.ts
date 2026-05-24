@@ -353,29 +353,6 @@ export async function resendVoucherWhatsApp(voucherNo: string) {
   }
 }
 
-export async function updateVoucherPaymentStatus(id: string, isPaid: boolean) {
-  const supabase = await createServerSupabaseClient();
-
-  const statusStr = isPaid ? "paid" : "pending";
-  const dateStr = isPaid ? new Date().toISOString() : null;
-
-  const { error } = await supabase
-    .from("vouchers")
-    .update({
-      agency_payment_status: statusStr,
-      agency_payment_date: dateStr,
-    })
-    .eq("id", id);
-
-  if (error) {
-    console.error("Payment status update error:", error);
-    return { error: formatDbError(error) };
-  }
-
-  revalidatePath("/reports");
-  return { success: true };
-}
-
 /**
  * Bileti iptal et (silme değil, status = cancelled).
  * - agency_admin / sales → sadece kendi acentesine ait aktif bileti iptal edebilir

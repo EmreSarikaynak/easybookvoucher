@@ -6,13 +6,16 @@ import { Edit, Trash2, ImageIcon, ExternalLink, Eye, Download } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/utils";
-import { buildTourPublicUrl } from "@/lib/tour-i18n";
+import { addAgencyCodeToUrl, buildTourPublicUrl } from "@/lib/tour-i18n";
 import type { Tour } from "@/lib/types";
+import type { ResolvedTourPriceSet } from "@/lib/tour-catalog-data";
+import { TourPriceBlock } from "./tour-price-block";
 
 interface TourCardProps {
   tour: Tour;
   isAdmin?: boolean;
+  prices?: ResolvedTourPriceSet;
+  agencyCode?: string | null;
   onEdit?: (tour: Tour) => void;
   onDelete?: (tour: Tour) => void;
 }
@@ -20,11 +23,18 @@ interface TourCardProps {
 export function TourCard({
   tour,
   isAdmin = false,
+  prices,
+  agencyCode,
   onEdit,
   onDelete,
 }: TourCardProps) {
   const coverImage = tour.images?.[0];
-  const publicUrl = tour.tour_url || buildTourPublicUrl(tour.id);
+  const publicUrl = tour.tour_url
+    ? addAgencyCodeToUrl(tour.tour_url, agencyCode)
+    : buildTourPublicUrl(tour.id, undefined, agencyCode);
+  const pdfUrl = `/api/tours/${tour.id}/pdf?lang=tr${
+    agencyCode ? `&a=${encodeURIComponent(agencyCode)}` : ""
+  }`;
 
   return (
     <Card className="overflow-hidden">
@@ -59,12 +69,7 @@ export function TourCard({
           </p>
         )}
 
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Varsayılan Fiyat:</span>
-          <span className="font-semibold">
-            {formatCurrency(tour.default_price, tour.currency)}
-          </span>
-        </div>
+        <TourPriceBlock prices={prices} size="sm" />
 
         {tour.duration && (
           <div className="flex items-center justify-between text-sm">
@@ -104,7 +109,7 @@ export function TourCard({
           </Button>
           <Button size="sm" variant="outline" asChild>
             <a
-              href={`/api/tours/${tour.id}/pdf?lang=tr`}
+              href={pdfUrl}
               download
               target="_blank"
               rel="noopener noreferrer"

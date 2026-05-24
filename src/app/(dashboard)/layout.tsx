@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { fetchFooterHelpLinks } from "@/lib/help/help-pages-server";
 import type { Profile } from "@/lib/types";
 
 async function getProfile(): Promise<Profile | null> {
@@ -25,7 +26,14 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const profile = await getProfile();
+  const [profile, footerLinks] = await Promise.all([
+    getProfile(),
+    fetchFooterHelpLinks(),
+  ]);
 
-  return <DashboardShell profile={profile}>{children}</DashboardShell>;
+  return (
+    <DashboardShell profile={profile} footerLinks={footerLinks}>
+      {children}
+    </DashboardShell>
+  );
 }

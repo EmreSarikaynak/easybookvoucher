@@ -5,6 +5,8 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getCurrentUser, isAdmin, canViewTours } from "@/lib/auth-helpers";
 import type { Agency, Tour } from "@/lib/types";
 
+export type CatalogCurrency = "EUR" | "TRY";
+
 export interface CatalogPriceRow {
   tour_id: string;
   price_id?: string;
@@ -23,6 +25,7 @@ export interface CatalogPageData {
   prices: CatalogPriceRow[];
   selectedAgencyId: string | null;
   selectedAgencyName: string | null;
+  currency: CatalogCurrency;
   isAdmin: boolean;
 }
 
@@ -30,22 +33,27 @@ function formatDbError(error: { message: string }): string {
   return error.message || "Veritabanı hatası";
 }
 
+/**
+ * Acentenin kaydettiği satış fiyatını döner.
+ * Fiyat yoksa 0 — admin base_price'a fallback YAPILMAZ.
+ * Admin taban fiyatları yalnızca Tur Maliyetleri + iTur varsayılan olarak kullanılır.
+ * baseAdult/baseChild parametreleri kaldırıldı; signature geriye dönük uyumluluk için tutulur.
+ */
 function resolveDisplayPrice(
   storedAdult: number | null | undefined,
   storedChild: number | null | undefined,
-  baseAdult: number | null | undefined,
-  baseChild: number | null | undefined
+  _baseAdult?: number | null | undefined,
+  _baseChild?: number | null | undefined
 ): { price_adult: number; price_child: number } {
-  const adult = storedAdult ?? 0;
-  const child = storedChild ?? 0;
   return {
-    price_adult: adult > 0 ? Math.round(adult) : Math.round(baseAdult ?? 0),
-    price_child: child > 0 ? Math.round(child) : Math.round(baseChild ?? 0),
+    price_adult: storedAdult != null && storedAdult > 0 ? Math.round(storedAdult) : 0,
+    price_child: storedChild != null && storedChild > 0 ? Math.round(storedChild) : 0,
   };
 }
 
 export async function getCatalogPageData(
-  agencyIdParam?: string | null
+  agencyIdParam?: string | null,
+  currency: CatalogCurrency = "EUR"
 ): Promise<{ data: CatalogPageData | null; error?: string }> {
   const profile = await getCurrentUser();
   if (!canViewTours(profile)) {
@@ -105,7 +113,7 @@ export async function getCatalogPageData(
       .from("agency_tour_prices")
       .select("id, tour_id, price_adult, price_child")
       .eq("agency_id", selectedAgencyId)
-      .eq("currency", "EUR");
+      .eq("currency", currency);
     priceRows = prices ?? [];
   }
 
@@ -113,11 +121,15 @@ export async function getCatalogPageData(
 
   const prices: CatalogPriceRow[] = (tours ?? []).map((tour) => {
     const row = priceByTour.get(tour.id);
+    const baseAdult =
+      currency === "EUR" ? tour.base_price_adult_eur : tour.base_price_adult_try;
+    const baseChild =
+      currency === "EUR" ? tour.base_price_child_eur : tour.base_price_child_try;
     const display = resolveDisplayPrice(
       row?.price_adult,
       row?.price_child,
-      tour.base_price_adult_eur,
-      tour.base_price_child_eur
+      baseAdult,
+      baseChild
     );
     return {
       tour_id: tour.id,
@@ -137,6 +149,7 @@ export async function getCatalogPageData(
       prices,
       selectedAgencyId,
       selectedAgencyName,
+      currency,
       isAdmin: admin,
     },
   };
@@ -144,7 +157,8 @@ export async function getCatalogPageData(
 
 export async function saveCatalogPrices(
   agencyId: string,
-  rows: Array<{ tour_id: string; price_adult: number; price_child: number }>
+  rows: Array<{ tour_id: string; price_adult: number; price_child: number }>,
+  currency: CatalogCurrency = "EUR"
 ): Promise<{ success?: boolean; error?: string }> {
   const profile = await getCurrentUser();
   if (!canViewTours(profile)) {
@@ -167,7 +181,7 @@ export async function saveCatalogPrices(
   const upsertData = rows.map((r) => ({
     agency_id: agencyId,
     tour_id: r.tour_id,
-    currency: "EUR" as const,
+    currency,
     price: Math.round(r.price_adult),
     price_adult: Math.round(r.price_adult),
     price_child: Math.round(r.price_child),
@@ -184,6 +198,7 @@ export async function saveCatalogPrices(
 
   revalidatePath("/tours/catalog");
   revalidatePath("/tours");
+  revalidatePath("/tour-costs");
   return { success: true };
 }
 

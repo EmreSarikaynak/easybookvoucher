@@ -9,13 +9,21 @@ import { TourCard } from "./tour-card";
 import { TourForm } from "./tour-form";
 import { deleteTour } from "@/app/actions/tour";
 import type { Tour } from "@/lib/types";
+import type { ResolvedTourPriceSet } from "@/lib/tour-catalog-data";
 
 interface ToursContentProps {
   initialTours: Tour[];
   isAdmin: boolean;
+  priceMap?: Record<string, ResolvedTourPriceSet>;
+  agencyCode?: string | null;
 }
 
-export function ToursContent({ initialTours, isAdmin }: ToursContentProps) {
+export function ToursContent({
+  initialTours,
+  isAdmin,
+  priceMap = {},
+  agencyCode,
+}: ToursContentProps) {
   const router = useRouter();
   const [tours, setTours] = useState<Tour[]>(initialTours);
 
@@ -96,6 +104,8 @@ export function ToursContent({ initialTours, isAdmin }: ToursContentProps) {
                 key={tour.id}
                 tour={tour}
                 isAdmin={isAdmin}
+                prices={priceMap[tour.id]}
+                agencyCode={agencyCode}
                 onEdit={isAdmin ? handleEditTour : undefined}
                 onDelete={isAdmin ? handleDeleteTour : undefined}
               />
@@ -113,6 +123,8 @@ export function ToursContent({ initialTours, isAdmin }: ToursContentProps) {
                     key={tour.id}
                     tour={tour}
                     isAdmin={isAdmin}
+                    prices={priceMap[tour.id]}
+                    agencyCode={agencyCode}
                     onEdit={handleEditTour}
                     onDelete={handleDeleteTour}
                   />

@@ -1,10 +1,13 @@
 import type { MetadataRoute } from "next";
-import { getAllArticleSlugs } from "@/lib/help/articles";
+import { fetchPublishedHelpSlugsForSitemap } from "@/lib/help/help-pages-server";
 
 const SITE_URL = "https://bodrumdayiz.com.tr";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export const dynamic = "force-dynamic";
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const lastModified = new Date();
+  const helpSlugs = await fetchPublishedHelpSlugsForSitemap();
 
   const helpPages: MetadataRoute.Sitemap = [
     {
@@ -13,7 +16,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly",
       priority: 0.6,
     },
-    ...getAllArticleSlugs().map((slug) => ({
+    ...helpSlugs.map((slug) => ({
       url: `${SITE_URL}/help/${slug}`,
       lastModified,
       changeFrequency: "monthly" as const,

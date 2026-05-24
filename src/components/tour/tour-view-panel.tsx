@@ -11,18 +11,24 @@ import {
   TOUR_LANG_FLAGS,
   TOUR_LANG_LABELS,
   normalizeTourTranslations,
+  addAgencyCodeToUrl,
   buildTourPublicUrl,
 } from "@/lib/tour-i18n";
-import { formatCurrency } from "@/lib/utils";
 import type { Tour } from "@/lib/types";
+import type { ResolvedTourPriceSet } from "@/lib/tour-catalog-data";
+import { TourPriceBlock } from "./tour-price-block";
 
 interface TourViewPanelProps {
   tour: Tour;
+  prices?: ResolvedTourPriceSet | null;
+  agencyCode?: string | null;
 }
 
-export function TourViewPanel({ tour }: TourViewPanelProps) {
+export function TourViewPanel({ tour, prices, agencyCode }: TourViewPanelProps) {
   const [copied, setCopied] = useState(false);
-  const publicUrl = tour.tour_url || buildTourPublicUrl(tour.id);
+  const publicUrl = tour.tour_url
+    ? addAgencyCodeToUrl(tour.tour_url, agencyCode)
+    : buildTourPublicUrl(tour.id, undefined, agencyCode);
   const translations = normalizeTourTranslations(
     tour.translations,
     tour.name,
@@ -63,15 +69,11 @@ export function TourViewPanel({ tour }: TourViewPanelProps) {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <Label className="text-muted-foreground">Varsayılan fiyat</Label>
-          <p className="font-semibold mt-1">
-            {formatCurrency(tour.default_price, tour.currency)}
-          </p>
-        </div>
+      <div className="space-y-3">
+        <Label className="text-muted-foreground">Satış fiyatları</Label>
+        <TourPriceBlock prices={prices} size="md" />
         {tour.duration && (
-          <div>
+          <div className="pt-1">
             <Label className="text-muted-foreground">Süre</Label>
             <p className="mt-1">{tour.duration}</p>
           </div>

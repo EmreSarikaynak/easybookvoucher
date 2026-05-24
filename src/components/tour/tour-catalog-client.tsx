@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/table";
 import {
   saveCatalogPrices,
+  type CatalogCurrency,
   type CatalogPageData,
 } from "@/app/actions/tour-catalog";
 import {
@@ -147,9 +148,25 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
   });
 
   const selectedAgencyId = initialData.selectedAgencyId;
+  const currency = initialData.currency;
+  const currencySymbol = currency === "TRY" ? "₺" : "€";
+
+  const buildHref = (params: { agencyId?: string | null; currency?: CatalogCurrency }) => {
+    const next = new URLSearchParams();
+    const ag = params.agencyId ?? selectedAgencyId;
+    const cur = params.currency ?? currency;
+    if (ag) next.set("agencyId", ag);
+    if (cur) next.set("currency", cur);
+    return `/tours/catalog?${next.toString()}`;
+  };
 
   const handleAgencyChange = (agencyId: string) => {
-    router.push(`/tours/catalog?agencyId=${encodeURIComponent(agencyId)}`);
+    router.push(buildHref({ agencyId }));
+  };
+
+  const handleCurrencyChange = (next: CatalogCurrency) => {
+    if (next === currency) return;
+    router.push(buildHref({ currency: next }));
   };
 
   const updateField = (
@@ -183,7 +200,7 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
         price_adult: drafts[t.id]?.price_adult ?? 0,
         price_child: drafts[t.id]?.price_child ?? 0,
       }));
-      const result = await saveCatalogPrices(selectedAgencyId, rows);
+      const result = await saveCatalogPrices(selectedAgencyId, rows, currency);
       if (result.error) {
         setError(result.error);
       } else {
@@ -223,7 +240,7 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
     try {
       // 1) Dataset al + PDF'i browser'da üret
       const dsRes = await fetch(
-        `/api/tours/catalog/dataset?agencyId=${encodeURIComponent(selectedAgencyId)}`
+        `/api/tours/catalog/dataset?agencyId=${encodeURIComponent(selectedAgencyId)}&currency=${currency}`
       );
       if (!dsRes.ok) {
         const body = (await dsRes.json().catch(() => ({}))) as {
@@ -246,6 +263,7 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
         lang: whatsappLang,
         agencyName: dataset.agencyName,
         logoUrl: dataset.logoUrl ?? null,
+        currency,
         baseUrl: window.location.origin,
       });
 
@@ -256,6 +274,7 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
       form.append("lang", whatsappLang);
       form.append("agencyId", selectedAgencyId);
       form.append("agencyName", dataset.agencyName);
+      form.append("currency", currency);
 
       const res = await fetch("/api/tours/catalog/send-whatsapp", {
         method: "POST",
@@ -298,7 +317,7 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
     try {
       // 1) Sunucudan dataset JSON al (Cloudflare Workers'da bu çalışır)
       const dsRes = await fetch(
-        `/api/tours/catalog/dataset?agencyId=${encodeURIComponent(selectedAgencyId)}`
+        `/api/tours/catalog/dataset?agencyId=${encodeURIComponent(selectedAgencyId)}&currency=${currency}`
       );
       if (!dsRes.ok) {
         const body = (await dsRes.json().catch(() => ({}))) as {
@@ -323,6 +342,7 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
         lang,
         agencyName: dataset.agencyName,
         logoUrl: dataset.logoUrl ?? null,
+        currency,
         baseUrl: window.location.origin,
       });
 
@@ -331,7 +351,7 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
       a.href = URL.createObjectURL(blob);
       const agencySlug =
         initialData.selectedAgencyName?.replace(/\s+/g, "-") ?? "katalog";
-      a.download = `tur-katalogu-${agencySlug}-${lang}.pdf`;
+      a.download = `tur-katalogu-${agencySlug}-${currency.toLowerCase()}-${lang}.pdf`;
       a.click();
       URL.revokeObjectURL(a.href);
     } catch (e) {
@@ -369,9 +389,25 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
           </h1>
           <p className="text-muted-foreground text-xs sm:text-sm mt-1 max-w-xl">
             {initialData.isAdmin
-              ? "Tüm aktif turlar için EUR satış fiyatlarını girin, önizleyin, PDF indirin veya müşteriye WhatsApp ile katalog gönderin."
+              ? `Tüm aktif turlar için ${currency} satış fiyatlarını girin, önizleyin, PDF indirin veya müşteriye WhatsApp ile katalog gönderin.`
               : "Aktif turları önizleyin, PDF indirin veya müşteriye WhatsApp ile katalog gönderin."}
           </p>
+          <div className="mt-3 inline-flex rounded-md border bg-white p-0.5 text-sm">
+            <button
+              type="button"
+              onClick={() => handleCurrencyChange("EUR")}
+              className={`px-3 py-1 rounded ${currency === "EUR" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+            >
+              EUR €
+            </button>
+            <button
+              type="button"
+              onClick={() => handleCurrencyChange("TRY")}
+              className={`px-3 py-1 rounded ${currency === "TRY" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+            >
+              TRY ₺
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-row flex-wrap gap-2 sm:flex-col sm:items-end">
@@ -562,7 +598,7 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
             <div>
               <CardTitle className="text-base flex items-center gap-2">
                 <Euro className="h-4 w-4" />
-                Satış Fiyatları (EUR)
+                Satış Fiyatları ({currency})
               </CardTitle>
               {initialData.selectedAgencyName && (
                 <CardDescription>{initialData.selectedAgencyName}</CardDescription>
@@ -587,8 +623,8 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead className="min-w-[180px]">Tur</TableHead>
-                  <TableHead className="text-right w-28">Yetişkin €</TableHead>
-                  <TableHead className="text-right w-28">Çocuk €</TableHead>
+                  <TableHead className="text-right w-28">Yetişkin {currencySymbol}</TableHead>
+                  <TableHead className="text-right w-28">Çocuk {currencySymbol}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -681,6 +717,7 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
               lang={previewLang}
               adult={getPriceForTour(tour.id).adult}
               child={getPriceForTour(tour.id).child}
+              currencySymbol={currencySymbol}
               catalogUi={catalogUi}
             />
           ))}
@@ -695,12 +732,14 @@ function CatalogPreviewCard({
   lang,
   adult,
   child,
+  currencySymbol,
   catalogUi,
 }: {
   tour: Tour;
   lang: CatalogLang;
   adult: number;
   child: number;
+  currencySymbol: string;
   catalogUi: ReturnType<typeof getCatalogPageUi>;
 }) {
   const content = getTourContentForLang(
@@ -742,13 +781,13 @@ function CatalogPreviewCard({
             <span className="text-muted-foreground text-xs block">
               {catalogUi.adultPrice}
             </span>
-            <span className="font-bold text-primary">€{adult}</span>
+            <span className="font-bold text-primary">{currencySymbol}{adult}</span>
           </span>
           <span>
             <span className="text-muted-foreground text-xs block">
               {catalogUi.childPrice}
             </span>
-            <span className="font-bold text-primary">€{child}</span>
+            <span className="font-bold text-primary">{currencySymbol}{child}</span>
           </span>
         </div>
         {content.description && (

@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
@@ -6,12 +8,15 @@ import {
   FOOTER_LEGAL_LINKS,
   HELP_HUB_PATH,
 } from "@/lib/help/navigation";
+import type { HelpNavLink } from "@/lib/help/types";
 
-type PlatformFooterVariant = "default" | "compact" | "help" | "login";
+export type PlatformFooterVariant = "default" | "compact" | "help" | "login";
 
 interface PlatformFooterProps {
   variant?: PlatformFooterVariant;
   className?: string;
+  featuredLinks?: HelpNavLink[];
+  quickLinks?: HelpNavLink[];
 }
 
 const variantStyles: Record<
@@ -43,6 +48,8 @@ const variantStyles: Record<
 export function PlatformFooter({
   variant = "default",
   className,
+  featuredLinks = FOOTER_HELP_FEATURED,
+  quickLinks = FOOTER_HELP_QUICK,
 }: PlatformFooterProps) {
   const s = variantStyles[variant];
 
@@ -62,7 +69,7 @@ export function PlatformFooter({
               Kullanım Rehberi
             </h3>
             <ul className="space-y-2">
-              {FOOTER_HELP_FEATURED.map((link) => (
+              {featuredLinks.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
@@ -80,7 +87,7 @@ export function PlatformFooter({
               Hızlı bağlantılar
             </h3>
             <ul className="space-y-2">
-              {FOOTER_HELP_QUICK.map((link) => (
+              {quickLinks.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}

@@ -43,7 +43,13 @@ const customCaching = [
         matcher: ({ sameOrigin }: { sameOrigin: boolean }) => !sameOrigin,
         handler: new NetworkOnly(),
     },
-    // Spread the default cache rules for same-origin
+    // Deploy sonrası eski CSS/JS önbelleği stil kaybına yol açmasın — her zaman ağdan al
+    {
+        matcher: ({ url, sameOrigin }: { url: URL; sameOrigin: boolean }) =>
+            sameOrigin && url.pathname.startsWith("/_next/static/"),
+        handler: new NetworkOnly(),
+    },
+    // Google font vb. — defaultCache'in geri kalanı
     ...defaultCache,
 ];
 

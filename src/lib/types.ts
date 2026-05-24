@@ -6,8 +6,6 @@ export type CurrencyType = "TRY" | "EUR" | "USD" | "GBP";
 
 export type VoucherStatus = "active" | "cancelled" | "completed";
 
-export type PaymentStatus = "pending" | "paid";
-
 export type PaymentMethod = "cash" | "credit_card" | "bank_transfer" | "other";
 
 export interface Profile {
@@ -28,7 +26,6 @@ export interface Agency {
   name: string;
   phone: string | null;
   email: string | null;
-  commission_rate: number;
   is_active: boolean;
   created_at: string;
 }
@@ -119,34 +116,16 @@ export interface Voucher {
   sales_person_id: string;
   agency_id: string | null;
   status: VoucherStatus;
-  agency_payment_status: PaymentStatus;
-  agency_payment_date: string | null;
   notes: string | null;
   photo_url: string | null;
   pdf_url: string | null;
   exchange_rate_snapshot: ExchangeRateSnapshot | null; // Snapshot of rates at creation
-  agent_owes_easybook_eur: number;
   created_at: string;
   updated_at: string;
   // Joined fields
   tour?: Tour;
   sales_person?: Profile;
   agency?: Agency;
-}
-
-export interface AgentPayment {
-  id: string;
-  agent_id: string;
-  payment_amount: number;
-  payment_currency: CurrencyType;
-  payment_date: string;
-  related_voucher_id: string | null;
-  notes: string | null;
-  created_by: string | null;
-  created_at: string;
-  // Joined fields
-  agency?: Agency;
-  voucher?: Voucher;
 }
 
 export interface VoucherTemplate {

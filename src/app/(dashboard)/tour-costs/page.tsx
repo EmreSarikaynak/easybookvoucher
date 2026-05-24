@@ -2,6 +2,10 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getCurrentUser, isAdmin } from "@/lib/auth-helpers";
 import { TourCostsEditor } from "@/components/tour/tour-costs-editor";
 import { TourCostsPdfActions } from "@/components/tour/tour-costs-pdf-actions";
+import {
+  AgencyPricesEditor,
+  type AgencyPriceRow,
+} from "@/components/tour/agency-prices-editor";
 import type { Tour } from "@/lib/types";
 
 interface TourRow {
@@ -10,6 +14,10 @@ interface TourRow {
   cost_child_eur: number;
   cost_adult_try: number;
   cost_child_try: number;
+  sale_adult_eur: number;
+  sale_child_eur: number;
+  sale_adult_try: number;
+  sale_child_try: number;
   isCustom: boolean;
 }
 
@@ -27,28 +35,30 @@ async function getTourCosts(agencyId: string | null): Promise<TourRow[]> {
     return [];
   }
 
-  // Per-agency cost overrides (only when agency user)
-  let overrides: Array<{
+  // Per-agency cost overrides + saved sale prices (only when agency user)
+  let rows: Array<{
     tour_id: string;
     currency: string;
     cost_adult: number | null;
     cost_child: number | null;
+    price_adult: number | null;
+    price_child: number | null;
   }> = [];
 
   if (agencyId) {
     const { data } = await supabase
       .from("agency_tour_prices")
-      .select("tour_id, currency, cost_adult, cost_child")
+      .select("tour_id, currency, cost_adult, cost_child, price_adult, price_child")
       .eq("agency_id", agencyId);
-    overrides = data ?? [];
+    rows = data ?? [];
   }
 
-  const findOverride = (tourId: string, currency: "EUR" | "TRY") =>
-    overrides.find((o) => o.tour_id === tourId && o.currency === currency);
+  const findRow = (tourId: string, currency: "EUR" | "TRY") =>
+    rows.find((o) => o.tour_id === tourId && o.currency === currency);
 
   return tours.map((tour) => {
-    const eur = findOverride(tour.id, "EUR");
-    const tryRow = findOverride(tour.id, "TRY");
+    const eur = findRow(tour.id, "EUR");
+    const tryRow = findRow(tour.id, "TRY");
     const hasEurOverride = eur?.cost_adult != null || eur?.cost_child != null;
     const hasTryOverride = tryRow?.cost_adult != null || tryRow?.cost_child != null;
 
@@ -58,6 +68,10 @@ async function getTourCosts(agencyId: string | null): Promise<TourRow[]> {
       cost_child_eur: eur?.cost_child ?? tour.base_price_child_eur ?? 0,
       cost_adult_try: tryRow?.cost_adult ?? tour.base_price_adult_try ?? 0,
       cost_child_try: tryRow?.cost_child ?? tour.base_price_child_try ?? 0,
+      sale_adult_eur: Number(eur?.price_adult) || 0,
+      sale_child_eur: Number(eur?.price_child) || 0,
+      sale_adult_try: Number(tryRow?.price_adult) || 0,
+      sale_child_try: Number(tryRow?.price_child) || 0,
       isCustom: hasEurOverride || hasTryOverride,
     };
   });
@@ -108,24 +122,44 @@ export default async function TourCostsPage() {
   const rows = await getTourCosts(agencyId);
   const agencyPhone = profile?.agency?.phone ?? null;
   const agencyName = profile?.agency?.name ?? null;
+  // PDF satırları: acente PDF'ine kendi satış fiyatları gider (admin fiyatı değil)
   const pdfRows = rows.map(
-    ({ tour, cost_adult_eur, cost_child_eur, cost_adult_try, cost_child_try, isCustom }) => ({
+    ({ tour, sale_adult_eur, sale_child_eur, sale_adult_try, sale_child_try, isCustom }) => ({
       tourName: tour.name,
-      costAdultEur: cost_adult_eur,
-      costChildEur: cost_child_eur,
-      costAdultTry: cost_adult_try,
-      costChildTry: cost_child_try,
+      costAdultEur: Math.round(sale_adult_eur),
+      costChildEur: Math.round(sale_child_eur),
+      costAdultTry: Math.round(sale_adult_try),
+      costChildTry: Math.round(sale_child_try),
       isCustom,
     })
   );
 
+  // İTur editörü: satış alanı boşsa yönetici fiyatını varsayılan olarak göster.
+  // Bu varsayılan ekranda görünür ama kayıt yapmadan geçerli olmaz.
+  const editorRows: AgencyPriceRow[] = rows.map((r) => ({
+    tour_id: r.tour.id,
+    tour_name: r.tour.name,
+    departure_days: r.tour.departure_days ?? null,
+    departure_time: r.tour.departure_time ?? null,
+    cost_adult_eur: Math.round(r.cost_adult_eur),
+    cost_child_eur: Math.round(r.cost_child_eur),
+    cost_adult_try: Math.round(r.cost_adult_try),
+    cost_child_try: Math.round(r.cost_child_try),
+    // Satış girilmemişse yönetici fiyatını varsayılan göster (kaydetmeden geçerli değil)
+    sale_adult_eur: Math.round(r.sale_adult_eur || r.cost_adult_eur),
+    sale_child_eur: Math.round(r.sale_child_eur || r.cost_child_eur),
+    sale_adult_try: Math.round(r.sale_adult_try || r.cost_adult_try),
+    sale_child_try: Math.round(r.sale_child_try || r.cost_child_try),
+  }));
+
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold">Tur Maliyetleri</h1>
+          <h1 className="text-2xl font-bold">iTur Fiyat</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Size özel tanımlanmış tur maliyetleri. Özel fiyat yoksa varsayılan maliyet gösterilir.
+            Satış fiyatlarınızı belirleyin. Kaydettiğiniz fiyatlar Tur Kataloğu,
+            katalog PDF'i ve yeni bilet oluştururken otomatik kullanılır.
           </p>
         </div>
         <TourCostsPdfActions
@@ -135,94 +169,7 @@ export default async function TourCostsPage() {
         />
       </div>
 
-      <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
-        {/* Desktop table */}
-        <div className="hidden sm:block">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="text-left py-3 px-4 font-semibold">Tur Adı</th>
-                <th className="text-right py-3 px-4 font-semibold">EUR Fiyat (Yet/Çoc)</th>
-                <th className="text-right py-3 px-4 font-semibold">TL Fiyat (Yet/Çoc)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="py-8 text-center text-muted-foreground">
-                    Henüz aktif tur bulunmuyor
-                  </td>
-                </tr>
-              ) : (
-                rows.map(({ tour, cost_adult_eur, cost_child_eur, cost_adult_try, cost_child_try, isCustom }) => (
-                  <tr key={tour.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                    <td className="py-3 px-4 font-medium">
-                      <div className="flex items-center gap-2">
-                        {tour.name}
-                        {agencyId && isCustom && (
-                          <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">
-                            Size özel
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono font-semibold text-blue-700">
-                      <div className="flex flex-col gap-1 items-end">
-                        <span>{Math.round(cost_adult_eur)} € <span className="text-[10px] text-muted-foreground font-sans font-normal">(Yet)</span></span>
-                        <span className="text-blue-500/80">{Math.round(cost_child_eur)} € <span className="text-[10px] text-muted-foreground font-sans font-normal">(Çoc)</span></span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono text-muted-foreground">
-                      <div className="flex flex-col gap-1 items-end">
-                        <span>{Math.round(cost_adult_try)} ₺ <span className="text-[10px] font-sans font-normal">(Yet)</span></span>
-                        <span className="text-muted-foreground/60">{Math.round(cost_child_try)} ₺ <span className="text-[10px] font-sans font-normal">(Çoc)</span></span>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile cards */}
-        <div className="sm:hidden divide-y">
-          {rows.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">
-              Henüz aktif tur bulunmuyor
-            </div>
-          ) : (
-            rows.map(({ tour, cost_adult_eur, cost_child_eur, cost_adult_try, cost_child_try, isCustom }) => (
-              <div key={tour.id} className="p-4 space-y-2">
-                <div className="font-medium text-sm flex items-center gap-2">
-                  {tour.name}
-                  {agencyId && isCustom && (
-                    <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">
-                      Size özel
-                    </span>
-                  )}
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">EUR (Yet/Çoc)</span>
-                  <div className="flex items-center gap-2 font-mono font-semibold text-blue-700">
-                    <span>{Math.round(cost_adult_eur)} €</span>
-                    <span className="text-muted-foreground font-sans font-normal text-xs">/</span>
-                    <span className="text-blue-500/80">{Math.round(cost_child_eur)} €</span>
-                  </div>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">TL (Yet/Çoc)</span>
-                  <div className="flex items-center gap-2 font-mono text-muted-foreground">
-                    <span>{Math.round(cost_adult_try)} ₺</span>
-                    <span className="font-sans font-normal text-xs">/</span>
-                    <span className="text-muted-foreground/60">{Math.round(cost_child_try)} ₺</span>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+      <AgencyPricesEditor rows={editorRows} />
     </div>
   );
 }

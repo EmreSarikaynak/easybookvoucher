@@ -9,14 +9,23 @@ import { NotificationPrompt } from "@/components/pwa/notification-prompt";
 import { PushSubscriptionSync } from "@/components/pwa/push-subscription-sync";
 import { PlatformFooter } from "@/components/layout/platform-footer";
 import { SecestaFooter } from "@/components/layout/secesta-footer";
+import type { HelpNavLink } from "@/lib/help/types";
 import type { Profile } from "@/lib/types";
 
 interface DashboardShellProps {
   children: React.ReactNode;
   profile: Profile | null;
+  footerLinks?: {
+    featured: HelpNavLink[];
+    quick: HelpNavLink[];
+  };
 }
 
-export function DashboardShell({ children, profile }: DashboardShellProps) {
+export function DashboardShell({
+  children,
+  profile,
+  footerLinks,
+}: DashboardShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
@@ -38,6 +47,8 @@ export function DashboardShell({ children, profile }: DashboardShellProps) {
           <PlatformFooter
             variant="compact"
             className="mt-8 -mx-4 sm:-mx-6 lg:-mx-8 rounded-none"
+            featuredLinks={footerLinks?.featured}
+            quickLinks={footerLinks?.quick}
           />
           <SecestaFooter
             variant="compact"

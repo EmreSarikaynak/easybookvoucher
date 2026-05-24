@@ -1,13 +1,18 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { HELP_ARTICLES } from "@/lib/help/articles";
+import type { HelpArticle } from "@/lib/help/types";
 
 interface HelpSidebarProps {
+  articles: HelpArticle[];
   currentSlug?: string;
   className?: string;
 }
 
-export function HelpSidebar({ currentSlug, className }: HelpSidebarProps) {
+export function HelpSidebar({
+  articles,
+  currentSlug,
+  className,
+}: HelpSidebarProps) {
   return (
     <nav
       className={cn(
@@ -18,7 +23,7 @@ export function HelpSidebar({ currentSlug, className }: HelpSidebarProps) {
     >
       <p className="font-semibold text-gray-900">Makaleler</p>
       <ul className="space-y-1 max-h-[60vh] overflow-y-auto">
-        {HELP_ARTICLES.map((a) => (
+        {articles.map((a) => (
           <li key={a.slug}>
             <Link
               href={`/help/${a.slug}`}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { generateVoucherNo } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { getAgencyTourPrice } from "@/app/actions/agency-tour-prices";
 import type { Tour, CurrencyType, Voucher } from "@/lib/types";
 import { SELF_PICKUP, encodeSelfPickup, parseSelfPickup } from "@/lib/constants";
 
@@ -73,7 +75,57 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
     notes: voucher?.notes ?? "",
   });
 
+  const { profile } = useAuth();
+  const agencyId = profile?.agency_id ?? null;
+
+  // Otomatik fiyat hesaplama:
+  // - Sadece EUR/TRY desteklenir (USD/GBP için lookup yok).
+  // - Kullanıcı total_price'a elle dokunduktan sonra üzerine yazılmaz.
+  // - Düzenleme modunda otomatik tetiklenmez (kullanıcı kayıtlı değeri korumak ister).
+  const [manuallyEditedTotal, setManuallyEditedTotal] = useState(isEditing);
+  const [autoPriceSource, setAutoPriceSource] = useState<
+    "agency" | "fallback" | null
+  >(null);
+  const lastAutoKey = useRef<string>("");
+
+  useEffect(() => {
+    if (manuallyEditedTotal) return;
+    if (!agencyId) return;
+    if (!formData.tour_id) return;
+    if (formData.currency !== "EUR" && formData.currency !== "TRY") return;
+
+    const adult = formData.pax_adult === "" ? 0 : Number(formData.pax_adult);
+    const child = formData.pax_child === "" ? 0 : Number(formData.pax_child);
+    const key = `${formData.tour_id}|${formData.currency}|${adult}|${child}`;
+    if (key === lastAutoKey.current) return;
+    lastAutoKey.current = key;
+
+    let cancelled = false;
+    (async () => {
+      const result = await getAgencyTourPrice(
+        agencyId,
+        formData.tour_id,
+        formData.currency
+      );
+      if (cancelled || !result) return;
+      const total = adult * result.price_adult + child * result.price_child;
+      setFormData((prev) => ({ ...prev, total_price: Math.round(total) }));
+      setAutoPriceSource(result.source);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    agencyId,
+    formData.tour_id,
+    formData.pax_adult,
+    formData.pax_child,
+    formData.currency,
+    manuallyEditedTotal,
+  ]);
+
   const handleChange = (field: string, value: string | number) => {
+    if (field === "total_price") setManuallyEditedTotal(true);
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -406,19 +458,39 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
           </div>
           <div className="flex items-center gap-3">
             <Label htmlFor="total_price" className="shrink-0 w-36">Toplam Fiyat</Label>
-            <Input
-              id="total_price"
-              type="number"
-              min={0}
-              step="1"
-              value={formData.total_price === "" ? "" : formData.total_price}
-              onChange={(e) =>
-                handleChange("total_price", e.target.value === "" ? "" : parseInt(e.target.value, 10) || 0)
-              }
-              onFocus={() => clearOnFocus("total_price")}
-              onBlur={() => blurNum("total_price", 0)}
-              className="flex-1"
-            />
+            <div className="flex-1 space-y-1">
+              <Input
+                id="total_price"
+                type="number"
+                min={0}
+                step="1"
+                value={formData.total_price === "" ? "" : formData.total_price}
+                onChange={(e) =>
+                  handleChange("total_price", e.target.value === "" ? "" : parseInt(e.target.value, 10) || 0)
+                }
+                onFocus={() => clearOnFocus("total_price")}
+                onBlur={() => blurNum("total_price", 0)}
+              />
+              {manuallyEditedTotal ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Manuel girildi.{" "}
+                  <button
+                    type="button"
+                    className="text-primary underline"
+                    onClick={() => {
+                      lastAutoKey.current = "";
+                      setManuallyEditedTotal(false);
+                    }}
+                  >
+                    Otomatiğe dön
+                  </button>
+                </p>
+              ) : autoPriceSource === "agency" ? (
+                <p className="text-[11px] text-emerald-700">
+                  Otomatik hesaplandı (iTur satış fiyatı)
+                </p>
+              ) : null}
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <Label htmlFor="currency" className="shrink-0 w-36">Para Birimi</Label>

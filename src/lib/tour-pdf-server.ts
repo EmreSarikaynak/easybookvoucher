@@ -6,6 +6,7 @@ import {
   type TourTranslations,
 } from "@/lib/tour-i18n";
 import { EASYBOOK_CONTACT } from "@/lib/constants";
+import type { ResolvedTourPriceSet } from "@/lib/tour-catalog-data";
 
 export interface TourPdfInput {
   name: string;
@@ -15,6 +16,8 @@ export interface TourPdfInput {
   images: string[];
   translations?: TourTranslations | null;
   tour_managers?: { name: string; phone: string }[];
+  prices?: ResolvedTourPriceSet | null;
+  agencyName?: string | null;
 }
 
 async function fetchImageAsDataUrl(url: string): Promise<string | null> {
@@ -75,6 +78,19 @@ export async function generateTourPdfBuffer(
   addLine(content.name, 20, true);
   if (tour.duration) {
     addLine(`${ui.duration}: ${tour.duration}`, 10);
+  }
+  if (tour.prices) {
+    y += 1;
+    addLine("Fiyatlar", 12, true);
+    if (tour.agencyName) addLine(tour.agencyName, 9);
+    addLine(
+      `EUR: Yetiskin ${tour.prices.eur.adult} EUR / Cocuk ${tour.prices.eur.child} EUR`,
+      10
+    );
+    addLine(
+      `TRY: Yetiskin ${tour.prices.try.adult} TRY / Cocuk ${tour.prices.try.child} TRY`,
+      10
+    );
   }
 
   if (content.description?.trim()) {

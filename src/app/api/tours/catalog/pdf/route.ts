@@ -5,7 +5,10 @@ import {
   CATALOG_LANGUAGES,
   type CatalogLang,
 } from "@/lib/tour-i18n";
-import { generateTourCatalogPdfBuffer } from "@/lib/tour-catalog-pdf";
+import {
+  generateTourCatalogPdfBuffer,
+  type CatalogPdfCurrency,
+} from "@/lib/tour-catalog-pdf";
 import { fetchCatalogPdfDataset } from "@/lib/tour-catalog-data";
 import { getSetting } from "@/app/actions/settings";
 
@@ -24,6 +27,8 @@ export async function GET(request: NextRequest) {
   ) as CatalogLang;
 
   let agencyId = request.nextUrl.searchParams.get("agencyId");
+  const currencyParam = request.nextUrl.searchParams.get("currency");
+  const currency: CatalogPdfCurrency = currencyParam === "TRY" ? "TRY" : "EUR";
   const admin = isAdmin(profile);
 
   if (!admin) {
@@ -44,7 +49,8 @@ export async function GET(request: NextRequest) {
   const supabase = await createServerSupabaseClient();
   const { data: dataset, error: dataError } = await fetchCatalogPdfDataset(
     supabase,
-    agencyId
+    agencyId,
+    currency
   );
 
   if (!dataset || dataError) {
@@ -66,13 +72,14 @@ export async function GET(request: NextRequest) {
       lang,
       agencyName: dataset.agencyName,
       logoUrl,
+      currency,
       baseUrl,
     });
 
     const safeAgency = dataset.agencyName
       .replace(/[^a-zA-Z0-9-_]/g, "_")
       .slice(0, 30);
-    const filename = `tur-katalogu-${safeAgency}-${lang}.pdf`;
+    const filename = `tur-katalogu-${safeAgency}-${currency.toLowerCase()}-${lang}.pdf`;
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,

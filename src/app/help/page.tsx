@@ -1,19 +1,29 @@
 import Link from "next/link";
 import { ChevronRight, BookOpen } from "lucide-react";
-import { HELP_ARTICLES, HELP_CATEGORIES } from "@/lib/help/articles";
 import { HelpSidebar } from "@/components/help/help-sidebar";
+import {
+  fetchHelpCategories,
+  fetchPublishedHelpPages,
+} from "@/lib/help/help-pages-server";
 
-export default function HelpHubPage() {
-  const byCategory = HELP_CATEGORIES.map((cat) => ({
-    category: cat,
-    articles: HELP_ARTICLES.filter((a) => a.category === cat),
-  })).filter((g) => g.articles.length > 0);
+export const dynamic = "force-dynamic";
+
+export default async function HelpHubPage() {
+  const articles = await fetchPublishedHelpPages();
+  const categories = await fetchHelpCategories();
+
+  const byCategory = categories
+    .map((category) => ({
+      category,
+      articles: articles.filter((a) => a.category === category),
+    }))
+    .filter((g) => g.articles.length > 0);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
       <div className="grid gap-8 lg:grid-cols-[240px_1fr]">
         <aside className="hidden lg:block">
-          <HelpSidebar />
+          <HelpSidebar articles={articles} />
         </aside>
 
         <div className="space-y-8">
@@ -35,13 +45,13 @@ export default function HelpHubPage() {
             </div>
           </div>
 
-          {byCategory.map(({ category, articles }) => (
+          {byCategory.map(({ category, articles: catArticles }) => (
             <section key={category} className="space-y-3">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 {category}
               </h2>
               <div className="grid gap-3 sm:grid-cols-2">
-                {articles.map((article) => (
+                {catArticles.map((article) => (
                   <Link
                     key={article.slug}
                     href={`/help/${article.slug}`}

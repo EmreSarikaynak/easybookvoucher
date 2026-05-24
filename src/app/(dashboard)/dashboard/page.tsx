@@ -5,10 +5,10 @@ import {
   Calendar,
   ArrowRight,
   PlusCircle,
-  DollarSign,
   Headphones,
   BarChart3,
   Building2,
+  BookOpen,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
@@ -185,7 +185,7 @@ export default async function DashboardPage() {
     quickLinks = [
       { label: "Yeni Bilet Oluştur", href: "/vouchers/new", primary: true },
       { label: "Biletlerimi Gör", href: "/vouchers" },
-      { label: "Tur Maliyetleri", href: "/tour-costs" },
+      { label: "Tur Kataloğu", href: "/tours/catalog" },
       { label: "Destek Talebi Aç", href: "/support" },
       { label: "Raporlar", href: "/reports" },
     ];
@@ -226,9 +226,9 @@ export default async function DashboardPage() {
           color: "bg-blue-600",
         },
         {
-          icon: DollarSign,
-          label: "Tur Maliyetleri",
-          href: "/tour-costs",
+          icon: BookOpen,
+          label: "Tur Kataloğu",
+          href: "/tours/catalog",
           color: "bg-orange-500",
         },
         {
@@ -258,21 +258,21 @@ export default async function DashboardPage() {
 
       {/* İstatistik Kartları */}
       {statCards.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
           {statCards.map((stat) => (
             <Link key={stat.title} href={stat.href}>
               <Card className="transition-all hover:shadow-md active:scale-[0.98] touch-manipulation h-full">
-                <CardContent className="p-4">
+                <CardContent className="p-3 sm:p-4">
                   <div className="flex items-start justify-between">
-                    <div className={`rounded-lg ${stat.color} p-2`}>
-                      <stat.icon className="h-5 w-5 text-white" />
+                    <div className={`rounded-lg ${stat.color} p-1.5 sm:p-2`}>
+                      <stat.icon className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                     </div>
                   </div>
-                  <div className="mt-3">
-                    <p className="text-2xl sm:text-3xl font-bold">
+                  <div className="mt-2 sm:mt-3">
+                    <p className="text-lg sm:text-2xl lg:text-3xl font-bold leading-tight">
                       {stat.value}
                     </p>
-                    <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+                    <p className="text-[11px] sm:text-xs lg:text-sm text-muted-foreground mt-0.5 sm:mt-1 leading-tight">
                       {stat.title}
                     </p>
                   </div>
@@ -283,24 +283,24 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Hızlı Eylem Butonları (büyük ekran) */}
-      <div className="hidden lg:block">
+      {/* Hızlı Erişim — tüm ekranlarda 4 kolon */}
+      <div>
         <h2 className="text-sm font-semibold text-muted-foreground mb-3">
           Hızlı Erişim
         </h2>
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-4 gap-2 sm:gap-3">
           {quickActionCards.map((action) => (
             <Link
               key={action.label}
               href={action.href}
-              className="flex flex-col items-center gap-2 p-4 bg-white border rounded-xl hover:shadow-md transition-all group"
+              className="flex flex-col items-center gap-1.5 sm:gap-2 p-3 sm:p-4 bg-white border rounded-xl hover:shadow-md transition-all group"
             >
               <div
-                className={`${action.color} rounded-xl p-3 group-hover:scale-110 transition-transform`}
+                className={`${action.color} rounded-xl p-2 sm:p-3 group-hover:scale-110 transition-transform`}
               >
-                <action.icon className="h-6 w-6 text-white" />
+                <action.icon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
-              <span className="text-sm font-medium text-center">
+              <span className="text-[11px] sm:text-sm font-medium text-center leading-tight">
                 {action.label}
               </span>
             </Link>
@@ -308,14 +308,12 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Hızlı Erişim Linkleri (mobil) */}
+      {/* Ek hızlı linkler (mobil) — yalnızca temel eylemlerin yanına detay */}
       <div className="lg:hidden">
-        <h2 className="text-sm font-semibold text-muted-foreground mb-3">
-          Hızlı Erişim
-        </h2>
         <div className="space-y-2">
-          {quickLinks.map((link, i) =>
-            link.primary ? (
+          {quickLinks
+            .filter((link) => link.primary)
+            .map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -324,17 +322,7 @@ export default async function DashboardPage() {
                 <span className="font-medium">{link.label}</span>
                 <ArrowRight className="h-5 w-5" />
               </Link>
-            ) : (
-              <Link
-                key={`${link.href}-${i}`}
-                href={link.href}
-                className="flex items-center justify-between p-4 bg-white border rounded-lg"
-              >
-                <span className="font-medium">{link.label}</span>
-                <ArrowRight className="h-5 w-5 text-muted-foreground" />
-              </Link>
-            )
-          )}
+            ))}
         </div>
       </div>
     </div>

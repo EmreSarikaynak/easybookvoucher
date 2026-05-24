@@ -10,18 +10,29 @@ import { TourViewPanel } from "@/components/tour/tour-view-panel";
 import {
   TOUR_LANGUAGES,
   TOUR_LANG_FLAGS,
+  addAgencyCodeToUrl,
   buildTourPublicUrl,
 } from "@/lib/tour-i18n";
 import type { Tour } from "@/lib/types";
+import type { ResolvedTourPriceSet } from "@/lib/tour-catalog-data";
 
 interface TourDetailClientProps {
   tour: Tour;
   isAdmin: boolean;
+  prices?: ResolvedTourPriceSet | null;
+  agencyCode?: string | null;
 }
 
-export function TourDetailClient({ tour, isAdmin }: TourDetailClientProps) {
+export function TourDetailClient({
+  tour,
+  isAdmin,
+  prices,
+  agencyCode,
+}: TourDetailClientProps) {
   const router = useRouter();
-  const publicUrl = tour.tour_url || buildTourPublicUrl(tour.id);
+  const publicUrl = tour.tour_url
+    ? addAgencyCodeToUrl(tour.tour_url, agencyCode)
+    : buildTourPublicUrl(tour.id, undefined, agencyCode);
 
   return (
     <div className="space-y-6">
@@ -81,12 +92,12 @@ export function TourDetailClient({ tour, isAdmin }: TourDetailClientProps) {
 
           <TabsContent value="info" className="mt-6">
             <div className="rounded-lg border bg-card p-6">
-              <TourViewPanel tour={tour} />
+              <TourViewPanel tour={tour} prices={prices} agencyCode={agencyCode} />
             </div>
           </TabsContent>
 
           <TabsContent value="preview" className="mt-6 space-y-4">
-            <TourPreviewSection tourId={tour.id} />
+            <TourPreviewSection tourId={tour.id} agencyCode={agencyCode} />
           </TabsContent>
         </Tabs>
       )}
@@ -94,7 +105,16 @@ export function TourDetailClient({ tour, isAdmin }: TourDetailClientProps) {
   );
 }
 
-function TourPreviewSection({ tourId }: { tourId: string }) {
+function TourPreviewSection({
+  tourId,
+  agencyCode,
+}: {
+  tourId: string;
+  agencyCode?: string | null;
+}) {
+  const agencyQuery = agencyCode ? `&a=${encodeURIComponent(agencyCode)}` : "";
+  const previewSrc = `/tour/${tourId}${agencyCode ? `?a=${encodeURIComponent(agencyCode)}` : ""}`;
+
   return (
     <>
       <div className="rounded-lg border p-4 space-y-4">
@@ -103,7 +123,7 @@ function TourPreviewSection({ tourId }: { tourId: string }) {
           {TOUR_LANGUAGES.map((lang) => (
             <Button key={lang} variant="outline" asChild>
               <a
-                href={`/api/tours/${tourId}/pdf?lang=${lang}`}
+                href={`/api/tours/${tourId}/pdf?lang=${lang}${agencyQuery}`}
                 download
                 target="_blank"
                 rel="noopener noreferrer"
@@ -120,7 +140,7 @@ function TourPreviewSection({ tourId }: { tourId: string }) {
           Müşteri görünümü önizlemesi
         </p>
         <iframe
-          src={`/tour/${tourId}`}
+          src={previewSrc}
           title="Tur önizleme"
           className="w-full h-[min(70vh,800px)] border-0"
         />

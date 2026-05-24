@@ -110,13 +110,45 @@ export function primaryTranslationName(translations: TourTranslations): string {
   );
 }
 
-export function buildTourPublicUrl(tourId: string, baseUrl?: string): string {
+export function buildTourPublicUrl(
+  tourId: string,
+  baseUrl?: string,
+  agencyCode?: string | null
+): string {
   const origin =
     baseUrl ||
     (typeof window !== "undefined" ? window.location.origin : "") ||
     process.env.NEXT_PUBLIC_APP_URL ||
     "";
-  return `${origin.replace(/\/$/, "")}/tour/${tourId}`;
+  const path = `${origin.replace(/\/$/, "")}/tour/${tourId}`;
+  if (!agencyCode) return path;
+  return `${path}?a=${encodeURIComponent(agencyCode)}`;
+}
+
+export function addAgencyCodeToUrl(
+  url: string,
+  agencyCode?: string | null
+): string {
+  if (!agencyCode) return url;
+
+  try {
+    const isAbsolute = /^https?:\/\//i.test(url);
+    const parsed = new URL(
+      url,
+      isAbsolute
+        ? undefined
+        : typeof window !== "undefined"
+          ? window.location.origin
+          : "https://easybook.local"
+    );
+    parsed.searchParams.set("a", agencyCode);
+    return isAbsolute
+      ? parsed.toString()
+      : `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}a=${encodeURIComponent(agencyCode)}`;
+  }
 }
 
 export function isYoutubeUrl(url: string): boolean {

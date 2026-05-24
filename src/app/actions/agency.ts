@@ -15,7 +15,6 @@ interface AgencyPayload {
   name: string;
   phone: string;
   email: string;
-  commission_rate: number;
   agency_code?: string;
 }
 
@@ -82,7 +81,6 @@ export async function createAgencyWithUser(payload: CreateAgencyWithUserPayload)
         name: payload.name,
         phone: payload.phone,
         email: payload.email,
-        commission_rate: payload.commission_rate,
         agency_code: agencyCode,
         is_active: true,
       })

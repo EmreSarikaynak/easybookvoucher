@@ -25,13 +25,23 @@ import {
 } from "@/lib/tour-i18n";
 import { EASYBOOK_CONTACT } from "@/lib/constants";
 import { SecestaFooter } from "@/components/layout/secesta-footer";
+import { TourPriceBlock } from "@/components/tour/tour-price-block";
 import type { Tour } from "@/lib/types";
+import type { ResolvedTourPriceSet } from "@/lib/tour-catalog-data";
 
 interface TourPublicClientProps {
   tour: Tour;
+  prices?: ResolvedTourPriceSet | null;
+  agencyName?: string | null;
+  agencyCode?: string | null;
 }
 
-export function TourPublicClient({ tour }: TourPublicClientProps) {
+export function TourPublicClient({
+  tour,
+  prices,
+  agencyName,
+  agencyCode,
+}: TourPublicClientProps) {
   const [lang, setLang] = useState<TourLang>("tr");
   const [photoIndex, setPhotoIndex] = useState(0);
 
@@ -45,7 +55,9 @@ export function TourPublicClient({ tour }: TourPublicClientProps) {
   const images = tour.images ?? [];
   const videos = tour.videos ?? [];
 
-  const pdfUrl = `/api/tours/${tour.id}/pdf?lang=${lang}`;
+  const pdfUrl = `/api/tours/${tour.id}/pdf?lang=${lang}${
+    agencyCode ? `&a=${encodeURIComponent(agencyCode)}` : ""
+  }`;
 
   const prevPhoto = () => {
     if (images.length) setPhotoIndex((i) => (i - 1 + images.length) % images.length);
@@ -162,6 +174,20 @@ export function TourPublicClient({ tour }: TourPublicClientProps) {
             </a>
           </Button>
         </section>
+
+        {prices && (
+          <section className="rounded-xl border bg-white p-4 shadow-sm">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold">Fiyatlar</h2>
+              {agencyName && (
+                <span className="text-xs font-medium text-muted-foreground">
+                  {agencyName}
+                </span>
+              )}
+            </div>
+            <TourPriceBlock prices={prices} size="md" />
+          </section>
+        )}
 
         <section className="prose prose-slate max-w-none">
           <p className="text-base leading-relaxed whitespace-pre-wrap">

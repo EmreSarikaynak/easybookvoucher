@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Building2, Edit, Trash2, Eye, EyeOff, Wallet } from "lucide-react";
+import { Plus, Building2, Edit, Trash2, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +29,6 @@ import {
 } from "@/app/actions/agency";
 import type { Agency } from "@/lib/types";
 import { useRouter } from "next/navigation";
-import { AgencyAccounting } from "./agency-accounting";
 import { AgencyTourPricing } from "./agency-tour-pricing";
 
 interface AgenciesContentProps {
@@ -44,7 +43,6 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [accountingAgency, setAccountingAgency] = useState<Agency | null>(null);
   const [pricingCells, setPricingCells] = useState<AgencyTourPricingCell[]>([]);
   const [pricingDirty, setPricingDirty] = useState(false);
   const [formData, setFormData] = useState({
@@ -52,7 +50,6 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
     agency_code: "",
     phone: "",
     email: "",
-    commission_rate: 0,
     admin_name: "",
     password: "",
   });
@@ -64,7 +61,6 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
       agency_code: "",
       phone: "",
       email: "",
-      commission_rate: 0,
       admin_name: "",
       password: "",
     });
@@ -82,7 +78,6 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
       agency_code: agency.agency_code || "",
       phone: agency.phone ?? "",
       email: agency.email ?? "",
-      commission_rate: agency.commission_rate,
       admin_name: "",
       password: "",
     });
@@ -120,7 +115,6 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
           agency_code: formData.agency_code || undefined,
           phone: formData.phone,
           email: formData.email,
-          commission_rate: formData.commission_rate,
         });
       } else {
         result = await createAgencyWithUser({
@@ -128,7 +122,6 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
           agency_code: formData.agency_code || undefined,
           phone: formData.phone,
           email: formData.email,
-          commission_rate: formData.commission_rate,
           admin_name: formData.admin_name,
           password: formData.password,
         });
@@ -175,9 +168,9 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{isAdmin ? 'Acenteler' : 'Acente Profili & Muhasebe'}</h1>
+          <h1 className="text-2xl font-bold">{isAdmin ? 'Acenteler' : 'Acente Profili'}</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {isAdmin ? 'Acente yönetimi (yalnızca admin)' : 'Kendi acente profilinizi ve muhasebenizi görüntüleyin'}
+            {isAdmin ? 'Acente yönetimi (yalnızca admin)' : 'Kendi acente profilinizi görüntüleyin'}
           </p>
         </div>
         {isAdmin && (
@@ -216,9 +209,6 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
                 {agency.email && (
                   <p className="text-sm text-muted-foreground">{agency.email}</p>
                 )}
-                <p className="text-sm">
-                  Komisyon: <span className="font-semibold">%{agency.commission_rate}</span>
-                </p>
                 <div className="flex gap-2 pt-2">
                   {isAdmin && (
                     <Button size="sm" variant="outline" onClick={() => openEdit(agency)}>
@@ -226,15 +216,6 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
                       Düzenle
                     </Button>
                   )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-blue-700 border-blue-200 hover:bg-blue-50"
-                    onClick={() => setAccountingAgency(agency)}
-                  >
-                    <Wallet className="mr-1 h-3 w-3" />
-                    Muhasebe
-                  </Button>
                   {isAdmin && (
                     <Button
                       size="sm"
@@ -298,33 +279,15 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Telefon</Label>
-                  <Input
-                    value={formData.phone}
-                    onChange={(e) =>
-                      setFormData((p) => ({ ...p, phone: e.target.value }))
-                    }
-                    placeholder="+90 5XX XXX XX XX"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Komisyon (%)</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step="0.01"
-                    value={formData.commission_rate}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        commission_rate: parseFloat(e.target.value) || 0,
-                      }))
-                    }
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label>Telefon</Label>
+                <Input
+                  value={formData.phone}
+                  onChange={(e) =>
+                    setFormData((p) => ({ ...p, phone: e.target.value }))
+                  }
+                  placeholder="+90 5XX XXX XX XX"
+                />
               </div>
             </div>
 
@@ -438,14 +401,6 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
         </DialogContent>
       </Dialog>
 
-      {/* Muhasebe Dialog */}
-      {accountingAgency && (
-        <AgencyAccounting
-          agency={accountingAgency}
-          open={!!accountingAgency}
-          onOpenChange={(open) => { if (!open) setAccountingAgency(null); }}
-        />
-      )}
     </div>
   );
 }

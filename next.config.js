@@ -1,3 +1,5 @@
+const path = require("path");
+
 const withSerwist = require("@serwist/next").default({
   swSrc: "src/app/sw.ts",
   swDest: "public/sw.js",
@@ -8,6 +10,8 @@ const withSerwist = require("@serwist/next").default({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Üst dizindeki package-lock.json yanlış workspace root seçmesin (Tailwind/CSS kırılmasın)
+  outputFileTracingRoot: path.join(__dirname),
   reactStrictMode: true,
   experimental: {
     serverActions: {

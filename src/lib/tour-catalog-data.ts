@@ -1,6 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CatalogLang } from "@/lib/tour-i18n";
-import type { CatalogPriceInput, CatalogTourInput } from "@/lib/tour-catalog-pdf";
+import type {
+  CatalogPdfCurrency,
+  CatalogPriceInput,
+  CatalogTourInput,
+} from "@/lib/tour-catalog-pdf";
+import type { Tour } from "@/lib/types";
 
 export function resolveCatalogDisplayPrice(
   storedAdult: number | null | undefined,
@@ -16,6 +21,75 @@ export function resolveCatalogDisplayPrice(
   };
 }
 
+export interface ResolvedTourPriceSet {
+  eur: { adult: number; child: number };
+  try: { adult: number; child: number };
+}
+
+type TourPriceBase = Pick<
+  Tour,
+  | "id"
+  | "base_price_adult_eur"
+  | "base_price_child_eur"
+  | "base_price_adult_try"
+  | "base_price_child_try"
+>;
+
+/**
+ * Verilen turlar için EUR + TRY satış fiyatlarını çözer.
+ * - agencyId varsa: agency_tour_prices'tan o acentenin price_adult/price_child değerlerini kullanır.
+ * - Yoksa veya satır eksikse: tours.base_price_*_<currency> fallback.
+ * - Tek sorgu, in-memory join (N+1 yok).
+ */
+export async function fetchAgencyTourPriceMap(
+  supabase: SupabaseClient,
+  agencyId: string | null,
+  tours: TourPriceBase[]
+): Promise<Map<string, ResolvedTourPriceSet>> {
+  const tourIds = tours.map((t) => t.id);
+  let rows: Array<{
+    tour_id: string;
+    currency: string;
+    price_adult: number | null;
+    price_child: number | null;
+  }> = [];
+
+  if (agencyId && tourIds.length > 0) {
+    const { data } = await supabase
+      .from("agency_tour_prices")
+      .select("tour_id, currency, price_adult, price_child")
+      .eq("agency_id", agencyId)
+      .in("tour_id", tourIds);
+    rows = data ?? [];
+  }
+
+  const findRow = (tourId: string, currency: "EUR" | "TRY") =>
+    rows.find((r) => r.tour_id === tourId && r.currency === currency);
+
+  const result = new Map<string, ResolvedTourPriceSet>();
+  for (const t of tours) {
+    const eurRow = findRow(t.id, "EUR");
+    const tryRow = findRow(t.id, "TRY");
+    const eur = resolveCatalogDisplayPrice(
+      eurRow?.price_adult,
+      eurRow?.price_child,
+      t.base_price_adult_eur,
+      t.base_price_child_eur
+    );
+    const tryRes = resolveCatalogDisplayPrice(
+      tryRow?.price_adult,
+      tryRow?.price_child,
+      t.base_price_adult_try,
+      t.base_price_child_try
+    );
+    result.set(t.id, {
+      eur: { adult: eur.price_adult, child: eur.price_child },
+      try: { adult: tryRes.price_adult, child: tryRes.price_child },
+    });
+  }
+  return result;
+}
+
 export interface CatalogPdfDataset {
   tours: CatalogTourInput[];
   prices: CatalogPriceInput[];
@@ -25,7 +99,8 @@ export interface CatalogPdfDataset {
 
 export async function fetchCatalogPdfDataset(
   supabase: SupabaseClient,
-  agencyId: string
+  agencyId: string,
+  currency: CatalogPdfCurrency = "EUR"
 ): Promise<{ data: CatalogPdfDataset | null; error?: string }> {
   const { data: agency, error: agencyErr } = await supabase
     .from("agencies")
@@ -55,19 +130,25 @@ export async function fetchCatalogPdfDataset(
     .from("agency_tour_prices")
     .select("tour_id, price_adult, price_child")
     .eq("agency_id", agencyId)
-    .eq("currency", "EUR");
+    .eq("currency", currency);
 
   const priceByTour = new Map((priceRows ?? []).map((p) => [p.tour_id, p]));
 
-  const prices: CatalogPriceInput[] = tours.map((tour) => ({
-    tour_id: tour.id,
-    ...resolveCatalogDisplayPrice(
-      priceByTour.get(tour.id)?.price_adult,
-      priceByTour.get(tour.id)?.price_child,
-      tour.base_price_adult_eur,
-      tour.base_price_child_eur
-    ),
-  }));
+  const prices: CatalogPriceInput[] = tours.map((tour) => {
+    const baseAdult =
+      currency === "EUR" ? tour.base_price_adult_eur : tour.base_price_adult_try;
+    const baseChild =
+      currency === "EUR" ? tour.base_price_child_eur : tour.base_price_child_try;
+    return {
+      tour_id: tour.id,
+      ...resolveCatalogDisplayPrice(
+        priceByTour.get(tour.id)?.price_adult,
+        priceByTour.get(tour.id)?.price_child,
+        baseAdult,
+        baseChild
+      ),
+    };
+  });
 
   return {
     data: {

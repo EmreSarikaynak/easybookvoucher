@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
-import { getCatalogPageData } from "@/app/actions/tour-catalog";
+import { getCatalogPageData, type CatalogCurrency } from "@/app/actions/tour-catalog";
 import { TourCatalogClient } from "@/components/tour/tour-catalog-client";
 import { getCurrentUser, canViewTours } from "@/lib/auth-helpers";
 
 interface PageProps {
-  searchParams: Promise<{ agencyId?: string }>;
+  searchParams: Promise<{ agencyId?: string; currency?: string }>;
 }
 
 export default async function TourCatalogPage({ searchParams }: PageProps) {
@@ -14,7 +14,11 @@ export default async function TourCatalogPage({ searchParams }: PageProps) {
   }
 
   const params = await searchParams;
-  const { data, error } = await getCatalogPageData(params.agencyId ?? null);
+  const currency: CatalogCurrency = params.currency === "TRY" ? "TRY" : "EUR";
+  const { data, error } = await getCatalogPageData(
+    params.agencyId ?? null,
+    currency
+  );
 
   if (error || !data) {
     return (

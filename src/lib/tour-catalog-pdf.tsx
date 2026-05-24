@@ -630,6 +630,7 @@ interface TourCardProps {
   tour: CatalogTourInput;
   imgs: (string | null)[];
   price: { price_adult: number; price_child: number };
+  currency: CatalogPdfCurrency;
 }
 
 function ImageStrip({ images }: { images: (string | null)[] }) {
@@ -664,9 +665,10 @@ function IconListLine({ icon, text, color }: { icon: IconKey; text: string; colo
   );
 }
 
-function TourCard({ lang, tour, imgs, price }: TourCardProps) {
+function TourCard({ lang, tour, imgs, price, currency }: TourCardProps) {
   const ui = getCatalogPageUi(lang);
   const content = getTourContentForLang(tour.translations, lang, tour.name, tour.description);
+  const priceLabel = ui.pricesEur.replace("EUR", currency);
 
   const duration = formatDurationLabel(tour.duration);
   const days = formatDays(tour.departure_days, ui.weekdays);
@@ -757,19 +759,19 @@ function TourCard({ lang, tour, imgs, price }: TourCardProps) {
           ) : null}
 
           <View style={styles.priceBox}>
-            <Text style={styles.priceLabel}>{ui.pricesEur}</Text>
+            <Text style={styles.priceLabel}>{priceLabel}</Text>
             {hasAnyPrice ? (
               <>
                 {showAdult ? (
                   <View style={styles.priceRow}>
                     <Text style={styles.priceWho}>{ui.adultPrice}</Text>
-                    <Text style={styles.priceValue}>EUR {price.price_adult}</Text>
+                    <Text style={styles.priceValue}>{currency} {price.price_adult}</Text>
                   </View>
                 ) : null}
                 {showChild ? (
                   <View style={[styles.priceRow, { marginTop: 3 }]}>
                     <Text style={styles.priceWho}>{ui.childPrice}</Text>
-                    <Text style={styles.priceValue}>EUR {price.price_child}</Text>
+                    <Text style={styles.priceValue}>{currency} {price.price_child}</Text>
                   </View>
                 ) : null}
               </>
@@ -788,9 +790,10 @@ function TourCard({ lang, tour, imgs, price }: TourCardProps) {
 interface TourPageProps extends HFProps {
   pair: { tour: CatalogTourInput; imgs: (string | null)[]; price: { price_adult: number; price_child: number } }[];
   backgroundDataUrl?: string | null;
+  currency: CatalogPdfCurrency;
 }
 
-function ToursPage({ lang, logoDataUrl, pair, backgroundDataUrl }: TourPageProps) {
+function ToursPage({ lang, logoDataUrl, pair, backgroundDataUrl, currency }: TourPageProps) {
   return (
     <Page size="A4" style={styles.page}>
       {backgroundDataUrl ? (
@@ -803,22 +806,28 @@ function ToursPage({ lang, logoDataUrl, pair, backgroundDataUrl }: TourPageProps
       ) : null}
       <CatalogHeader lang={lang} logoDataUrl={logoDataUrl} />
       <View style={styles.cardsContainer}>
-        {pair[0] && <TourCard lang={lang} {...pair[0]} />}
+        {pair[0] && <TourCard lang={lang} currency={currency} {...pair[0]} />}
         {pair[1] && <View style={styles.cardSeparator} />}
-        {pair[1] && <TourCard lang={lang} {...pair[1]} />}
+        {pair[1] && <TourCard lang={lang} currency={currency} {...pair[1]} />}
       </View>
       <CatalogFooter lang={lang} />
     </Page>
   );
 }
 
-function CoverPage({ lang, logoDataUrl, tourCount }: HFProps & { tourCount: number }) {
+function CoverPage({
+  lang,
+  logoDataUrl,
+  tourCount,
+  currency,
+}: HFProps & { tourCount: number; currency: CatalogPdfCurrency }) {
   const ui = getCatalogPageUi(lang);
   const today = new Date().toLocaleDateString(
     lang === "tr" ? "tr-TR" : lang === "ru" ? "ru-RU" : "en-GB",
     { day: "2-digit", month: "long", year: "numeric" }
   );
   const tagline = lang === "tr" ? "1999'dan beri" : lang === "ru" ? "с 1999 года" : "since 1999";
+  const priceSubLabel = ui.pricesEur.replace("EUR", currency);
   return (
     <Page size="A4" style={styles.page}>
       <CatalogHeader lang={lang} logoDataUrl={logoDataUrl} pageTitle={ui.catalogTitle} />
@@ -827,7 +836,7 @@ function CoverPage({ lang, logoDataUrl, tourCount }: HFProps & { tourCount: numb
         <Text style={styles.coverBrand}>Easy Book Tours</Text>
         <Text style={styles.coverTagline}>{tagline}</Text>
         <Text style={styles.coverTitle}>{ui.catalogTitle}</Text>
-        <Text style={styles.coverSub}>{ui.toursCountSuffix(tourCount)}  ·  {ui.pricesEur}</Text>
+        <Text style={styles.coverSub}>{ui.toursCountSuffix(tourCount)}  ·  {priceSubLabel}</Text>
         <Text style={styles.coverDate}>{today}</Text>
       </View>
       <CatalogFooter lang={lang} />
@@ -906,12 +915,16 @@ function ContactPage({ lang, logoDataUrl, agencyName }: HFProps & { agencyName?:
 
 // --- Public API ---
 
+export type CatalogPdfCurrency = "EUR" | "TRY";
+
 export interface GenerateCatalogOpts {
   tours: CatalogTourInput[];
   prices: CatalogPriceInput[];
   lang: CatalogLang;
   agencyName?: string | null;
   logoUrl?: string | null;
+  /** Fiyat etiketlerinde kullanılacak para birimi (default EUR). */
+  currency?: CatalogPdfCurrency;
   /** Cloudflare Workers'da fontları URL'den fetch etmek için gerekli (ör. "https://bodrumdayiz.com.tr").
    *  Verilmezse Node FS'den yüklenir; Workers'da bu başarısız olur. */
   baseUrl?: string | null;
@@ -928,6 +941,7 @@ async function buildCatalogDocument(opts: GenerateCatalogOpts) {
   registerFonts(opts.baseUrl ?? null);
 
   const { tours, prices, lang, agencyName, logoUrl } = opts;
+  const currency: CatalogPdfCurrency = opts.currency ?? "EUR";
   const priceMap = new Map(prices.map((p) => [p.tour_id, p]));
 
   const logoDataUrl = logoUrl ? await fetchImageAsDataUrl(logoUrl) : null;
@@ -957,7 +971,7 @@ async function buildCatalogDocument(opts: GenerateCatalogOpts) {
 
   return (
     <Document>
-      <CoverPage lang={lang} logoDataUrl={logoDataUrl} tourCount={tours.length} />
+      <CoverPage lang={lang} logoDataUrl={logoDataUrl} tourCount={tours.length} currency={currency} />
       <TocPage lang={lang} logoDataUrl={logoDataUrl} entries={tocEntries} />
       {pairs.map((pair, i) => {
         const bgUrl = pair[0]?.tour.catalog_background_url ?? null;
@@ -969,6 +983,7 @@ async function buildCatalogDocument(opts: GenerateCatalogOpts) {
             logoDataUrl={logoDataUrl}
             pair={pair}
             backgroundDataUrl={bgData}
+            currency={currency}
           />
         );
       })}

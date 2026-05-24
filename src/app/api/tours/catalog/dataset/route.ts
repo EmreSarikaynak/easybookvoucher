@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getCurrentUser, isAdmin, canViewTours } from "@/lib/auth-helpers";
 import { fetchCatalogPdfDataset } from "@/lib/tour-catalog-data";
+import type { CatalogPdfCurrency } from "@/lib/tour-catalog-pdf";
 import { getSetting } from "@/app/actions/settings";
 
 export async function GET(request: NextRequest) {
@@ -18,6 +19,8 @@ export async function GET(request: NextRequest) {
   }
 
   let agencyId = request.nextUrl.searchParams.get("agencyId");
+  const currencyParam = request.nextUrl.searchParams.get("currency");
+  const currency: CatalogPdfCurrency = currencyParam === "TRY" ? "TRY" : "EUR";
   const admin = isAdmin(profile);
   if (!admin) agencyId = profile.agency_id ?? null;
 
@@ -32,7 +35,11 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = await createServerSupabaseClient();
-  const { data: dataset, error } = await fetchCatalogPdfDataset(supabase, agencyId);
+  const { data: dataset, error } = await fetchCatalogPdfDataset(
+    supabase,
+    agencyId,
+    currency
+  );
 
   if (!dataset || error) {
     return NextResponse.json(
@@ -48,6 +55,7 @@ export async function GET(request: NextRequest) {
     prices: dataset.prices,
     agencyName: dataset.agencyName,
     tourCount: dataset.tourCount,
+    currency,
     logoUrl,
   });
 }
