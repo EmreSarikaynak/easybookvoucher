@@ -277,6 +277,23 @@ export const LoginForm: React.FC = () => {
                     </a>
                     {' '}metnini kabul etmiş olursunuz.
                 </p>
+
+                <p
+                    className="text-xs text-center mt-3"
+                    style={{
+                        color: 'rgb(var(--color-gray-500))',
+                        fontFamily: 'var(--font-family)',
+                    }}
+                >
+                    Sistemi öğrenmek için{' '}
+                    <a
+                        href="/help"
+                        className="font-medium hover:underline transition-colors"
+                        style={{ color: 'rgb(var(--color-primary))' }}
+                    >
+                        Kullanım Rehberi
+                    </a>
+                </p>
             </form>
         </div>
     );

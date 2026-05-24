@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { PlatformFooter } from '@/components/layout/platform-footer';
 import { SecestaFooter } from '@/components/layout/secesta-footer';
 
 export default function KVKKPage() {
@@ -123,7 +124,8 @@ export default function KVKKPage() {
                     </div>
                 </div>
             </div>
-            <SecestaFooter variant="login" />
+            <PlatformFooter variant="login" />
+            <SecestaFooter variant="login" showPlatformNote={false} />
         </div>
     );
 }

@@ -7,6 +7,7 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { NotificationPrompt } from "@/components/pwa/notification-prompt";
 import { PushSubscriptionSync } from "@/components/pwa/push-subscription-sync";
+import { PlatformFooter } from "@/components/layout/platform-footer";
 import { SecestaFooter } from "@/components/layout/secesta-footer";
 import type { Profile } from "@/lib/types";
 
@@ -34,9 +35,14 @@ export function DashboardShell({ children, profile }: DashboardShellProps) {
         />
         <main className="p-4 pb-4 sm:p-6 lg:p-8 flex flex-col min-h-[calc(100vh-4rem)]">
           <div className="flex-1 pb-20 lg:pb-0">{children}</div>
+          <PlatformFooter
+            variant="compact"
+            className="mt-8 -mx-4 sm:-mx-6 lg:-mx-8 rounded-none"
+          />
           <SecestaFooter
             variant="compact"
-            className="mt-8 mb-16 lg:mb-0 -mx-4 sm:-mx-6 lg:-mx-8 rounded-none"
+            showPlatformNote={false}
+            className="mb-16 lg:mb-0 -mx-4 sm:-mx-6 lg:-mx-8 rounded-none border-t-0"
           />
         </main>
       </div>
