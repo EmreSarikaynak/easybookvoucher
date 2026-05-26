@@ -6,6 +6,7 @@ import type { CurrencyType } from "@/lib/types";
 import { formatDbError } from "@/lib/error-messages";
 import { parseWhatsappPhoneSetting } from "@/lib/settings-utils";
 import { normalizeStoredPhone } from "@/lib/phone";
+import { buildAgencyCatalogUrl } from "@/lib/site-url";
 
 function normalizeVoucherPayloadPhones(payload: VoucherPayload): VoucherPayload {
   return {
@@ -187,7 +188,7 @@ export async function sendVoucherPDFWhatsApp(
 
     const { data: voucher, error: vErr } = await supabase
       .from("vouchers")
-      .select("*, tour:tours(name), agency:agencies(name, phone), sales_person:profiles!vouchers_sales_person_id_fkey(full_name)")
+      .select("*, tour:tours(name), agency:agencies(name, agency_code, phone), sales_person:profiles!vouchers_sales_person_id_fkey(full_name)")
       .eq("id", voucherId)
       .single();
 
@@ -221,6 +222,8 @@ export async function sendVoucherPDFWhatsApp(
         paxChild: voucher.pax_child,
         paxInfant: voucher.pax_infant,
         agencyName: agency?.name ?? null,
+        agencyCode: agency?.agency_code ?? null,
+        agencyCatalogUrl: buildAgencyCatalogUrl(agency?.agency_code),
       },
     });
 
@@ -270,7 +273,7 @@ export async function resendVoucherWhatsApp(voucherNo: string) {
   const { data: voucher, error } = await supabase
     .from("vouchers")
     .select(
-      "*, tour:tours(name), agency:agencies(name, phone), sales_person:profiles!vouchers_sales_person_id_fkey(phone, full_name)"
+      "*, tour:tours(name), agency:agencies(name, agency_code, phone), sales_person:profiles!vouchers_sales_person_id_fkey(phone, full_name)"
     )
     .eq("voucher_no", voucherNo)
     .single();
@@ -306,6 +309,8 @@ export async function resendVoucherWhatsApp(voucherNo: string) {
           paxChild: voucher.pax_child,
           paxInfant: voucher.pax_infant,
           agencyName: agency?.name ?? null,
+          agencyCode: agency?.agency_code ?? null,
+          agencyCatalogUrl: buildAgencyCatalogUrl(agency?.agency_code),
         },
       });
 

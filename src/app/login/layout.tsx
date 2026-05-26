@@ -1,7 +1,5 @@
 import React from 'react';
 import { Metadata } from 'next';
-import { PlatformFooterDynamic } from '@/components/layout/platform-footer-dynamic';
-import { SecestaFooter } from '@/components/layout/secesta-footer';
 
 export const metadata: Metadata = {
     title: 'Giriş Yap - EasyBookTours Acente Paneli',
@@ -18,8 +16,6 @@ export default function LoginLayout({
             <div className="flex-1 flex items-center justify-center p-4">
                 {children}
             </div>
-            <PlatformFooterDynamic variant="login" />
-            <SecestaFooter variant="login" showPlatformNote />
         </div>
     );
 }

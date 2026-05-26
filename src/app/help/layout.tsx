@@ -24,8 +24,12 @@ export default async function HelpLayout({
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 to-slate-100">
       <HelpTopBar isAuthenticated={!!user} />
       <div className="flex-1">{children}</div>
-      <PlatformFooterDynamic variant="help" />
-      <SecestaFooter variant="compact" showPlatformNote={false} />
+      {!!user && (
+        <>
+          <PlatformFooterDynamic variant="help" />
+          <SecestaFooter variant="compact" showPlatformNote={false} />
+        </>
+      )}
     </div>
   );
 }

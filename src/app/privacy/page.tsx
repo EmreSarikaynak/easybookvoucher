@@ -1,8 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { PlatformFooterDynamic } from '@/components/layout/platform-footer-dynamic';
-import { SecestaFooter } from '@/components/layout/secesta-footer';
 
 export default function PrivacyPage() {
     return (
@@ -189,8 +187,6 @@ export default function PrivacyPage() {
                     </div>
                 </div>
             </div>
-            <PlatformFooterDynamic variant="login" />
-            <SecestaFooter variant="login" showPlatformNote={false} />
         </div>
     );
 }

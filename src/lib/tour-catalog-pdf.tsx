@@ -84,14 +84,16 @@ function registerFonts(baseUrl?: string | null) {
     const base = baseUrl.replace(/\/$/, "");
     regular = `${base}/fonts/NotoSans-Regular.ttf`;
     bold = `${base}/fonts/NotoSans-Bold.ttf`;
-    display = `${base}/fonts/Fredoka-Variable.ttf`;
+    // Display başlıklar için de NotoSans-Bold kullan: Fredoka Türkçe (ğ/ı),
+    // Kiril (RU) ve Lehçe karakterleri içermiyordu → "Katalou" gibi bozulmalar.
+    display = `${base}/fonts/NotoSans-Bold.ttf`;
   } else if (isNodeWithFs()) {
     // Node FS yolu — string concat yeterli (node:path import'una gerek yok,
     // tarayıcı bundle'ı temiz kalsın diye)
     const cwd = process.cwd().replace(/\\/g, "/");
     regular = `${cwd}/public/fonts/NotoSans-Regular.ttf`;
     bold = `${cwd}/public/fonts/NotoSans-Bold.ttf`;
-    display = `${cwd}/public/fonts/Fredoka-Variable.ttf`;
+    display = `${cwd}/public/fonts/NotoSans-Bold.ttf`;
   } else {
     throw new Error(
       "Font yüklenemedi: ne baseUrl ne de local FS erişimi var. generateTourCatalogPdfBuffer'a logoUrl/baseUrl geçirin veya yerel Node'da çalıştırın."
@@ -151,7 +153,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   headerBrandWrap: { flexDirection: "row", alignItems: "center" },
-  headerLogo: { width: 26, height: 26, marginRight: 8, borderRadius: 4 },
+  headerLogo: { width: 26, height: 26, marginRight: 8, borderRadius: 4, objectFit: "contain" },
   headerBrandText: { color: "#FFFFFF", fontSize: 16, fontFamily: "Display", fontWeight: 700, letterSpacing: 0.2 },
   headerTagline: { color: "#9CC8E8", fontSize: 8, marginTop: 1, letterSpacing: 1 },
   headerRight: { color: "#FFFFFF", fontSize: 10, fontWeight: 700, opacity: 0.92 },
@@ -167,17 +169,26 @@ const styles = StyleSheet.create({
   },
   footerText: { color: "#FFFFFF", fontSize: 8.5, fontWeight: 700 },
 
-  // -- A4 arkaplan (sayfanın ilk turunun catalog_background_url'i) --
-  pageBackground: {
+  // -- A4 arkaplan: sayfa dikey iki yarıya bölünür; üst yarı = üstteki turun,
+  //    alt yarı = alttaki turun catalog_background_url'i. Her tur kendi arkaplanını gösterir. --
+  bgTopHalf: {
     position: "absolute",
     top: 0,
     left: 0,
     width: PAGE_W,
-    height: PAGE_H,
-    opacity: 0.22,
+    height: PAGE_H / 2,
+    opacity: 0.38,
   },
-  pageBackgroundImg: { width: PAGE_W, height: PAGE_H, objectFit: "cover" },
-  // hafif beyaz overlay - okunabilirlik için
+  bgBottomHalf: {
+    position: "absolute",
+    top: PAGE_H / 2,
+    left: 0,
+    width: PAGE_W,
+    height: PAGE_H / 2,
+    opacity: 0.38,
+  },
+  pageBackgroundImg: { width: PAGE_W, height: PAGE_H / 2, objectFit: "cover" },
+  // hafif beyaz overlay - okunabilirlik için (tüm sayfa)
   pageBackgroundWash: {
     position: "absolute",
     top: 0,
@@ -185,11 +196,11 @@ const styles = StyleSheet.create({
     width: PAGE_W,
     height: PAGE_H,
     backgroundColor: "#FFFFFF",
-    opacity: 0.35,
+    opacity: 0.22,
   },
 
-  // -- 2-kart layout --
-  cardsContainer: { flex: 1, justifyContent: "space-between" },
+  // -- 2-kart layout (sayfada ortalanmış) --
+  cardsContainer: { flex: 1, justifyContent: "center" },
   cardSeparator: {
     height: 0.7,
     backgroundColor: TEAL_LIGHT,
@@ -340,7 +351,7 @@ const styles = StyleSheet.create({
 
   // -- KAPAK --
   coverWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
-  coverLogo: { width: 120, height: 120, marginBottom: 18 },
+  coverLogo: { width: 120, height: 120, marginBottom: 18, objectFit: "contain" },
   coverBrand: {
     fontFamily: "Display",
     fontWeight: 700,
@@ -436,14 +447,54 @@ function arrayBufferToBase64(buf: ArrayBuffer): string {
   return btoa(binary);
 }
 
+/**
+ * @react-pdf/renderer SADECE jpg/png gömebilir (webp/gif desteklenmez → sessizce
+ * boş render edilir). Tarayıcıda üretildiğimiz için jpg/png olmayan görselleri
+ * canvas ile PNG'ye çeviririz. Node tarafında (canvas yok) olduğu gibi döneriz.
+ */
+async function convertToPngDataUrl(
+  buf: ArrayBuffer,
+  contentType: string
+): Promise<string | null> {
+  try {
+    if (typeof createImageBitmap === "undefined") return null; // Node / DOM yok
+    const blob = new Blob([buf], { type: contentType || "image/png" });
+    const bitmap = await createImageBitmap(blob);
+    if (typeof OffscreenCanvas !== "undefined") {
+      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+      ctx.drawImage(bitmap, 0, 0);
+      const out = await canvas.convertToBlob({ type: "image/png" });
+      return `data:image/png;base64,${arrayBufferToBase64(await out.arrayBuffer())}`;
+    }
+    if (typeof document !== "undefined") {
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+      ctx.drawImage(bitmap, 0, 0);
+      return canvas.toDataURL("image/png");
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchImageAsDataUrl(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return null;
     const buf = await res.arrayBuffer();
-    const base64 = arrayBufferToBase64(buf);
     const contentType = res.headers.get("content-type") || "image/jpeg";
-    return `data:${contentType};base64,${base64}`;
+    // jpg/png ise doğrudan göm; değilse (webp vs.) PNG'ye çevirmeyi dene.
+    if (!/image\/(jpe?g|png)/i.test(contentType)) {
+      const converted = await convertToPngDataUrl(buf, contentType);
+      if (converted) return converted;
+    }
+    return `data:${contentType};base64,${arrayBufferToBase64(buf)}`;
   } catch {
     return null;
   }
@@ -634,13 +685,13 @@ interface TourCardProps {
 }
 
 function ImageStrip({ images }: { images: (string | null)[] }) {
-  // 3 görsel kullan; 4. olursa yine 3, ilk üçü
-  const list = images.slice(0, 3);
-  while (list.length < 3) list.push(null);
+  // En fazla 4 görsel — tek sıra, 4 hücre
+  const list = images.slice(0, 4);
+  while (list.length < 4) list.push(null);
 
-  const cellWidth = `${100 / 3}%`;
+  const cellWidth = `${100 / 4}%`;
   return (
-    <View style={[styles.imageStrip, { height: 90 }]}>
+    <View style={[styles.imageStrip, { height: 72 }]}>
       {list.map((src, i) => (
         <View key={i} style={[styles.imageCell, { width: cellWidth, height: "100%" }]}>
           {src ? (
@@ -789,21 +840,26 @@ function TourCard({ lang, tour, imgs, price, currency }: TourCardProps) {
 
 interface TourPageProps extends HFProps {
   pair: { tour: CatalogTourInput; imgs: (string | null)[]; price: { price_adult: number; price_child: number } }[];
-  backgroundDataUrl?: string | null;
+  topBg?: string | null;
+  bottomBg?: string | null;
   currency: CatalogPdfCurrency;
 }
 
-function ToursPage({ lang, logoDataUrl, pair, backgroundDataUrl, currency }: TourPageProps) {
+function ToursPage({ lang, logoDataUrl, pair, topBg, bottomBg, currency }: TourPageProps) {
+  const hasBg = !!topBg || !!bottomBg;
   return (
     <Page size="A4" style={styles.page}>
-      {backgroundDataUrl ? (
-        <>
-          <View style={styles.pageBackground}>
-            <Image style={styles.pageBackgroundImg} src={backgroundDataUrl} />
-          </View>
-          <View style={styles.pageBackgroundWash} />
-        </>
+      {topBg ? (
+        <View style={styles.bgTopHalf}>
+          <Image style={styles.pageBackgroundImg} src={topBg} />
+        </View>
       ) : null}
+      {bottomBg ? (
+        <View style={styles.bgBottomHalf}>
+          <Image style={styles.pageBackgroundImg} src={bottomBg} />
+        </View>
+      ) : null}
+      {hasBg ? <View style={styles.pageBackgroundWash} /> : null}
       <CatalogHeader lang={lang} logoDataUrl={logoDataUrl} />
       <View style={styles.cardsContainer}>
         {pair[0] && <TourCard lang={lang} currency={currency} {...pair[0]} />}
@@ -862,56 +918,6 @@ function TocPage({ lang, logoDataUrl, entries }: HFProps & { entries: { name: st
   );
 }
 
-function ContactPage({ lang, logoDataUrl, agencyName }: HFProps & { agencyName?: string | null }) {
-  const ui = getCatalogPageUi(lang);
-  const locLabel = lang === "tr" ? "Konum" : lang === "ru" ? "Локация" : "Location";
-
-  return (
-    <Page size="A4" style={styles.page}>
-      <CatalogHeader lang={lang} logoDataUrl={logoDataUrl} pageTitle={ui.contactPage} />
-      <Text style={styles.contactTitle}>{ui.contactPage}</Text>
-      <View style={styles.contactCard}>
-        <View style={styles.contactRow}>
-          <View style={styles.contactIconCircle}>
-            <DecoIcon iconKey="phone" size={16} color="#FFFFFF" />
-          </View>
-          <View>
-            <Text style={styles.contactLabel}>WhatsApp</Text>
-            <Text style={styles.contactValue}>{EASYBOOK_CONTACT.phoneDisplay}</Text>
-          </View>
-        </View>
-        <View style={styles.contactRow}>
-          <View style={styles.contactIconCircle}>
-            <DecoIcon iconKey="globe" size={16} color="#FFFFFF" />
-          </View>
-          <View>
-            <Text style={styles.contactLabel}>Web</Text>
-            <Text style={styles.contactValue}>{EASYBOOK_CONTACT.website}</Text>
-          </View>
-        </View>
-        <View style={styles.contactRow}>
-          <View style={styles.contactIconCircle}>
-            <DecoIcon iconKey="camera" size={16} color="#FFFFFF" />
-          </View>
-          <View>
-            <Text style={styles.contactLabel}>Instagram</Text>
-            <Text style={styles.contactValue}>{EASYBOOK_CONTACT.instagram}</Text>
-          </View>
-        </View>
-        <View style={styles.contactRow}>
-          <View style={styles.contactIconCircle}>
-            <DecoIcon iconKey="mapPin" size={16} color="#FFFFFF" />
-          </View>
-          <View>
-            <Text style={styles.contactLabel}>{locLabel}</Text>
-            <Text style={styles.contactValue}>{EASYBOOK_CONTACT.location}{agencyName ? `  ·  ${agencyName}` : ""}</Text>
-          </View>
-        </View>
-      </View>
-      <CatalogFooter lang={lang} />
-    </Page>
-  );
-}
 
 // --- Public API ---
 
@@ -940,7 +946,7 @@ function chunkPairs<T>(arr: T[]): T[][] {
 async function buildCatalogDocument(opts: GenerateCatalogOpts) {
   registerFonts(opts.baseUrl ?? null);
 
-  const { tours, prices, lang, agencyName, logoUrl } = opts;
+  const { tours, prices, lang, logoUrl } = opts;
   const currency: CatalogPdfCurrency = opts.currency ?? "EUR";
   const priceMap = new Map(prices.map((p) => [p.tour_id, p]));
 
@@ -948,7 +954,7 @@ async function buildCatalogDocument(opts: GenerateCatalogOpts) {
 
   const urlSet = new Set<string>();
   for (const t of tours) {
-    for (const u of (t.images ?? []).slice(0, 3)) if (u) urlSet.add(u);
+    for (const u of (t.images ?? []).slice(0, 4)) if (u) urlSet.add(u);
     if (t.catalog_background_url) urlSet.add(t.catalog_background_url);
   }
   const cache = new Map<string, string | null>();
@@ -958,7 +964,7 @@ async function buildCatalogDocument(opts: GenerateCatalogOpts) {
 
   const cards = tours.map((t) => ({
     tour: t,
-    imgs: (t.images ?? []).slice(0, 3).map((u) => cache.get(u) ?? null),
+    imgs: (t.images ?? []).slice(0, 4).map((u) => cache.get(u) ?? null),
     price: priceMap.get(t.id) ?? { price_adult: 0, price_child: 0 },
   }));
 
@@ -974,20 +980,22 @@ async function buildCatalogDocument(opts: GenerateCatalogOpts) {
       <CoverPage lang={lang} logoDataUrl={logoDataUrl} tourCount={tours.length} currency={currency} />
       <TocPage lang={lang} logoDataUrl={logoDataUrl} entries={tocEntries} />
       {pairs.map((pair, i) => {
-        const bgUrl = pair[0]?.tour.catalog_background_url ?? null;
-        const bgData = bgUrl ? cache.get(bgUrl) ?? null : null;
+        const topUrl = pair[0]?.tour.catalog_background_url ?? null;
+        const bottomUrl = pair[1]?.tour.catalog_background_url ?? null;
+        const topBg = topUrl ? cache.get(topUrl) ?? null : null;
+        const bottomBg = bottomUrl ? cache.get(bottomUrl) ?? null : null;
         return (
           <ToursPage
             key={i}
             lang={lang}
             logoDataUrl={logoDataUrl}
             pair={pair}
-            backgroundDataUrl={bgData}
+            topBg={topBg}
+            bottomBg={bottomBg}
             currency={currency}
           />
         );
       })}
-      <ContactPage lang={lang} logoDataUrl={logoDataUrl} agencyName={agencyName} />
     </Document>
   );
 }

@@ -20,6 +20,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { createTour, updateTour, uploadTourImages } from "@/app/actions/tour";
+import { convertImageFileToJpeg } from "@/lib/image-client";
 import { TourTranslationTabs } from "./tour-translation-tabs";
 import { TourMediaSection } from "./tour-media-section";
 import {
@@ -396,7 +397,7 @@ export function TourForm({
                 const file = e.target.files?.[0];
                 if (!file) return;
                 const fd = new FormData();
-                fd.append("files", file);
+                fd.append("files", await convertImageFileToJpeg(file));
                 const res = await uploadTourImages(fd);
                 if (res.error) {
                   alert(res.error);

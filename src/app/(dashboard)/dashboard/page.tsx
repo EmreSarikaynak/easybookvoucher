@@ -9,11 +9,15 @@ import {
   BarChart3,
   Building2,
   BookOpen,
+  Wallet,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getCurrentUser, isAdmin } from "@/lib/auth-helpers";
 import { AnnouncementMarquee } from "@/components/dashboard/announcement-marquee";
+import { AgencyQrCard } from "@/components/dashboard/agency-qr-card";
+import { buildAgencyCatalogUrl } from "@/lib/site-url";
+import { qrToDataUrl } from "@/lib/qr";
 import Link from "next/link";
 
 interface StatCard {
@@ -99,6 +103,12 @@ export default async function DashboardPage() {
     ? `Hoş Geldiniz, ${profile.full_name.split(" ")[0]}`
     : "Hoş Geldiniz";
 
+  let agencyQr: {
+    code: string;
+    catalogUrl: string;
+    qrDataUrl: string;
+  } | null = null;
+
   if (admin) {
     const stats = await getAdminStats();
     statCards = [
@@ -148,6 +158,21 @@ export default async function DashboardPage() {
 
     if (agencyId) {
       const stats = await getAgencyStats(agencyId);
+      const agencyCode = profile?.agency?.agency_code;
+      const publicEnabled =
+        (profile?.agency as { public_catalog_enabled?: boolean } | undefined)
+          ?.public_catalog_enabled !== false;
+      if (agencyCode && publicEnabled) {
+        const catalogUrl = buildAgencyCatalogUrl(agencyCode);
+        if (catalogUrl) {
+          try {
+            const qrDataUrl = await qrToDataUrl(catalogUrl, { width: 280 });
+            agencyQr = { code: agencyCode, catalogUrl, qrDataUrl };
+          } catch (qrErr) {
+            console.error("dashboard agency qr error:", qrErr);
+          }
+        }
+      }
       statCards = [
         {
           title: "Toplam Biletlerim",
@@ -175,7 +200,7 @@ export default async function DashboardPage() {
           value: stats.thisMonthVouchers,
           icon: BarChart3,
           color: "bg-purple-500",
-          href: "/reports",
+          href: "/vouchers",
         },
       ];
     } else {
@@ -187,7 +212,7 @@ export default async function DashboardPage() {
       { label: "Biletlerimi Gör", href: "/vouchers" },
       { label: "Tur Kataloğu", href: "/tours/catalog" },
       { label: "Destek Talebi Aç", href: "/support" },
-      { label: "Raporlar", href: "/reports" },
+      { label: "Kazançlar", href: "/earnings" },
     ];
   }
 
@@ -232,9 +257,9 @@ export default async function DashboardPage() {
           color: "bg-orange-500",
         },
         {
-          icon: BarChart3,
-          label: "Raporlar",
-          href: "/reports",
+          icon: Wallet,
+          label: "Kazançlar",
+          href: "/earnings",
           color: "bg-purple-600",
         },
         {
@@ -255,6 +280,14 @@ export default async function DashboardPage() {
           EasyBook Bilet Yönetim Sistemi
         </p>
       </div>
+
+      {agencyQr && (
+        <AgencyQrCard
+          agencyCode={agencyQr.code}
+          catalogUrl={agencyQr.catalogUrl}
+          qrDataUrl={agencyQr.qrDataUrl}
+        />
+      )}
 
       {/* İstatistik Kartları */}
       {statCards.length > 0 && (

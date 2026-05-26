@@ -54,7 +54,15 @@ export interface VoucherPDFInfo {
   paxAdult?: number;
   paxChild?: number;
   paxInfant?: number;
+  /**
+   * @deprecated Müşteri-bakan yüzeylerde acente adı GÖSTERİLMEZ. Sadece
+   * iç loglama veya admin için kullanılabilir. Yeni kodda agencyCode kullan.
+   */
   agencyName?: string | null;
+  /** Acente kodu (örn. "2026003") — admin bildiriminde gösterilir */
+  agencyCode?: string | null;
+  /** Acentenin public katalog URL'si — müşteri body'sine "tüm turlarımız" linki olarak eklenir */
+  agencyCatalogUrl?: string | null;
 }
 
 export interface PdfWhatsAppBodies {
@@ -95,7 +103,7 @@ export function buildPdfWhatsAppBodies(
 
   const pickupLabel = formatPickupTimeLabel(voucher.pickupTime);
   const waCustomerLink = buildWaMeLink(voucher.customerPhone);
-  const agencyName = voucher.agencyName?.trim() || "—";
+  const agencyCode = voucher.agencyCode?.trim() || "—";
 
   const adminTitle = isRevised
     ? "🔴 *REVİZE BİLET KAYDI*"
@@ -112,7 +120,7 @@ export function buildPdfWhatsAppBodies(
     (voucher.pickupPlace ? `📍 Alış: ${voucher.pickupPlace}\n` : "") +
     (pickupLabel ? `⏰ Saat: ${pickupLabel}\n` : "") +
     `👥 PAX: ${paxStr}\n` +
-    `🏢 Acente: ${agencyName}\n` +
+    `🏢 Acente Kodu: ${agencyCode}\n` +
     (waCustomerLink ? `💬 Müşteri İle Yazış: ${waCustomerLink}\n` : "") +
     (imageUrl ? `\n🖼 *Bilet Görseli (JPEG):*\n${imageUrl}\n` : "") +
     `\n📄 *PDF Bilet:*\n${pdfUrl}\n\n` +
@@ -143,6 +151,8 @@ export function buildPdfWhatsAppBodies(
     ? isTurkishPhone(voucher.customerPhone)
     : true;
 
+  const catalogUrl = voucher.agencyCatalogUrl?.trim() || null;
+
   const customerBody = isCustomerTr
     ? (isRevised
         ? `Sayın ${voucher.customerName},\n\nBilet bilgileriniz güncellenmiştir. Güncel biletiniz ekte ve aşağıdadır.\n\n`
@@ -155,8 +165,9 @@ export function buildPdfWhatsAppBodies(
       (pickupLabel ? `⏰ Alış Saati: ${pickupLabel}\n` : "") +
       `👥 Kişi Sayısı: ${paxStr}\n` +
       (imageUrl ? `\n🖼 *Bilet Görseli:*\n${imageUrl}\n` : "") +
-      `\n📄 *Biletiniz (PDF):*\n${pdfUrl}\n\n` +
-      `Sorularınız için bize WhatsApp üzerinden ulaşabilirsiniz.\n` +
+      `\n📄 *Biletiniz (PDF):*\n${pdfUrl}\n` +
+      (catalogUrl ? `\n🌍 *Tüm turlarımız:*\n${catalogUrl}\n` : "") +
+      `\nSorularınız için bize WhatsApp üzerinden ulaşabilirsiniz.\n` +
       `İyi tatiller dileriz! 🌊`
     : (isRevised
         ? `Dear ${voucher.customerName},\n\nYour ticket has been updated. Please find your revised ticket attached and below.\n\n`
@@ -169,8 +180,9 @@ export function buildPdfWhatsAppBodies(
       (pickupLabel ? `⏰ Pickup Time: ${pickupLabel}\n` : "") +
       `👥 Guests: ${paxStr}\n` +
       (imageUrl ? `\n🖼 *Ticket Image:*\n${imageUrl}\n` : "") +
-      `\n📄 *Your Ticket (PDF):*\n${pdfUrl}\n\n` +
-      `If you have any questions, please contact us via WhatsApp.\n` +
+      `\n📄 *Your Ticket (PDF):*\n${pdfUrl}\n` +
+      (catalogUrl ? `\n🌍 *All our tours:*\n${catalogUrl}\n` : "") +
+      `\nIf you have any questions, please contact us via WhatsApp.\n` +
       `Have a wonderful holiday! 🌊`;
 
   return { adminBody, agencyBody, customerBody };
@@ -404,6 +416,24 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
   const dateTr = formatTourDate(opts.voucher.tourDate, tr);
   const dateEn = formatTourDate(opts.voucher.tourDate);
   const mediaVariable = getMediaVariableFromUrl(opts.imageUrl ?? opts.pdfUrl);
+
+  const pickupTimeLabel = formatPickupTimeLabel(opts.voucher.pickupTime) ?? "—";
+  const buildPaxStringEn = (): string => {
+    const parts: string[] = [];
+    if ((opts.voucher.paxAdult ?? 0) > 0) parts.push(`${opts.voucher.paxAdult} Adults`);
+    if ((opts.voucher.paxChild ?? 0) > 0) parts.push(`${opts.voucher.paxChild} Children`);
+    if ((opts.voucher.paxInfant ?? 0) > 0) parts.push(`${opts.voucher.paxInfant} Infants`);
+    return parts.join(" + ") || "—";
+  };
+  const buildPaxStringTr = (): string => {
+    const parts: string[] = [];
+    if ((opts.voucher.paxAdult ?? 0) > 0) parts.push(`${opts.voucher.paxAdult} Yetişkin`);
+    if ((opts.voucher.paxChild ?? 0) > 0) parts.push(`${opts.voucher.paxChild} Çocuk`);
+    if ((opts.voucher.paxInfant ?? 0) > 0) parts.push(`${opts.voucher.paxInfant} Bebek`);
+    return parts.join(" + ") || "—";
+  };
+  const imageOrPdfUrl = opts.imageUrl || opts.pdfUrl;
+
   const internalTextVars = {
     "1": opts.voucher.customerName,
     "2": opts.voucher.voucherNo,
@@ -411,19 +441,36 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
     "4": dateTr,
     "5": opts.pdfUrl,
   };
+  /**
+   * TR ve EN müşteri template'leri 11 değişkenli ve birebir paralel.
+   * (yeni `easybook_ticket_full_tr_v2` ve `easybook_ticket_full_en_v2`).
+   * {{11}} = acente public katalog URL'si — müşteri tekrar rezervasyon yapabilsin diye.
+   */
   const customerTextVarsTr = {
     "1": opts.voucher.customerName,
     "2": opts.voucher.voucherNo,
     "3": opts.voucher.tourName,
     "4": dateTr,
-    "5": opts.pdfUrl,
+    "5": opts.voucher.hotel || "—",
+    "6": opts.voucher.pickupPlace || "—",
+    "7": pickupTimeLabel,
+    "8": buildPaxStringTr(),
+    "9": imageOrPdfUrl,
+    "10": opts.pdfUrl,
+    "11": opts.voucher.agencyCatalogUrl || "—",
   };
   const customerTextVarsEn = {
     "1": opts.voucher.customerName,
     "2": opts.voucher.voucherNo,
     "3": opts.voucher.tourName,
     "4": dateEn,
-    "5": opts.pdfUrl,
+    "5": opts.voucher.hotel || "—",
+    "6": opts.voucher.pickupPlace || "—",
+    "7": pickupTimeLabel,
+    "8": buildPaxStringEn(),
+    "9": imageOrPdfUrl,
+    "10": opts.pdfUrl,
+    "11": opts.voucher.agencyCatalogUrl || "—",
   };
   const internalMediaVars = {
     "1": mediaVariable || "",
@@ -458,17 +505,25 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
       ? internalMediaVars
       : internalTextVars;
 
+  /**
+   * forceTemplate=true → freeform denemeden doğrudan onaylı template gönderir.
+   * Müşteri ve acente için kritik: Twilio queued sonrası undelivered (kod 63016)
+   * verince fallback artık çalışmaz; bu yüzden 24h penceresi şüpheli olan
+   * hedeflere baştan template ile gidilir.
+   */
   const targets: Array<{
     to: string;
     body: string;
     templateSid?: string;
     templateVariables?: Record<string, string>;
+    forceTemplate?: boolean;
   }> = [
     {
       to: easybookPhone,
       body: adminBody,
       templateSid: internalTemplateSid,
       templateVariables: internalTemplateVars,
+      forceTemplate: false,
     },
   ];
 
@@ -480,6 +535,7 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
         body: adminBody,
         templateSid: internalTemplateSid,
         templateVariables: internalTemplateVars,
+        forceTemplate: false,
       });
     }
   }
@@ -490,6 +546,7 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
       body: agencyBody,
       templateSid: internalTemplateSid,
       templateVariables: internalTemplateVars,
+      forceTemplate: true,
     });
   }
 
@@ -512,6 +569,7 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
           : customerIsTr
             ? customerTextVarsTr
             : customerTextVarsEn,
+      forceTemplate: true,
     });
   }
 
@@ -520,32 +578,56 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
   let lastError = "";
 
   for (const target of targets) {
-    let result = await sendWhatsAppViaFetch({
-      to: target.to,
-      body: target.body,
-      voucherNo: opts.voucher.voucherNo,
-      mediaUrl,
-      includeMedia: Boolean(mediaUrl),
-    });
-    // Medya reddedilirse yalnızca metin + link ile tekrar dene
-    if (!result.success && mediaUrl) {
-      result = await sendWhatsAppViaFetch({
-        to: target.to,
-        body: target.body,
-        voucherNo: opts.voucher.voucherNo,
-        includeMedia: false,
-      });
-    }
-    // 24 saat penceresi dışındaysa onaylı PDF template ile tekrar dene.
-    if (!result.success && result.code === 63016 && target.templateSid) {
+    const useTemplateFirst = target.forceTemplate && Boolean(target.templateSid);
+    let result: FetchSendResult;
+
+    if (useTemplateFirst && target.templateSid) {
       result = await sendWhatsAppTemplateViaFetch({
         to: target.to,
         contentSid: target.templateSid,
         variables: target.templateVariables ?? {},
-        bodyForLog: `${target.body}\n\n(Template fallback: ${target.templateSid})`,
+        bodyForLog: target.body,
         voucherNo: opts.voucher.voucherNo,
       });
+      // Template başarısızsa son çare olarak freeform dene (lokal/test ortamı için)
+      if (!result.success) {
+        result = await sendWhatsAppViaFetch({
+          to: target.to,
+          body: target.body,
+          voucherNo: opts.voucher.voucherNo,
+          mediaUrl,
+          includeMedia: Boolean(mediaUrl),
+        });
+      }
+    } else {
+      result = await sendWhatsAppViaFetch({
+        to: target.to,
+        body: target.body,
+        voucherNo: opts.voucher.voucherNo,
+        mediaUrl,
+        includeMedia: Boolean(mediaUrl),
+      });
+      // Medya reddedilirse yalnızca metin + link ile tekrar dene
+      if (!result.success && mediaUrl) {
+        result = await sendWhatsAppViaFetch({
+          to: target.to,
+          body: target.body,
+          voucherNo: opts.voucher.voucherNo,
+          includeMedia: false,
+        });
+      }
+      // 24 saat penceresi dışındaysa onaylı template ile tekrar dene (defansif).
+      if (!result.success && result.code === 63016 && target.templateSid) {
+        result = await sendWhatsAppTemplateViaFetch({
+          to: target.to,
+          contentSid: target.templateSid,
+          variables: target.templateVariables ?? {},
+          bodyForLog: `${target.body}\n\n(Template fallback: ${target.templateSid})`,
+          voucherNo: opts.voucher.voucherNo,
+        });
+      }
     }
+
     if (result.success) sent++;
     else lastError = result.error || lastError;
   }

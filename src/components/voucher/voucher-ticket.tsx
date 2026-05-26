@@ -29,14 +29,24 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
       });
     }, []);
 
-    // Generate QR code - use tour URL if available, fallback to default YouTube URL
+    // QR önceliği: acente katalog URL'si > tur URL > default
+    // Müşteri biletindeki QR'ı tarayarak acentenin tüm turlarını
+    // anonim olarak görüp tekrar rezervasyon yapabilsin.
     useEffect(() => {
-      const tourUrl = voucher.tour?.tour_url?.trim() || DEFAULT_TOUR_URL;
-      // Always generate QR code (either with tour URL or fallback URL)
-      generateQRCodeDataURL(tourUrl)
+      const agencyCode =
+        voucher.agency?.agency_code || voucher.sales_person?.agency?.agency_code;
+      const siteOrigin =
+        typeof window !== "undefined"
+          ? window.location.origin
+          : "https://bodrumdayiz.com.tr";
+      const catalogUrl = agencyCode
+        ? `${siteOrigin}/c/${encodeURIComponent(agencyCode)}`
+        : null;
+      const target = catalogUrl || voucher.tour?.tour_url?.trim() || DEFAULT_TOUR_URL;
+      generateQRCodeDataURL(target)
         .then(dataUrl => setQrCodeUrl(dataUrl))
         .catch(err => console.error("QR generation failed:", err));
-    }, [voucher.tour?.tour_url]);
+    }, [voucher.agency?.agency_code, voucher.sales_person?.agency?.agency_code, voucher.tour?.tour_url]);
 
     const formatPrice = (price: number, currency: string) => {
       return formatCurrencyByLanguage(price, currency, lang);
@@ -200,9 +210,6 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
             }}>
               <div style={{ flex: 1, paddingRight: "10px", minWidth: 0 }}>
                 <h2 style={tourTitleStyle}>{tourName}</h2>
-                <div style={{ fontSize: "9px", color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: "2px", lineHeight: "1.15", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {voucher.agency?.name || voucher.sales_person?.agency?.name || ""}
-                </div>
               </div>
               <div style={{ flexShrink: 0, backgroundColor: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "4px", padding: "5px 8px" }}>
                 <div style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", display: "flex", alignItems: "center", gap: "4px" }}>

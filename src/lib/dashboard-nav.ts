@@ -17,6 +17,7 @@ import {
   Megaphone,
   BookOpen,
   FileStack,
+  Wallet,
 } from "lucide-react";
 import type { Profile, UserRole } from "@/lib/types";
 
@@ -42,7 +43,8 @@ export const DASHBOARD_NAV: DashboardNavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, bottomNavPriority: 1 },
   { name: "Biletler", href: "/vouchers", icon: FileText, bottomNavPriority: 2 },
   { name: "Yeni Bilet", href: "/vouchers/new", icon: PlusCircle, bottomNavPriority: 3 },
-  { name: "Raporlar", href: "/reports", icon: BarChart3 },
+  { name: "Raporlar", href: "/reports", icon: BarChart3, adminOnly: true },
+  { name: "Kazançlar", href: "/earnings", icon: Wallet },
   { name: "Turlar", href: "/tours", icon: MapPin, toursMenu: true, bottomNavPriority: 4 },
   { name: "Tur Kataloğu", href: "/tours/catalog", icon: BookOpen, toursMenu: true },
   { name: "Duyurular", href: "/announcements", icon: Megaphone, announcementsMenu: true, bottomNavPriority: 5 },

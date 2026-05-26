@@ -1,7 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getCurrentUser, isAdmin } from "@/lib/auth-helpers";
 import { TourCostsEditor } from "@/components/tour/tour-costs-editor";
-import { TourCostsPdfActions } from "@/components/tour/tour-costs-pdf-actions";
 import {
   AgencyPricesEditor,
   type AgencyPriceRow,
@@ -94,25 +93,14 @@ export default async function TourCostsPage() {
 
   if (admin) {
     const tours = await getActiveTours();
-    const adminPdfRows = tours.map((t) => ({
-      tourName: t.name,
-      costAdultEur: Math.round(t.base_price_adult_eur ?? 0),
-      costChildEur: Math.round(t.base_price_child_eur ?? 0),
-      costAdultTry: Math.round(t.base_price_adult_try ?? 0),
-      costChildTry: Math.round(t.base_price_child_try ?? 0),
-      isCustom: false,
-    }));
     return (
       <div className="space-y-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Tur Maliyetleri</h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              EasyBook tur standart taban fiyatları. Buradan girdiğiniz değerler acente
-              düzenle ekranında varsayılan olarak görünür.
-            </p>
-          </div>
-          <TourCostsPdfActions rows={adminPdfRows} agencyName="EasyBook Tours" />
+        <div>
+          <h1 className="text-2xl font-bold">Tur Maliyetleri</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            EasyBook tur standart taban fiyatları. Buradan girdiğiniz değerler acente
+            düzenle ekranında varsayılan olarak görünür.
+          </p>
         </div>
         <TourCostsEditor tours={tours} />
       </div>
@@ -120,19 +108,6 @@ export default async function TourCostsPage() {
   }
 
   const rows = await getTourCosts(agencyId);
-  const agencyPhone = profile?.agency?.phone ?? null;
-  const agencyName = profile?.agency?.name ?? null;
-  // PDF satırları: acente PDF'ine kendi satış fiyatları gider (admin fiyatı değil)
-  const pdfRows = rows.map(
-    ({ tour, sale_adult_eur, sale_child_eur, sale_adult_try, sale_child_try, isCustom }) => ({
-      tourName: tour.name,
-      costAdultEur: Math.round(sale_adult_eur),
-      costChildEur: Math.round(sale_child_eur),
-      costAdultTry: Math.round(sale_adult_try),
-      costChildTry: Math.round(sale_child_try),
-      isCustom,
-    })
-  );
 
   // İTur editörü: satış alanı boşsa yönetici fiyatını varsayılan olarak göster.
   // Bu varsayılan ekranda görünür ama kayıt yapmadan geçerli olmaz.
@@ -154,19 +129,12 @@ export default async function TourCostsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold">iTur Fiyat</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Satış fiyatlarınızı belirleyin. Kaydettiğiniz fiyatlar Tur Kataloğu,
-            katalog PDF'i ve yeni bilet oluştururken otomatik kullanılır.
-          </p>
-        </div>
-        <TourCostsPdfActions
-          rows={pdfRows}
-          agencyName={agencyName}
-          agencyPhone={agencyPhone}
-        />
+      <div>
+        <h1 className="text-2xl font-bold">iTur Fiyat</h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          Satış fiyatlarınızı belirleyin. Kaydettiğiniz fiyatlar Tur Kataloğu,
+          katalog PDF'i ve yeni bilet oluştururken otomatik kullanılır.
+        </p>
       </div>
 
       <AgencyPricesEditor rows={editorRows} />

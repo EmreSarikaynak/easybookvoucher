@@ -16,7 +16,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { generateVoucherNo } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
-import { getAgencyTourPrice } from "@/app/actions/agency-tour-prices";
+import { getAgencyTourPrice, getAgencyTourCost } from "@/app/actions/agency-tour-prices";
 import type { Tour, CurrencyType, Voucher } from "@/lib/types";
 import { SELF_PICKUP, encodeSelfPickup, parseSelfPickup } from "@/lib/constants";
 
@@ -122,6 +122,38 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
     formData.pax_child,
     formData.currency,
     manuallyEditedTotal,
+  ]);
+
+  // EasyBook maliyetini izle: total_price maliyetin altındaysa (negatif kazanç)
+  // acenteyi engellemeyen bir uyarıyla bilgilendir. USD/GBP'de maliyet bilinmez.
+  const [easybookCost, setEasybookCost] = useState<number | null>(null);
+  useEffect(() => {
+    setEasybookCost(null);
+    if (!agencyId || !formData.tour_id) return;
+    if (formData.currency !== "EUR" && formData.currency !== "TRY") return;
+
+    const adult = formData.pax_adult === "" ? 0 : Number(formData.pax_adult);
+    const child = formData.pax_child === "" ? 0 : Number(formData.pax_child);
+
+    let cancelled = false;
+    (async () => {
+      const result = await getAgencyTourCost(
+        agencyId,
+        formData.tour_id,
+        formData.currency
+      );
+      if (cancelled || !result || result.missing) return;
+      setEasybookCost(result.cost_adult * adult + result.cost_child * child);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    agencyId,
+    formData.tour_id,
+    formData.pax_adult,
+    formData.pax_child,
+    formData.currency,
   ]);
 
   const handleChange = (field: string, value: string | number) => {
@@ -490,6 +522,15 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
                   Otomatik hesaplandı (iTur satış fiyatı)
                 </p>
               ) : null}
+              {easybookCost !== null &&
+                easybookCost > 0 &&
+                num(formData.total_price) < easybookCost && (
+                  <p className="text-[11px] text-amber-700">
+                    ⚠ Bu fiyat EasyBook maliyetinin (
+                    {formData.currency === "TRY" ? "₺" : "€"}
+                    {Math.round(easybookCost)}) altında — kazanç negatif olacak.
+                  </p>
+                )}
             </div>
           </div>
           <div className="flex items-center gap-3">

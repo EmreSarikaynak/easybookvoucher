@@ -20,14 +20,25 @@ export interface TourPdfInput {
   agencyName?: string | null;
 }
 
-async function fetchImageAsDataUrl(url: string): Promise<string | null> {
+/**
+ * jsPDF yalnızca JPEG/PNG gömebilir (Cloudflare Workers'da native dönüştürücü
+ * yok). Görseli olduğu gibi getirir ve jsPDF formatını içerikten belirler;
+ * desteklenmeyen format (webp vs.) için null döner → çağıran atlar.
+ */
+async function fetchImageForPdf(
+  url: string
+): Promise<{ dataUrl: string; format: "JPEG" | "PNG" } | null> {
   try {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return null;
     const buf = await res.arrayBuffer();
+    const contentType = (res.headers.get("content-type") || "").toLowerCase();
+    let format: "JPEG" | "PNG" | null = null;
+    if (/jpe?g/.test(contentType)) format = "JPEG";
+    else if (/png/.test(contentType)) format = "PNG";
+    if (!format) return null; // webp vs. — jsPDF gömeMEZ
     const base64 = Buffer.from(buf).toString("base64");
-    const contentType = res.headers.get("content-type") || "image/jpeg";
-    return `data:${contentType};base64,${base64}`;
+    return { dataUrl: `data:${contentType};base64,${base64}`, format };
   } catch {
     return null;
   }
@@ -112,21 +123,39 @@ export async function generateTourPdfBuffer(
     addLine(tour.pickup_locations.join(", "), 10);
   }
 
-  const cover = tour.images?.[0];
-  if (cover) {
-    const dataUrl = await fetchImageAsDataUrl(cover);
-    if (dataUrl) {
-      if (y + 55 > pdf.internal.pageSize.getHeight() - margin) {
+  // Yüklenen tüm fotoğrafları yan yana 2'li ızgarada bas
+  const images = tour.images ?? [];
+  if (images.length) {
+    y += 2;
+    const pageH = pdf.internal.pageSize.getHeight();
+    const gap = 4;
+    const cellW = (pageW - margin * 2 - gap) / 2; // 2 sütun
+    const cellH = cellW * 0.66; // ~3:2 oran
+    let col = 0;
+
+    for (const img of images) {
+      const fetched = await fetchImageForPdf(img);
+      if (!fetched) continue;
+      // Yeni satıra geçilecekse sayfa sonu kontrolü
+      if (col === 0 && y + cellH > pageH - margin) {
         pdf.addPage();
         y = margin;
       }
+      const x = margin + col * (cellW + gap);
       try {
-        pdf.addImage(dataUrl, "JPEG", margin, y, pageW - margin * 2, 50);
-        y += 55;
+        pdf.addImage(fetched.dataUrl, fetched.format, x, y, cellW, cellH);
       } catch {
         /* skip broken image */
       }
+      col += 1;
+      if (col === 2) {
+        col = 0;
+        y += cellH + gap;
+      }
     }
+    // Tek kalan görsel varsa satır yüksekliğini ekle
+    if (col === 1) y += cellH + gap;
+    y += 2;
   }
 
   if (tour.tour_managers?.length) {

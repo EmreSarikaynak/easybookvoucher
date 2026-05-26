@@ -5,6 +5,7 @@ import {
 } from "@/lib/supabase-server";
 import { parseWhatsappPhoneSetting } from "@/lib/settings-utils";
 import { sendVoucherPDFNotificationsFetch } from "@/lib/twilio-core";
+import { buildAgencyCatalogUrl } from "@/lib/site-url";
 
 /**
  * PDF yüklendikten sonra WhatsApp bildirimi gönderir.
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
     const { data: voucher, error: vErr } = await supabase
       .from("vouchers")
       .select(
-        "*, tour:tours(name), agency:agencies(name, phone), sales_person:profiles!vouchers_sales_person_id_fkey(full_name)"
+        "*, tour:tours(name), agency:agencies(name, agency_code, phone), sales_person:profiles!vouchers_sales_person_id_fkey(full_name)"
       )
       .eq("id", voucherId)
       .single();
@@ -99,6 +100,8 @@ export async function POST(request: Request) {
         paxChild: voucher.pax_child,
         paxInfant: voucher.pax_infant,
         agencyName: agency?.name ?? null,
+        agencyCode: agency?.agency_code ?? null,
+        agencyCatalogUrl: buildAgencyCatalogUrl(agency?.agency_code),
       },
     });
 

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { uploadTourImages, uploadTourVideos } from "@/app/actions/tour";
 import { isYoutubeUrl } from "@/lib/tour-i18n";
+import { convertImageFileToJpeg } from "@/lib/image-client";
 
 interface TourMediaSectionProps {
   images: string[];
@@ -33,7 +34,9 @@ export function TourMediaSection({
       setUploadingImages(true);
       try {
         const fd = new FormData();
-        for (const file of Array.from(files)) fd.append("files", file);
+        for (const file of Array.from(files)) {
+          fd.append("files", await convertImageFileToJpeg(file));
+        }
         e.target.value = "";
         const result = await uploadTourImages(fd);
         if (result.error) {
