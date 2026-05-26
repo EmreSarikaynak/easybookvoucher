@@ -3,6 +3,7 @@
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
 import { formatDbError } from "@/lib/error-messages";
+import { getCurrentUser, isAdmin } from "@/lib/auth-helpers";
 import { normalizeStoredPhone } from "@/lib/phone";
 import type { CurrencyType, Tour } from "@/lib/types";
 
@@ -154,6 +155,51 @@ export async function updateAgency(id: string, payload: AgencyPayload) {
   }
 
   revalidatePath("/agencies");
+  return { success: true };
+}
+
+/**
+ * Acentenin yönetici (agency_admin) giriş şifresini günceller.
+ * Yalnızca admin çağırabilir; service-role auth API kullanır.
+ */
+export async function updateAgencyPassword(
+  agencyId: string,
+  newPassword: string
+): Promise<{ success?: boolean; error?: string }> {
+  const profile = await getCurrentUser();
+  if (!isAdmin(profile)) {
+    return { error: "Bu işlem için yetkiniz yok" };
+  }
+  if (!newPassword || newPassword.length < 6) {
+    return { error: "Şifre en az 6 karakter olmalıdır" };
+  }
+
+  const serviceClient = createServiceRoleClient();
+
+  // Acenteye bağlı yönetici hesabını bul (en eski agency_admin).
+  const { data: adminProfile, error: pErr } = await serviceClient
+    .from("profiles")
+    .select("id")
+    .eq("agency_id", agencyId)
+    .eq("role", "agency_admin")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (pErr || !adminProfile) {
+    return { error: "Bu acenteye bağlı yönetici hesabı bulunamadı" };
+  }
+
+  const { error: authError } = await serviceClient.auth.admin.updateUserById(
+    adminProfile.id,
+    { password: newPassword }
+  );
+
+  if (authError) {
+    console.error("Agency password update error:", authError);
+    return { error: formatDbError({ message: authError.message }) };
+  }
+
   return { success: true };
 }
 

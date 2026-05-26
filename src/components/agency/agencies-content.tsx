@@ -23,6 +23,7 @@ import {
 import {
   createAgencyWithUser,
   updateAgency,
+  updateAgencyPassword,
   deleteAgency,
   saveAgencyTourPricingMatrix,
   type AgencyTourPricingCell,
@@ -84,6 +85,7 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
     setPricingCells([]);
     setPricingDirty(false);
     setError(null);
+    setShowPassword(false);
     setDialogOpen(true);
   };
 
@@ -102,6 +104,10 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
         setError("E-posta adresi gereklidir");
         return;
       }
+    } else if (formData.password && formData.password.length < 6) {
+      // Düzenleme modunda şifre opsiyonel; girildiyse en az 6 karakter.
+      setError("Yeni şifre en az 6 karakter olmalıdır");
+      return;
     }
 
     setLoading(true);
@@ -130,6 +136,18 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
       if (result.error) {
         setError(result.error);
         return;
+      }
+
+      // Düzenleme modunda yeni şifre girildiyse acente yöneticisinin şifresini güncelle.
+      if (editingAgency && formData.password) {
+        const pwResult = await updateAgencyPassword(
+          editingAgency.id,
+          formData.password
+        );
+        if (pwResult.error) {
+          setError(`Acente kaydedildi ama şifre güncellenemedi: ${pwResult.error}`);
+          return;
+        }
       }
 
       // Save per-tour pricing if any rows were edited (admin + editing only).
@@ -251,12 +269,12 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
               {error}
             </div>
           )}
-          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
             {/* Acente Bilgileri */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               <h3 className="font-medium text-sm text-muted-foreground">Acente Bilgileri</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
                   <Label>Acente Adı *</Label>
                   <Input
                     value={formData.name}
@@ -267,28 +285,88 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
                     required
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label>Acente Kodu</Label>
                   <Input
                     value={formData.agency_code}
                     onChange={(e) =>
                       setFormData((p) => ({ ...p, agency_code: e.target.value.toUpperCase() }))
                     }
-                    placeholder="Örn: ERK (Otomatik için boş bırakın)"
+                    placeholder="Boş = otomatik"
                     maxLength={10}
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Telefon</Label>
-                <Input
-                  value={formData.phone}
-                  onChange={(e) =>
-                    setFormData((p) => ({ ...p, phone: e.target.value }))
-                  }
-                  placeholder="+90 5XX XXX XX XX"
-                />
-              </div>
+
+              {editingAgency ? (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>Telefon</Label>
+                      <Input
+                        value={formData.phone}
+                        onChange={(e) =>
+                          setFormData((p) => ({ ...p, phone: e.target.value }))
+                        }
+                        placeholder="+90 5XX XXX XX XX"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>E-posta</Label>
+                      <Input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) =>
+                          setFormData((p) => ({ ...p, email: e.target.value }))
+                        }
+                        placeholder="ornek@email.com"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Yeni Şifre</Label>
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        value={formData.password}
+                        onChange={(e) =>
+                          setFormData((p) => ({ ...p, password: e.target.value }))
+                        }
+                        placeholder="Değiştirmek için yeni şifre girin"
+                        className="pr-10"
+                        autoComplete="new-password"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Boş bırakırsanız acente yöneticisinin mevcut şifresi korunur.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label>Telefon</Label>
+                  <Input
+                    value={formData.phone}
+                    onChange={(e) =>
+                      setFormData((p) => ({ ...p, phone: e.target.value }))
+                    }
+                    placeholder="+90 5XX XXX XX XX"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Yönetici Hesabı - Sadece yeni acente için */}
@@ -349,21 +427,6 @@ export function AgenciesContent({ agencies, isAdmin = false }: AgenciesContentPr
                     Bu bilgilerle acente yöneticisi sisteme giriş yapabilecek.
                   </p>
                 </div>
-              </div>
-            )}
-
-            {/* Düzenleme modunda e-posta alanı */}
-            {editingAgency && (
-              <div className="space-y-2">
-                <Label>E-posta</Label>
-                <Input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData((p) => ({ ...p, email: e.target.value }))
-                  }
-                  placeholder="ornek@email.com"
-                />
               </div>
             )}
 

@@ -507,9 +507,12 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
 
   /**
    * forceTemplate=true → freeform denemeden doğrudan onaylı template gönderir.
-   * Müşteri ve acente için kritik: Twilio queued sonrası undelivered (kod 63016)
-   * verince fallback artık çalışmaz; bu yüzden 24h penceresi şüpheli olan
-   * hedeflere baştan template ile gidilir.
+   * TÜM hedefler için kritik (admin dahil): freeform gönderim Twilio'dan
+   * senkron "queued" (HTTP 200) döner ama 24h penceresi dışındaki alıcılarda
+   * sonradan async olarak undelivered (kod 63016) olur — o aşamada inline
+   * fallback çalışamaz. Admin/EasyBook numarası genelde işletmeye son 24 saatte
+   * mesaj atmadığı için pencere dışıdır; bu yüzden admin de baştan onaylı
+   * internal template ile gönderilir.
    */
   const targets: Array<{
     to: string;
@@ -523,7 +526,7 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
       body: adminBody,
       templateSid: internalTemplateSid,
       templateVariables: internalTemplateVars,
-      forceTemplate: false,
+      forceTemplate: true,
     },
   ];
 
@@ -535,7 +538,7 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
         body: adminBody,
         templateSid: internalTemplateSid,
         templateVariables: internalTemplateVars,
-        forceTemplate: false,
+        forceTemplate: true,
       });
     }
   }
