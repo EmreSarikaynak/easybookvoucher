@@ -265,7 +265,8 @@ export function TourForm({
               type="number"
               min={0}
               step="1"
-              value={formData.default_price}
+              placeholder="0"
+              value={formData.default_price === 0 ? "" : formData.default_price}
               onChange={(e) =>
                 setFormData((p) => ({
                   ...p,
@@ -429,7 +430,8 @@ export function TourForm({
               <Input
                 type="number"
                 min={0}
-                value={formData[key]}
+                placeholder="0"
+                value={formData[key] === 0 ? "" : formData[key]}
                 onChange={(e) =>
                   setFormData((p) => ({
                     ...p,

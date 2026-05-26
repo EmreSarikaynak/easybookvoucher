@@ -48,7 +48,8 @@ export default function WhatsAppLogsPage() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  // Sadece "Tekrar Gönder" sonrası kısa süre otomatik güncelle — sürekli değil.
+  const [autoUpdating, setAutoUpdating] = useState(false);
 
   // Tekrar gönder dialog state
   const [resendTarget, setResendTarget] = useState<WhatsAppLog | null>(null);
@@ -76,15 +77,19 @@ export default function WhatsAppLogsPage() {
     fetchLogs();
   }, [fetchLogs]);
 
-  // Sayfa açıkken her 4 saniyede sessizce yenile (sekme gizliyse durur).
+  // "Tekrar Gönder" sonrası ~40 sn boyunca 4 saniyede bir sessizce güncelle
+  // (Twilio durum geri bildirimi gelsin). Süre dolunca kendiliğinden durur.
   useEffect(() => {
-    if (!autoRefresh) return;
-    const tick = () => {
+    if (!autoUpdating) return;
+    const interval = setInterval(() => {
       if (document.visibilityState === "visible") fetchLogs(true);
+    }, AUTO_REFRESH_MS);
+    const stop = setTimeout(() => setAutoUpdating(false), 40000);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(stop);
     };
-    const id = setInterval(tick, AUTO_REFRESH_MS);
-    return () => clearInterval(id);
-  }, [autoRefresh, fetchLogs]);
+  }, [autoUpdating, fetchLogs]);
 
   // Load profile (for admin check) once
   useEffect(() => {
@@ -133,8 +138,9 @@ export default function WhatsAppLogsPage() {
         setFeedback({ kind: failed > 0 ? "error" : "success", text });
       }
       setResendTarget(null);
-      // Durumların güncellenmesini görmek için hemen + otomatik yenileme devam eder.
+      // Hemen yenile + kısa süre (40 sn) durum güncellemesi için otomatik yenile.
       await fetchLogs(true);
+      setAutoUpdating(true);
     } finally {
       setResending(false);
     }
@@ -151,15 +157,12 @@ export default function WhatsAppLogsPage() {
           <p className="text-muted-foreground">Gönderilen ve alınan son 100 mesaj</p>
         </div>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={autoRefresh}
-              onChange={(e) => setAutoRefresh(e.target.checked)}
-              className="h-4 w-4"
-            />
-            Otomatik yenile (4 sn)
-          </label>
+          {autoUpdating && (
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Durumlar güncelleniyor…
+            </span>
+          )}
           <Button variant="outline" onClick={() => fetchLogs()} disabled={loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Yenile
