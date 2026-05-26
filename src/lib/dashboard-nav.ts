@@ -37,6 +37,12 @@ export type DashboardNavItem = {
   announcementsMenu?: boolean;
   /** Alt mobil menüde öncelikli göster */
   bottomNavPriority?: number;
+  /**
+   * Kâr/maliyet gibi hassas finansal sayfalar. Müşteri yanında ekranda
+   * görünmemesi için ana menüde değil, varsayılan kapalı "Profilim"
+   * grubunun altında listelenir.
+   */
+  profileMenu?: boolean;
 };
 
 export const DASHBOARD_NAV: DashboardNavItem[] = [
@@ -44,14 +50,14 @@ export const DASHBOARD_NAV: DashboardNavItem[] = [
   { name: "Biletler", href: "/vouchers", icon: FileText, bottomNavPriority: 2 },
   { name: "Yeni Bilet", href: "/vouchers/new", icon: PlusCircle, bottomNavPriority: 3 },
   { name: "Raporlar", href: "/reports", icon: BarChart3, adminOnly: true },
-  { name: "Kazançlar", href: "/earnings", icon: Wallet },
+  { name: "Kazançlar", href: "/earnings", icon: Wallet, profileMenu: true },
   { name: "Turlar", href: "/tours", icon: MapPin, toursMenu: true, bottomNavPriority: 4 },
   { name: "Tur Kataloğu", href: "/tours/catalog", icon: BookOpen, toursMenu: true },
   { name: "Duyurular", href: "/announcements", icon: Megaphone, announcementsMenu: true, bottomNavPriority: 5 },
   { name: "Filo Yönetimi", href: "/fleet", icon: Anchor, adminOnly: true },
   { name: "Operasyon Takvimi", href: "/operations", icon: Calendar, adminOnly: true },
   { name: "Tekne Kiralamaları", href: "/bookings", icon: Ship },
-  { name: "iTur Fiyat", agencyLabel: "iTur Fiyat", href: "/tour-costs", icon: DollarSign, costsMenu: true },
+  { name: "Tur Maliyetleri", agencyLabel: "iTur Fiyat", href: "/tour-costs", icon: DollarSign, costsMenu: true, profileMenu: true },
   { name: "Acenteler", href: "/agencies", icon: Building2, adminOnly: true },
   { name: "Kullanıcılar", href: "/users", icon: Users, adminOnly: true },
   { name: "WhatsApp Logları", href: "/whatsapp-logs", icon: MessageSquare, adminOnly: true },
@@ -82,23 +88,41 @@ function canViewCostsMenu(profile: Profile | null): boolean {
   );
 }
 
-export function filterDashboardNav(profile: Profile | null): DashboardNavItem[] {
-  const isAdmin = isAdminRole(profile?.role);
-  const viewTours = canViewToursMenu(profile);
-  const viewCosts = canViewCostsMenu(profile);
+/** Bir menü öğesinin kullanıcı rolüne göre görünür olup olmadığı. */
+function passesRoleFilter(
+  item: DashboardNavItem,
+  profile: Profile | null
+): boolean {
+  if (item.toursMenu) return canViewToursMenu(profile);
+  if (item.costsMenu) return canViewCostsMenu(profile);
+  if (item.announcementsMenu) return !!profile;
+  if (item.adminOnly) return isAdminRole(profile?.role);
+  return true;
+}
 
-  return DASHBOARD_NAV.filter((item) => {
-    if (item.toursMenu) return viewTours;
-    if (item.costsMenu) return viewCosts;
-    if (item.announcementsMenu) return !!profile;
-    if (item.adminOnly) return isAdmin;
-    return true;
-  }).map((item) => {
-    if (item.costsMenu && !isAdmin && item.agencyLabel) {
-      return { ...item, name: item.agencyLabel };
-    }
-    return item;
-  });
+/** Acente kullanıcısına alternatif etiket uygula (örn. "iTur Fiyat"). */
+function applyAgencyLabel(
+  item: DashboardNavItem,
+  profile: Profile | null
+): DashboardNavItem {
+  if (item.costsMenu && !isAdminRole(profile?.role) && item.agencyLabel) {
+    return { ...item, name: item.agencyLabel };
+  }
+  return item;
+}
+
+/** Ana menü: "Profilim" altına taşınan finansal öğeler hariç. */
+export function filterDashboardNav(profile: Profile | null): DashboardNavItem[] {
+  return DASHBOARD_NAV.filter(
+    (item) => !item.profileMenu && passesRoleFilter(item, profile)
+  ).map((item) => applyAgencyLabel(item, profile));
+}
+
+/** "Profilim" grubu: kâr/maliyet gibi hassas, varsayılan kapalı öğeler. */
+export function getProfileNavItems(profile: Profile | null): DashboardNavItem[] {
+  return DASHBOARD_NAV.filter(
+    (item) => item.profileMenu && passesRoleFilter(item, profile)
+  ).map((item) => applyAgencyLabel(item, profile));
 }
 
 export function getBottomNavItems(profile: Profile | null): DashboardNavItem[] {

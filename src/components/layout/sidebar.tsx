@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/lib/types";
 import { Logo } from "./logo";
-import { filterDashboardNav } from "@/lib/dashboard-nav";
+import { ProfileNavSection } from "./profile-nav-section";
+import { filterDashboardNav, getProfileNavItems } from "@/lib/dashboard-nav";
 
 interface SidebarProps {
   profile: Profile | null;
@@ -14,6 +15,7 @@ interface SidebarProps {
 export function Sidebar({ profile }: SidebarProps) {
   const pathname = usePathname();
   const filteredNav = filterDashboardNav(profile);
+  const profileNav = getProfileNavItems(profile);
 
   return (
     <aside className="hidden lg:fixed lg:inset-y-0 lg:z-40 lg:flex lg:w-64 lg:flex-col">
@@ -46,6 +48,7 @@ export function Sidebar({ profile }: SidebarProps) {
                 </li>
               );
             })}
+            <ProfileNavSection items={profileNav} />
           </ul>
         </nav>
       </div>

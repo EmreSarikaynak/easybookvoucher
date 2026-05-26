@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { Profile } from "@/lib/types";
 import { Logo } from "./logo";
-import { filterDashboardNav } from "@/lib/dashboard-nav";
+import { ProfileNavSection } from "./profile-nav-section";
+import { filterDashboardNav, getProfileNavItems } from "@/lib/dashboard-nav";
 
 interface MobileNavProps {
   open: boolean;
@@ -19,6 +20,7 @@ interface MobileNavProps {
 export function MobileNav({ open, onClose, profile }: MobileNavProps) {
   const pathname = usePathname();
   const filteredNav = filterDashboardNav(profile);
+  const profileNav = getProfileNavItems(profile);
 
   if (!open) return null;
 
@@ -60,6 +62,7 @@ export function MobileNav({ open, onClose, profile }: MobileNavProps) {
                 </li>
               );
             })}
+            <ProfileNavSection items={profileNav} onItemClick={onClose} />
           </ul>
         </nav>
       </div>
