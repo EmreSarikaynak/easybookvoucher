@@ -182,7 +182,8 @@ export interface VoucherNotificationOptions {
     customerPhone?: string | null;
     agencyPhone?: string | null;
     salesPersonPhone?: string | null;
-    adminPhoneFromSettings?: string | null;
+    /** Ayarlardaki ek admin numaraları (bir veya birden çok). */
+    adminPhonesFromSettings?: string[] | null;
     voucher: VoucherInfo;
 }
 
@@ -286,20 +287,21 @@ export async function sendVoucherNotifications(
         results.push({ recipient: "easybook", phone: easybookPhone, ...r });
     }
 
-    // 2.5) Admin number from settings — only if different from EasyBook
-    if (opts.adminPhoneFromSettings) {
-        const adminNorm = normalisePhone(opts.adminPhoneFromSettings);
-        const easybookNorm = normalisePhone(easybookPhone);
-        if (adminNorm !== easybookNorm) {
-            const r = await sendOne({
-                to: opts.adminPhoneFromSettings,
-                templateSid: activeInternalTemplate,
-                variables: internalVariables,
-                fallbackBody: getInternalFallback(),
-                voucherNo: v.voucherNo,
-            });
-            results.push({ recipient: "easybook", phone: opts.adminPhoneFromSettings, ...r });
-        }
+    // 2.5) Settings'teki ek admin numaraları — EasyBook ve birbirleriyle tekrarları elenir
+    const seenAdminNorms = new Set<string>([normalisePhone(easybookPhone)]);
+    for (const adminPhone of opts.adminPhonesFromSettings ?? []) {
+        if (!adminPhone) continue;
+        const adminNorm = normalisePhone(adminPhone);
+        if (seenAdminNorms.has(adminNorm)) continue;
+        seenAdminNorms.add(adminNorm);
+        const r = await sendOne({
+            to: adminPhone,
+            templateSid: activeInternalTemplate,
+            variables: internalVariables,
+            fallbackBody: getInternalFallback(),
+            voucherNo: v.voucherNo,
+        });
+        results.push({ recipient: "easybook", phone: adminPhone, ...r });
     }
 
     // 3) Agency owner

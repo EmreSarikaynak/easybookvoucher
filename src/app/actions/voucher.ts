@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
 import type { CurrencyType } from "@/lib/types";
 import { formatDbError } from "@/lib/error-messages";
-import { parseWhatsappPhoneSetting } from "@/lib/settings-utils";
+import { parseWhatsappPhonesSetting } from "@/lib/settings-utils";
 import { normalizeStoredPhone } from "@/lib/phone";
 import { buildAgencyCatalogUrl } from "@/lib/site-url";
 
@@ -135,7 +135,7 @@ export async function createVoucher(payload: VoucherPayload) {
     if (tourData?.name) tourName = tourData.name;
   }
 
-  const adminPhoneFromSettings = await readAdminWhatsappPhone(supabase);
+  const adminPhonesFromSettings = await readAdminWhatsappPhones(supabase);
 
   try {
     const { sendVoucherNotifications } = await import("@/lib/twilio");
@@ -143,7 +143,7 @@ export async function createVoucher(payload: VoucherPayload) {
       customerPhone: payload.customer_phone ?? null,
       agencyPhone: agencyPhone,
       salesPersonPhone: profile?.phone ?? null,
-      adminPhoneFromSettings,
+      adminPhonesFromSettings,
       voucher: {
         voucherNo: finalVoucherNo,
         tourName,
@@ -165,16 +165,16 @@ export async function createVoucher(payload: VoucherPayload) {
  * Recipients: hardcoded EasyBook number + admin setting (deduped) + agency.
  * PDF is already uploaded; caller provides the public URL.
  */
-async function readAdminWhatsappPhone(
+async function readAdminWhatsappPhones(
   supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>
-): Promise<string | null> {
+): Promise<string[]> {
   const { data: settingRow } = await supabase
     .from("settings")
     .select("value")
     .eq("key", "admin_whatsapp_phone")
     .maybeSingle();
 
-  return parseWhatsappPhoneSetting(settingRow?.value);
+  return parseWhatsappPhonesSetting(settingRow?.value);
 }
 
 export async function sendVoucherPDFWhatsApp(
@@ -196,7 +196,7 @@ export async function sendVoucherPDFWhatsApp(
       return { success: false, error: "Bilet bulunamadı" };
     }
 
-    const adminPhoneFromSettings = await readAdminWhatsappPhone(supabase);
+    const adminPhonesFromSettings = await readAdminWhatsappPhones(supabase);
 
     const agency =
       voucher.agency && !Array.isArray(voucher.agency) ? voucher.agency : null;
@@ -208,7 +208,7 @@ export async function sendVoucherPDFWhatsApp(
       imageUrl: resolvedImageUrl,
       isRevised,
       agencyPhone: agency?.phone ?? null,
-      adminPhoneFromSettings,
+      adminPhonesFromSettings,
       voucher: {
         voucherNo: voucher.voucher_no,
         tourName: voucher.tour?.name || "Tur",
@@ -266,8 +266,14 @@ export async function updateVoucher(id: string, payload: VoucherPayload) {
  * Admin: re-send the full set of voucher WhatsApp notifications (customer,
  * EasyBook internal, agency, sales person) for a given voucher number.
  * Pulls everything fresh from the DB so a resend reflects the current state.
+ *
+ * customerPhoneOverride verilirse (numara yanlış girilmişse düzeltmek için)
+ * bilete kalıcı olarak yazılır ve gönderim düzeltilmiş numaraya yapılır.
  */
-export async function resendVoucherWhatsApp(voucherNo: string) {
+export async function resendVoucherWhatsApp(
+  voucherNo: string,
+  opts?: { customerPhoneOverride?: string | null }
+) {
   const supabase = await createServerSupabaseClient();
 
   const { data: voucher, error } = await supabase
@@ -282,7 +288,26 @@ export async function resendVoucherWhatsApp(voucherNo: string) {
     return { error: "Bilet bulunamadı" };
   }
 
-  const adminPhoneFromSettings = await readAdminWhatsappPhone(supabase);
+  // Numara düzeltmesi: verildiyse normalize edip bilete yaz, sonra onu kullan.
+  if (opts?.customerPhoneOverride && opts.customerPhoneOverride.trim()) {
+    const corrected = normalizeStoredPhone(opts.customerPhoneOverride);
+    if (!corrected) {
+      return { error: "Girilen müşteri telefonu geçersiz" };
+    }
+    if (corrected !== voucher.customer_phone) {
+      const { error: updErr } = await supabase
+        .from("vouchers")
+        .update({ customer_phone: corrected })
+        .eq("id", voucher.id);
+      if (updErr) {
+        return { error: formatDbError(updErr) };
+      }
+      voucher.customer_phone = corrected;
+      revalidatePath(`/vouchers/${voucher.id}`);
+    }
+  }
+
+  const adminPhonesFromSettings = await readAdminWhatsappPhones(supabase);
   const agency =
     voucher.agency && !Array.isArray(voucher.agency) ? voucher.agency : null;
 
@@ -295,7 +320,7 @@ export async function resendVoucherWhatsApp(voucherNo: string) {
         pdfUrl: voucher.pdf_url,
         imageUrl,
         agencyPhone: agency?.phone ?? null,
-        adminPhoneFromSettings,
+        adminPhonesFromSettings,
         voucher: {
           voucherNo: voucher.voucher_no,
           tourName: voucher.tour?.name || "Tur",
@@ -327,7 +352,7 @@ export async function resendVoucherWhatsApp(voucherNo: string) {
       customerPhone: voucher.customer_phone ?? null,
       agencyPhone: agency?.phone ?? null,
       salesPersonPhone: voucher.sales_person?.phone ?? null,
-      adminPhoneFromSettings,
+      adminPhonesFromSettings,
       voucher: {
         voucherNo: voucher.voucher_no,
         tourName: voucher.tour?.name || "Tur",

@@ -3,7 +3,7 @@ import {
   createServerSupabaseClient,
   createServiceRoleClient,
 } from "@/lib/supabase-server";
-import { parseWhatsappPhoneSetting } from "@/lib/settings-utils";
+import { parseWhatsappPhonesSetting } from "@/lib/settings-utils";
 import { sendVoucherPDFNotificationsFetch } from "@/lib/twilio-core";
 import { buildAgencyCatalogUrl } from "@/lib/site-url";
 
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
       .eq("key", "admin_whatsapp_phone")
       .maybeSingle();
 
-    const adminPhoneFromSettings = parseWhatsappPhoneSetting(settingRow?.value);
+    const adminPhonesFromSettings = parseWhatsappPhonesSetting(settingRow?.value);
 
     const agency =
       voucher.agency && !Array.isArray(voucher.agency) ? voucher.agency : null;
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
       imageUrl,
       isRevised: Boolean(isRevised),
       agencyPhone: agency?.phone ?? null,
-      adminPhoneFromSettings,
+      adminPhonesFromSettings,
       voucher: {
         voucherNo: voucher.voucher_no,
         tourName: voucher.tour?.name || "Tur",

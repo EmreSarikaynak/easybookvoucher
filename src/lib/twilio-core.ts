@@ -401,7 +401,8 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
   /** JPEG bilet görseli — WhatsApp ek dosyası olarak gider */
   imageUrl?: string | null;
   agencyPhone?: string | null;
-  adminPhoneFromSettings?: string | null;
+  /** Ayarlardaki ek admin numaraları (bir veya birden çok). */
+  adminPhonesFromSettings?: string[] | null;
   voucher: VoucherPDFInfo;
   isRevised?: boolean;
 }): Promise<{ success: boolean; error?: string; sent: number }> {
@@ -432,8 +433,18 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
     if ((opts.voucher.paxInfant ?? 0) > 0) parts.push(`${opts.voucher.paxInfant} Bebek`);
     return parts.join(" + ") || "—";
   };
-  const imageOrPdfUrl = opts.imageUrl || opts.pdfUrl;
 
+  const phone = opts.voucher.customerPhone || "—";
+  const hotel = opts.voucher.hotel || "—";
+  const pickup = opts.voucher.pickupPlace || "—";
+  const agencyCode = opts.voucher.agencyCode?.trim() || "—";
+  const catalog = opts.voucher.agencyCatalogUrl || "—";
+
+  // ── METİN ŞABLONLARI (görsel yokken / media SID tanımsızken) ──────────────
+  // Onaylı `easybook_ticket_full_tr/en` ve `easybook_ticket_internal_tr`
+  // şablonları 5 değişkenli: {{1}} ad, {{2}} bilet no, {{3}} tur, {{4}} tarih,
+  // {{5}} PDF linki. Değişken SAYISI ve SIRASI şablonla birebir aynı olmalı —
+  // aksi halde {{5}} yanlış alanı (örn. otel) gösterir.
   const internalTextVars = {
     "1": opts.voucher.customerName,
     "2": opts.voucher.voucherNo,
@@ -441,52 +452,40 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
     "4": dateTr,
     "5": opts.pdfUrl,
   };
-  /**
-   * TR ve EN müşteri template'leri 11 değişkenli ve birebir paralel.
-   * (yeni `easybook_ticket_full_tr_v2` ve `easybook_ticket_full_en_v2`).
-   * {{11}} = acente public katalog URL'si — müşteri tekrar rezervasyon yapabilsin diye.
-   */
   const customerTextVarsTr = {
     "1": opts.voucher.customerName,
     "2": opts.voucher.voucherNo,
     "3": opts.voucher.tourName,
     "4": dateTr,
-    "5": opts.voucher.hotel || "—",
-    "6": opts.voucher.pickupPlace || "—",
-    "7": pickupTimeLabel,
-    "8": buildPaxStringTr(),
-    "9": imageOrPdfUrl,
-    "10": opts.pdfUrl,
-    "11": opts.voucher.agencyCatalogUrl || "—",
+    "5": opts.pdfUrl,
   };
   const customerTextVarsEn = {
     "1": opts.voucher.customerName,
     "2": opts.voucher.voucherNo,
     "3": opts.voucher.tourName,
     "4": dateEn,
-    "5": opts.voucher.hotel || "—",
-    "6": opts.voucher.pickupPlace || "—",
-    "7": pickupTimeLabel,
-    "8": buildPaxStringEn(),
-    "9": imageOrPdfUrl,
-    "10": opts.pdfUrl,
-    "11": opts.voucher.agencyCatalogUrl || "—",
+    "5": opts.pdfUrl,
   };
-  const internalMediaVars = {
-    "1": mediaVariable || "",
-    "2": opts.voucher.customerName,
-    "3": opts.voucher.voucherNo,
-    "4": opts.voucher.tourName,
-    "5": dateTr,
-    "6": opts.pdfUrl,
-  };
+
+  // ── MEDIA ŞABLONLARI (görsel + tüm detaylar) ──────────────────────────────
+  // scripts/create-whatsapp-templates.mjs ile oluşturulan zengin şablonlarla
+  // birebir uyumlu. {{1}} = media header (bilet görseli URL'si).
+  //
+  // Müşteri media (easybook_customer_media_tr/en):
+  //   1 görsel · 2 ad · 3 bilet · 4 tur · 5 tarih · 6 otel · 7 alış ·
+  //   8 saat · 9 kişi · 10 PDF · 11 katalog
   const customerMediaVarsTr = {
     "1": mediaVariable || "",
     "2": opts.voucher.customerName,
     "3": opts.voucher.voucherNo,
     "4": opts.voucher.tourName,
     "5": dateTr,
-    "6": opts.pdfUrl,
+    "6": hotel,
+    "7": pickup,
+    "8": pickupTimeLabel,
+    "9": buildPaxStringTr(),
+    "10": opts.pdfUrl,
+    "11": catalog,
   };
   const customerMediaVarsEn = {
     "1": mediaVariable || "",
@@ -494,7 +493,29 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
     "3": opts.voucher.voucherNo,
     "4": opts.voucher.tourName,
     "5": dateEn,
-    "6": opts.pdfUrl,
+    "6": hotel,
+    "7": pickup,
+    "8": pickupTimeLabel,
+    "9": buildPaxStringEn(),
+    "10": opts.pdfUrl,
+    "11": catalog,
+  };
+  // İç/admin media (easybook_internal_media_tr):
+  //   1 görsel · 2 bilet · 3 ad · 4 telefon · 5 tur · 6 tarih · 7 otel ·
+  //   8 alış · 9 saat · 10 kişi · 11 acente kodu · 12 PDF
+  const internalMediaVars = {
+    "1": mediaVariable || "",
+    "2": opts.voucher.voucherNo,
+    "3": opts.voucher.customerName,
+    "4": phone,
+    "5": opts.voucher.tourName,
+    "6": dateTr,
+    "7": hotel,
+    "8": pickup,
+    "9": pickupTimeLabel,
+    "10": buildPaxStringTr(),
+    "11": agencyCode,
+    "12": opts.pdfUrl,
   };
   const internalTemplateSid =
     mediaVariable && pdfMediaInternalTemplateSid
@@ -530,17 +551,20 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
     },
   ];
 
-  if (opts.adminPhoneFromSettings) {
-    const adminNorm = normalisePhone(opts.adminPhoneFromSettings);
-    if (adminNorm !== easybookNorm) {
-      targets.push({
-        to: opts.adminPhoneFromSettings,
-        body: adminBody,
-        templateSid: internalTemplateSid,
-        templateVariables: internalTemplateVars,
-        forceTemplate: true,
-      });
-    }
+  // Ayarlardaki ek admin numaraları — EasyBook ve birbirleriyle tekrarları elenir.
+  const seenAdminNorms = new Set<string>([easybookNorm]);
+  for (const adminPhone of opts.adminPhonesFromSettings ?? []) {
+    if (!adminPhone) continue;
+    const adminNorm = normalisePhone(adminPhone);
+    if (seenAdminNorms.has(adminNorm)) continue;
+    seenAdminNorms.add(adminNorm);
+    targets.push({
+      to: adminPhone,
+      body: adminBody,
+      templateSid: internalTemplateSid,
+      templateVariables: internalTemplateVars,
+      forceTemplate: true,
+    });
   }
 
   if (opts.agencyPhone) {

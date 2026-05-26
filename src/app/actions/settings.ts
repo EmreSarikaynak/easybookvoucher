@@ -2,8 +2,7 @@
 
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
-import { normalizeStoredPhone } from "@/lib/phone";
-import { parseWhatsappPhoneSetting } from "@/lib/settings-utils";
+import { parseWhatsappPhonesSetting } from "@/lib/settings-utils";
 
 export async function getSetting(key: string) {
     const supabase = await createServerSupabaseClient();
@@ -27,11 +26,10 @@ export async function updateSetting(key: string, value: any) {
     }
 
     let storedValue = value;
-    if (key === "admin_whatsapp_phone" && typeof value === "string") {
-        storedValue =
-            normalizeStoredPhone(value) ??
-            parseWhatsappPhoneSetting(value) ??
-            value.trim();
+    // Admin WhatsApp numaraları: tek string, virgüllü string veya dizi olarak
+    // gelebilir; normalize edilmiş bir dizi olarak (JSONB) saklanır.
+    if (key === "admin_whatsapp_phone") {
+        storedValue = parseWhatsappPhonesSetting(value);
     }
 
     const { error } = await supabase

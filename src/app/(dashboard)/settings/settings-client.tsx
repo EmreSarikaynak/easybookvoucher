@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Save } from "lucide-react";
+import { Save, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,10 +23,10 @@ import type { Profile } from "@/lib/types";
 interface SettingsClientProps {
     profile: Profile | null;
     siteLogo: string | null;
-    adminWhatsappPhone: string | null;
+    adminWhatsappPhones: string[];
 }
 
-export function SettingsClient({ profile, siteLogo: initialSiteLogo, adminWhatsappPhone: initialAdminPhone }: SettingsClientProps) {
+export function SettingsClient({ profile, siteLogo: initialSiteLogo, adminWhatsappPhones: initialAdminPhones }: SettingsClientProps) {
     const supabase = createClient();
 
     const [fullName, setFullName] = useState(profile?.full_name ?? "");
@@ -39,10 +39,21 @@ export function SettingsClient({ profile, siteLogo: initialSiteLogo, adminWhatsa
     // Custom: Site Logo State
     const [siteLogo, setSiteLogo] = useState<string | null>(initialSiteLogo);
 
-    // Admin WhatsApp Phone
-    const [adminPhone, setAdminPhone] = useState(initialAdminPhone ?? "");
+    // Admin WhatsApp Numaraları (birden fazla)
+    const [adminPhones, setAdminPhones] = useState<string[]>(
+        initialAdminPhones.length > 0 ? initialAdminPhones : [""]
+    );
     const [savingAdminPhone, setSavingAdminPhone] = useState(false);
     const [adminPhoneMessage, setAdminPhoneMessage] = useState<string | null>(null);
+
+    const updateAdminPhone = (index: number, value: string) =>
+        setAdminPhones((prev) => prev.map((p, i) => (i === index ? value : p)));
+    const addAdminPhone = () => setAdminPhones((prev) => [...prev, ""]);
+    const removeAdminPhone = (index: number) =>
+        setAdminPhones((prev) => {
+            const next = prev.filter((_, i) => i !== index);
+            return next.length > 0 ? next : [""];
+        });
 
     // Note: We don't need useEffect to sync profile -> state unless we expect specific changes,
     // because "initial state" pattern works well if profile is fetched server-side.
@@ -183,29 +194,52 @@ export function SettingsClient({ profile, siteLogo: initialSiteLogo, adminWhatsa
                 <>
                     <Separator />
 
-                    {/* Admin WhatsApp Numarası */}
+                    {/* Admin WhatsApp Numaraları */}
                     <Card>
                         <CardHeader>
-                            <CardTitle className="text-base">📱 Admin WhatsApp Numarası</CardTitle>
+                            <CardTitle className="text-base">📱 Admin WhatsApp Numaraları</CardTitle>
                             <CardDescription>
-                                Her kesilen bilet bu numaraya da gönderilir. +905366029397 zaten otomatik alıyor —
-                                farklı bir numara girmek isterseniz buraya ekleyin (aynı numarayı girerseniz tekrar göndermez).
+                                Her kesilen bilet bu numaralara da gönderilir. +905366029397 zaten otomatik
+                                alıyor — farklı numaralar eklemek için aşağıya satır satır girin. Aynı numarayı
+                                birden çok kez girerseniz tekrar göndermez.
                             </CardDescription>
                         </CardHeader>
-                        <CardContent>
-                            <div className="flex gap-3">
-                                <Input
-                                    value={adminPhone}
-                                    onChange={(e) => setAdminPhone(e.target.value)}
-                                    placeholder="+90 5XX XXX XX XX"
-                                    className="flex-1"
-                                />
+                        <CardContent className="space-y-3">
+                            <div className="space-y-2">
+                                {adminPhones.map((p, index) => (
+                                    <div key={index} className="flex gap-2">
+                                        <Input
+                                            value={p}
+                                            onChange={(e) => updateAdminPhone(index, e.target.value)}
+                                            placeholder="+90 5XX XXX XX XX"
+                                            className="flex-1"
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => removeAdminPhone(index)}
+                                            aria-label="Numarayı kaldır"
+                                        >
+                                            <Trash2 className="h-4 w-4 text-muted-foreground" />
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="flex items-center justify-between gap-3">
+                                <Button type="button" variant="ghost" size="sm" onClick={addAdminPhone}>
+                                    <Plus className="mr-1 h-4 w-4" />
+                                    Numara ekle
+                                </Button>
                                 <Button
                                     onClick={async () => {
                                         setSavingAdminPhone(true);
                                         setAdminPhoneMessage(null);
+                                        const cleaned = adminPhones
+                                            .map((x) => x.trim())
+                                            .filter(Boolean);
                                         const { updateSetting } = await import("@/app/actions/settings");
-                                        const result = await updateSetting("admin_whatsapp_phone", adminPhone.trim());
+                                        const result = await updateSetting("admin_whatsapp_phone", cleaned);
                                         if (result?.error) {
                                             setAdminPhoneMessage("❌ " + result.error);
                                         } else {
@@ -219,7 +253,7 @@ export function SettingsClient({ profile, siteLogo: initialSiteLogo, adminWhatsa
                                 </Button>
                             </div>
                             {adminPhoneMessage && (
-                                <p className="mt-2 text-sm">{adminPhoneMessage}</p>
+                                <p className="text-sm">{adminPhoneMessage}</p>
                             )}
                         </CardContent>
                     </Card>

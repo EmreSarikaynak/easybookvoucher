@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getSetting } from "@/app/actions/settings";
+import { parseWhatsappPhonesSetting } from "@/lib/settings-utils";
 import { SettingsClient } from "./settings-client";
 import type { Profile } from "@/lib/types";
 
@@ -13,7 +14,7 @@ export default async function SettingsPage() {
 
   let profile: Profile | null = null;
   let siteLogo: string | null = null;
-  let adminWhatsappPhone: string | null = null;
+  let adminWhatsappPhones: string[] = [];
 
   if (user) {
     // 2. Fetch Profile
@@ -38,12 +39,14 @@ export default async function SettingsPage() {
 
   try {
     const phone = await getSetting("admin_whatsapp_phone");
-    if (typeof phone === 'string') {
-      adminWhatsappPhone = phone;
-    }
+    adminWhatsappPhones = parseWhatsappPhonesSetting(phone);
   } catch { /* ignore */ }
 
   return (
-    <SettingsClient profile={profile} siteLogo={siteLogo} adminWhatsappPhone={adminWhatsappPhone} />
+    <SettingsClient
+      profile={profile}
+      siteLogo={siteLogo}
+      adminWhatsappPhones={adminWhatsappPhones}
+    />
   );
 }
