@@ -3,6 +3,7 @@
 import { createServiceRoleClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
 import { formatDbError } from "@/lib/error-messages";
+import { normalizeStoredPhone } from "@/lib/phone";
 import type { UserRole } from "@/lib/types";
 
 export async function createUser(input: {
@@ -14,6 +15,11 @@ export async function createUser(input: {
   phone: string | null;
 }) {
   const supabase = createServiceRoleClient();
+
+  // Telefonla giriş eşleşmesi için numarayı E.164'e normalize ederek sakla.
+  const normalizedPhone = input.phone
+    ? normalizeStoredPhone(input.phone) ?? input.phone.trim()
+    : null;
 
   const { data: authData, error: authError } =
     await supabase.auth.admin.createUser({
@@ -38,7 +44,7 @@ export async function createUser(input: {
       full_name: input.full_name,
       role: input.role,
       agency_id: input.agency_id,
-      phone: input.phone,
+      phone: normalizedPhone,
       is_active: true,
     },
     { onConflict: "id" }
