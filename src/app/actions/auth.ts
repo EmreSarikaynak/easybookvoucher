@@ -32,51 +32,57 @@ function buildPhoneCandidates(input: string): string[] {
   return [...set];
 }
 
+/**
+ * Girilen tanımlayıcı (e-posta veya telefon) için giriş yapılacak e-postayı
+ * döndürür. Telefonsa profiles tablosundan e-postaya çözer (service role —
+ * RLS'i aşar). Eşleşme yoksa null. Telefonla giriş bu çözücüye dayanır çünkü
+ * kullanıcılar Supabase Auth'a yalnızca e-posta ile kayıtlı; telefon sadece
+ * profiles tablosunda tutuluyor.
+ */
+export async function resolveEmailFromIdentifier(
+  identifier: string
+): Promise<string | null> {
+  const trimmed = identifier.trim();
+  if (!trimmed) return null;
+  if (trimmed.includes("@")) return trimmed;
+
+  const candidates = buildPhoneCandidates(trimmed);
+  if (candidates.length === 0) return null;
+  const serviceClient = createServiceRoleClient();
+
+  // Hızlı yol: bilinen biçimlerle doğrudan eşleştir (indeksli sorgu).
+  const { data: byCandidate } = await serviceClient
+    .from("profiles")
+    .select("email")
+    .in("phone", candidates)
+    .limit(1)
+    .maybeSingle();
+  if (byCandidate?.email) return byCandidate.email;
+
+  // Yedek: kayıtlı numara beklenmeyen biçimdeyse (boşluk, farklı önek vb.)
+  // iki tarafı da E.164'e normalize edip karşılaştır. profiles küçük tablo.
+  const target = normalizeStoredPhone(trimmed);
+  if (target) {
+    const { data: all } = await serviceClient
+      .from("profiles")
+      .select("email, phone")
+      .not("phone", "is", null);
+    const hit = all?.find((p) => normalizeStoredPhone(p.phone) === target);
+    if (hit?.email) return hit.email;
+  }
+
+  return null;
+}
+
 export async function signInWithIdentifier(identifier: string, password: string) {
   const trimmed = identifier.trim();
   if (!trimmed || !password) {
     return { error: SIGN_IN_ERROR_MESSAGE };
   }
 
-  let email: string;
-
-  if (trimmed.includes("@")) {
-    email = trimmed;
-  } else {
-    const candidates = buildPhoneCandidates(trimmed);
-    if (candidates.length === 0) {
-      return { error: SIGN_IN_ERROR_MESSAGE };
-    }
-    const serviceClient = createServiceRoleClient();
-    let matchedEmail: string | null = null;
-
-    // Hızlı yol: bilinen biçimlerle doğrudan eşleştir (indeksli sorgu).
-    const { data: byCandidate } = await serviceClient
-      .from("profiles")
-      .select("email")
-      .in("phone", candidates)
-      .limit(1)
-      .maybeSingle();
-    if (byCandidate?.email) {
-      matchedEmail = byCandidate.email;
-    } else {
-      // Yedek: kayıtlı numara beklenmeyen biçimdeyse (boşluk, farklı önek vb.)
-      // iki tarafı da E.164'e normalize edip karşılaştır. profiles küçük tablo.
-      const target = normalizeStoredPhone(trimmed);
-      if (target) {
-        const { data: all } = await serviceClient
-          .from("profiles")
-          .select("email, phone")
-          .not("phone", "is", null);
-        const hit = all?.find((p) => normalizeStoredPhone(p.phone) === target);
-        if (hit?.email) matchedEmail = hit.email;
-      }
-    }
-
-    if (!matchedEmail) {
-      return { error: SIGN_IN_ERROR_MESSAGE };
-    }
-    email = matchedEmail;
+  const email = await resolveEmailFromIdentifier(trimmed);
+  if (!email) {
+    return { error: SIGN_IN_ERROR_MESSAGE };
   }
 
   const supabase = await createServerSupabaseClient();
