@@ -1,7 +1,7 @@
 /**
  * Tek seferlik migration: tour-photos bucket'ındaki webp (ve jpeg/png olmayan)
- * görselleri JPEG'e çevirir, yeni dosyayı yükler ve tours tablosundaki URL'leri
- * (images[] + catalog_background_url) günceller.
+ * görselleri JPEG'e çevirir, yeni dosyayı yükler ve tours.images[] URL'lerini
+ * günceller.
  *
  * Neden: PDF kütüphaneleri (@react-pdf, jsPDF) yalnızca JPEG/PNG gömebiliyor;
  * Cloudflare Workers'da sunucu tarafı dönüştürme yapılamadığı için eski webp
@@ -74,7 +74,7 @@ async function run() {
   console.log(DRY ? "DRY RUN — değişiklik yapılmayacak\n" : "Migration başlıyor...\n");
   const { data: tours, error } = await supabase
     .from("tours")
-    .select("id, name, images, catalog_background_url");
+    .select("id, name, images");
   if (error) {
     console.error("Tur listesi alınamadı:", error.message);
     process.exit(1);
@@ -102,20 +102,10 @@ async function run() {
       newImgs.push(nu);
     }
 
-    let newBg = t.catalog_background_url;
-    if (newBg) {
-      const nb = await convertIfNeeded(newBg);
-      if (nb !== newBg) {
-        changed = true;
-        converted++;
-        newBg = nb;
-      }
-    }
-
     if (changed && !DRY) {
       const { error: updErr } = await supabase
         .from("tours")
-        .update({ images: newImgs, catalog_background_url: newBg })
+        .update({ images: newImgs })
         .eq("id", t.id);
       if (updErr) {
         console.error(`✗ ${t.name}: DB güncellenemedi — ${updErr.message}`);

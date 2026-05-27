@@ -19,8 +19,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { createTour, updateTour, uploadTourImages } from "@/app/actions/tour";
-import { convertImageFileToJpeg } from "@/lib/image-client";
+import { createTour, updateTour } from "@/app/actions/tour";
 import { TourTranslationTabs } from "./tour-translation-tabs";
 import { TourMediaSection } from "./tour-media-section";
 import {
@@ -78,7 +77,6 @@ export function TourForm({
     departure_days: [] as string[],
     departure_time: "" as string,
     meeting_point: "" as string,
-    catalog_background_url: "" as string,
   });
 
   useEffect(() => {
@@ -108,7 +106,6 @@ export function TourForm({
         departure_days: tour.departure_days ?? [],
         departure_time: tour.departure_time ?? "",
         meeting_point: tour.meeting_point ?? "",
-        catalog_background_url: tour.catalog_background_url ?? "",
       });
     } else {
       setFormData({
@@ -129,7 +126,6 @@ export function TourForm({
         departure_days: [],
         departure_time: "",
         meeting_point: "",
-        catalog_background_url: "",
       });
     }
   }, [visible, tour]);
@@ -168,7 +164,6 @@ export function TourForm({
         departure_days: formData.departure_days,
         departure_time: formData.departure_time || null,
         meeting_point: formData.meeting_point || null,
-        catalog_background_url: formData.catalog_background_url || null,
       };
 
       const result =
@@ -365,53 +360,6 @@ export function TourForm({
             />
           </div>
         </div>
-      </div>
-
-      <div className="space-y-2 rounded-md border p-3 bg-slate-50">
-        <Label className="text-sm font-semibold">Katalog A4 Arkaplanı (PDF)</Label>
-        <p className="text-xs text-muted-foreground">
-          PDF katalogda bu tur sayfasının arkasına ~25% opacity ile basılacak A4 görsel.
-          Sayfada 2 tur paylaşıldığında ÜSTTEKİ turun arkaplanı kullanılır. Opsiyonel.
-        </p>
-        {formData.catalog_background_url ? (
-          <div className="relative inline-block">
-            <img
-              src={formData.catalog_background_url}
-              alt="Katalog arkaplan önizleme"
-              className="w-32 h-44 object-cover rounded border"
-            />
-            <button
-              type="button"
-              onClick={() => setFormData((p) => ({ ...p, catalog_background_url: "" }))}
-              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"
-              title="Kaldır"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </div>
-        ) : (
-          <div>
-            <Input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                const fd = new FormData();
-                fd.append("files", await convertImageFileToJpeg(file));
-                const res = await uploadTourImages(fd);
-                if (res.error) {
-                  alert(res.error);
-                  return;
-                }
-                const url = res.urls?.[0];
-                if (url) setFormData((p) => ({ ...p, catalog_background_url: url }));
-                e.target.value = "";
-              }}
-              className="text-xs"
-            />
-          </div>
-        )}
       </div>
 
       <div className="space-y-2">

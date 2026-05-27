@@ -50,6 +50,16 @@ export async function GET(request: NextRequest) {
 
   const logoUrl = (await getSetting("site_logo")) as string | null;
 
+  const { data: bgRows } = await supabase
+    .from("catalog_page_backgrounds")
+    .select("page_number, background_url");
+  const pageBackgrounds: Record<number, string> = {};
+  for (const row of bgRows ?? []) {
+    if (row.page_number != null && row.background_url) {
+      pageBackgrounds[row.page_number] = row.background_url;
+    }
+  }
+
   return NextResponse.json({
     tours: dataset.tours,
     prices: dataset.prices,
@@ -57,5 +67,6 @@ export async function GET(request: NextRequest) {
     tourCount: dataset.tourCount,
     currency,
     logoUrl,
+    pageBackgrounds,
   });
 }

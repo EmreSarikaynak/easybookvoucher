@@ -66,6 +66,17 @@ export async function GET(request: NextRequest) {
       request.nextUrl.origin ||
       process.env.NEXT_PUBLIC_APP_URL ||
       "https://bodrumdayiz.com.tr";
+
+    const { data: bgRows } = await supabase
+      .from("catalog_page_backgrounds")
+      .select("page_number, background_url");
+    const pageBackgrounds: Record<number, string> = {};
+    for (const row of bgRows ?? []) {
+      if (row.page_number != null && row.background_url) {
+        pageBackgrounds[row.page_number] = row.background_url;
+      }
+    }
+
     const buffer = await generateTourCatalogPdfBuffer({
       tours: dataset.tours,
       prices: dataset.prices,
@@ -74,6 +85,7 @@ export async function GET(request: NextRequest) {
       logoUrl,
       currency,
       baseUrl,
+      pageBackgrounds,
     });
 
     const safeAgency = dataset.agencyName

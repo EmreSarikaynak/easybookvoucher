@@ -48,7 +48,6 @@ export interface Tour {
   departure_days?: string[];
   departure_time?: string | null;
   meeting_point?: string | null;
-  catalog_background_url?: string | null;
   base_price_adult_eur?: number;
   base_price_child_eur?: number;
   base_price_adult_try?: number;

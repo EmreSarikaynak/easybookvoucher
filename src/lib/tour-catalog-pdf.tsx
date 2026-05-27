@@ -46,7 +46,6 @@ export interface CatalogTourInput {
   departure_days?: string[];
   departure_time?: string | null;
   meeting_point?: string | null;
-  catalog_background_url?: string | null;
 }
 
 export interface CatalogPriceInput {
@@ -133,8 +132,8 @@ const styles = StyleSheet.create({
     fontSize: 9.5,
     color: TEXT_DARK,
     backgroundColor: BG_PAGE,
-    paddingTop: 60,    // header dalga için
-    paddingBottom: 50, // footer dalga için
+    paddingTop: 24,
+    paddingBottom: 24,
     paddingHorizontal: 28,
     position: "relative",
   },
@@ -169,35 +168,16 @@ const styles = StyleSheet.create({
   },
   footerText: { color: "#FFFFFF", fontSize: 8.5, fontWeight: 700 },
 
-  // -- A4 arkaplan: sayfa dikey iki yarıya bölünür; üst yarı = üstteki turun,
-  //    alt yarı = alttaki turun catalog_background_url'i. Her tur kendi arkaplanını gösterir. --
-  bgTopHalf: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: PAGE_W,
-    height: PAGE_H / 2,
-    opacity: 0.38,
-  },
-  bgBottomHalf: {
-    position: "absolute",
-    top: PAGE_H / 2,
-    left: 0,
-    width: PAGE_W,
-    height: PAGE_H / 2,
-    opacity: 0.38,
-  },
-  pageBackgroundImg: { width: PAGE_W, height: PAGE_H / 2, objectFit: "cover" },
-  // hafif beyaz overlay - okunabilirlik için (tüm sayfa)
-  pageBackgroundWash: {
+  // -- A4 arkaplan: sayfa pozisyonu bazlı (admin tarafından global olarak yüklenir).
+  //    Tüm sayfayı kaplar; opacity 1 — kullanıcı resmi kendisi hazırlar. --
+  bgFull: {
     position: "absolute",
     top: 0,
     left: 0,
     width: PAGE_W,
     height: PAGE_H,
-    backgroundColor: "#FFFFFF",
-    opacity: 0.22,
   },
+  pageBackgroundImg: { width: PAGE_W, height: PAGE_H, objectFit: "cover" },
 
   // -- 2-kart layout (sayfada ortalanmış) --
   cardsContainer: { flex: 1, justifyContent: "center" },
@@ -838,35 +818,30 @@ function TourCard({ lang, tour, imgs, price, currency }: TourCardProps) {
 
 // --- Sayfalar ---
 
+function PageBackground({ src }: { src?: string | null }) {
+  if (!src) return null;
+  return (
+    <View style={styles.bgFull}>
+      <Image style={styles.pageBackgroundImg} src={src} />
+    </View>
+  );
+}
+
 interface TourPageProps extends HFProps {
   pair: { tour: CatalogTourInput; imgs: (string | null)[]; price: { price_adult: number; price_child: number } }[];
-  topBg?: string | null;
-  bottomBg?: string | null;
+  pageBg?: string | null;
   currency: CatalogPdfCurrency;
 }
 
-function ToursPage({ lang, logoDataUrl, pair, topBg, bottomBg, currency }: TourPageProps) {
-  const hasBg = !!topBg || !!bottomBg;
+function ToursPage({ lang, pair, pageBg, currency }: TourPageProps) {
   return (
     <Page size="A4" style={styles.page}>
-      {topBg ? (
-        <View style={styles.bgTopHalf}>
-          <Image style={styles.pageBackgroundImg} src={topBg} />
-        </View>
-      ) : null}
-      {bottomBg ? (
-        <View style={styles.bgBottomHalf}>
-          <Image style={styles.pageBackgroundImg} src={bottomBg} />
-        </View>
-      ) : null}
-      {hasBg ? <View style={styles.pageBackgroundWash} /> : null}
-      <CatalogHeader lang={lang} logoDataUrl={logoDataUrl} />
+      <PageBackground src={pageBg} />
       <View style={styles.cardsContainer}>
         {pair[0] && <TourCard lang={lang} currency={currency} {...pair[0]} />}
         {pair[1] && <View style={styles.cardSeparator} />}
         {pair[1] && <TourCard lang={lang} currency={currency} {...pair[1]} />}
       </View>
-      <CatalogFooter lang={lang} />
     </Page>
   );
 }
@@ -876,7 +851,8 @@ function CoverPage({
   logoDataUrl,
   tourCount,
   currency,
-}: HFProps & { tourCount: number; currency: CatalogPdfCurrency }) {
+  pageBg,
+}: HFProps & { tourCount: number; currency: CatalogPdfCurrency; pageBg?: string | null }) {
   const ui = getCatalogPageUi(lang);
   const today = new Date().toLocaleDateString(
     lang === "tr" ? "tr-TR" : lang === "ru" ? "ru-RU" : "en-GB",
@@ -886,7 +862,7 @@ function CoverPage({
   const priceSubLabel = ui.pricesEur.replace("EUR", currency);
   return (
     <Page size="A4" style={styles.page}>
-      <CatalogHeader lang={lang} logoDataUrl={logoDataUrl} pageTitle={ui.catalogTitle} />
+      <PageBackground src={pageBg} />
       <View style={styles.coverWrap}>
         {logoDataUrl ? <Image style={styles.coverLogo} src={logoDataUrl} /> : null}
         <Text style={styles.coverBrand}>Easy Book Tours</Text>
@@ -895,16 +871,19 @@ function CoverPage({
         <Text style={styles.coverSub}>{ui.toursCountSuffix(tourCount)}  ·  {priceSubLabel}</Text>
         <Text style={styles.coverDate}>{today}</Text>
       </View>
-      <CatalogFooter lang={lang} />
     </Page>
   );
 }
 
-function TocPage({ lang, logoDataUrl, entries }: HFProps & { entries: { name: string; page: number }[] }) {
+function TocPage({
+  lang,
+  entries,
+  pageBg,
+}: HFProps & { entries: { name: string; page: number }[]; pageBg?: string | null }) {
   const ui = getCatalogPageUi(lang);
   return (
     <Page size="A4" style={styles.page}>
-      <CatalogHeader lang={lang} logoDataUrl={logoDataUrl} pageTitle={ui.tableOfContents} />
+      <PageBackground src={pageBg} />
       <Text style={styles.tocTitle}>{ui.tableOfContents}</Text>
       {entries.map((e, i) => (
         <View key={i} style={styles.tocRow}>
@@ -913,7 +892,6 @@ function TocPage({ lang, logoDataUrl, entries }: HFProps & { entries: { name: st
           <Text style={styles.tocPage}>{e.page}</Text>
         </View>
       ))}
-      <CatalogFooter lang={lang} />
     </Page>
   );
 }
@@ -934,6 +912,8 @@ export interface GenerateCatalogOpts {
   /** Cloudflare Workers'da fontları URL'den fetch etmek için gerekli (ör. "https://bodrumdayiz.com.tr").
    *  Verilmezse Node FS'den yüklenir; Workers'da bu başarısız olur. */
   baseUrl?: string | null;
+  /** Sayfa pozisyonu bazlı arkaplan URL'leri. 1 = Kapak, 2 = İçindekiler, 3..N = Tur sayfaları. */
+  pageBackgrounds?: Record<number, string>;
 }
 
 function chunkPairs<T>(arr: T[]): T[][] {
@@ -948,6 +928,7 @@ async function buildCatalogDocument(opts: GenerateCatalogOpts) {
 
   const { tours, prices, lang, logoUrl } = opts;
   const currency: CatalogPdfCurrency = opts.currency ?? "EUR";
+  const pageBackgrounds = opts.pageBackgrounds ?? {};
   const priceMap = new Map(prices.map((p) => [p.tour_id, p]));
 
   const logoDataUrl = logoUrl ? await fetchImageAsDataUrl(logoUrl) : null;
@@ -955,12 +936,21 @@ async function buildCatalogDocument(opts: GenerateCatalogOpts) {
   const urlSet = new Set<string>();
   for (const t of tours) {
     for (const u of (t.images ?? []).slice(0, 4)) if (u) urlSet.add(u);
-    if (t.catalog_background_url) urlSet.add(t.catalog_background_url);
+  }
+  for (const bg of Object.values(pageBackgrounds)) {
+    if (bg) urlSet.add(bg);
   }
   const cache = new Map<string, string | null>();
   await Promise.all(
     Array.from(urlSet).map(async (u) => cache.set(u, await fetchImageAsDataUrl(u)))
   );
+
+  // data URL yüklenemediyse orijinal URL'yi fallback olarak ver — react-pdf kendi yükler
+  const resolveBg = (pageNumber: number): string | null => {
+    const url = pageBackgrounds[pageNumber];
+    if (!url) return null;
+    return cache.get(url) ?? url;
+  };
 
   const cards = tours.map((t) => ({
     tour: t,
@@ -977,25 +967,24 @@ async function buildCatalogDocument(opts: GenerateCatalogOpts) {
 
   return (
     <Document>
-      <CoverPage lang={lang} logoDataUrl={logoDataUrl} tourCount={tours.length} currency={currency} />
-      <TocPage lang={lang} logoDataUrl={logoDataUrl} entries={tocEntries} />
-      {pairs.map((pair, i) => {
-        const topUrl = pair[0]?.tour.catalog_background_url ?? null;
-        const bottomUrl = pair[1]?.tour.catalog_background_url ?? null;
-        const topBg = topUrl ? cache.get(topUrl) ?? null : null;
-        const bottomBg = bottomUrl ? cache.get(bottomUrl) ?? null : null;
-        return (
-          <ToursPage
-            key={i}
-            lang={lang}
-            logoDataUrl={logoDataUrl}
-            pair={pair}
-            topBg={topBg}
-            bottomBg={bottomBg}
-            currency={currency}
-          />
-        );
-      })}
+      <CoverPage
+        lang={lang}
+        logoDataUrl={logoDataUrl}
+        tourCount={tours.length}
+        currency={currency}
+        pageBg={resolveBg(1)}
+      />
+      <TocPage lang={lang} logoDataUrl={logoDataUrl} entries={tocEntries} pageBg={resolveBg(2)} />
+      {pairs.map((pair, i) => (
+        <ToursPage
+          key={i}
+          lang={lang}
+          logoDataUrl={logoDataUrl}
+          pair={pair}
+          pageBg={resolveBg(3 + i)}
+          currency={currency}
+        />
+      ))}
     </Document>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
@@ -8,10 +8,12 @@ import {
   Loader2,
   Download,
   BookOpen,
-  ImageIcon,
   Euro,
   MessageCircle,
   Languages,
+  Image as ImageIcon,
+  Upload,
+  Trash2,
 } from "lucide-react";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Button } from "@/components/ui/button";
@@ -40,6 +42,8 @@ import {
 } from "@/components/ui/table";
 import {
   saveCatalogPrices,
+  uploadCatalogPageBackground,
+  deleteCatalogPageBackground,
   type CatalogCurrency,
   type CatalogPageData,
 } from "@/app/actions/tour-catalog";
@@ -47,11 +51,10 @@ import {
   CATALOG_LANGUAGES,
   TOUR_LANG_FLAGS,
   TOUR_LANG_LABELS,
-  getCatalogPageUi,
   getTourContentForLang,
   type CatalogLang,
 } from "@/lib/tour-i18n";
-import type { Tour } from "@/lib/types";
+import { convertImageFileToJpeg } from "@/lib/image-client";
 import type {
   CatalogTourInput,
   CatalogPriceInput,
@@ -85,6 +88,18 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
     type: "success" | "error";
     text: string;
   } | null>(null);
+
+  const [pageBackgrounds, setPageBackgrounds] = useState<Record<number, string>>(
+    initialData.pageBackgrounds ?? {}
+  );
+  const [uploadingPage, setUploadingPage] = useState<number | null>(null);
+  const [bgError, setBgError] = useState<string | null>(null);
+
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const previewObjectUrlRef = useRef<string | null>(null);
+  const previewSeqRef = useRef(0);
 
   const handleBulkTranslate = useCallback(async () => {
     if (
@@ -123,7 +138,6 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
         type: s.failed > 0 ? "error" : "success",
         text: `Tarandı: ${s.total} tur · Çevrildi: ${s.translated} · Atlandı: ${s.skipped} · Hata: ${s.failed}\n${perLang}`,
       });
-      // Sayfayı yenile ki yeni çeviriler önizleme tablosunda görünsün
       router.refresh();
     } catch (err) {
       setBulkResult({
@@ -238,7 +252,6 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
     setSendingWa(true);
     setWaMessage(null);
     try {
-      // 1) Dataset al + PDF'i browser'da üret
       const dsRes = await fetch(
         `/api/tours/catalog/dataset?agencyId=${encodeURIComponent(selectedAgencyId)}&currency=${currency}`
       );
@@ -253,6 +266,7 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
         prices: CatalogPriceInput[];
         agencyName: string;
         logoUrl?: string | null;
+        pageBackgrounds?: Record<number, string>;
       };
       const { generateTourCatalogPdfBlob } = await import(
         "@/lib/tour-catalog-pdf"
@@ -265,9 +279,9 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
         logoUrl: dataset.logoUrl ?? null,
         currency,
         baseUrl: window.location.origin,
+        pageBackgrounds: dataset.pageBackgrounds ?? {},
       });
 
-      // 2) Multipart ile sunucuya yolla — sunucu sadece storage upload + WhatsApp
       const form = new FormData();
       form.append("pdf", pdfBlob, "katalog.pdf");
       form.append("phone", customerPhone.trim());
@@ -315,7 +329,6 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
     setDownloading(lang);
     setError(null);
     try {
-      // 1) Sunucudan dataset JSON al (Cloudflare Workers'da bu çalışır)
       const dsRes = await fetch(
         `/api/tours/catalog/dataset?agencyId=${encodeURIComponent(selectedAgencyId)}&currency=${currency}`
       );
@@ -330,9 +343,9 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
         prices: CatalogPriceInput[];
         agencyName: string;
         logoUrl?: string | null;
+        pageBackgrounds?: Record<number, string>;
       };
 
-      // 2) PDF'i tarayıcıda render et (yoga WASM browser'da çalışır)
       const { generateTourCatalogPdfBlob } = await import(
         "@/lib/tour-catalog-pdf"
       );
@@ -344,9 +357,9 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
         logoUrl: dataset.logoUrl ?? null,
         currency,
         baseUrl: window.location.origin,
+        pageBackgrounds: dataset.pageBackgrounds ?? {},
       });
 
-      // 3) İndir
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       const agencySlug =
@@ -361,23 +374,151 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
     }
   };
 
-  const getPriceForTour = useCallback(
-    (tourId: string) => {
-      const d = drafts[tourId];
-      return {
-        adult: d?.price_adult ?? 0,
-        child: d?.price_child ?? 0,
-      };
-    },
-    [drafts]
-  );
-
-  const catalogUi = getCatalogPageUi(previewLang);
-
   const sortedTours = useMemo(
     () => [...initialData.tours].sort((a, b) => a.name.localeCompare(b.name, "tr")),
     [initialData.tours]
   );
+
+  // Sayfa pozisyonu bazlı tur eşlemesi (her sayfa = 2 tur, sıra `name` ASC).
+  // 1: Kapak, 2: İçindekiler, 3..N: Tur sayfaları (3 -> ilk 2 tur, 4 -> sonraki 2 tur, …)
+  const pageLayout = useMemo(() => {
+    const tourPagesCount = Math.ceil(sortedTours.length / 2);
+    const items: { pageNumber: number; label: string; subLabel?: string }[] = [
+      { pageNumber: 1, label: "Sayfa 1 — Kapak" },
+      { pageNumber: 2, label: "Sayfa 2 — İçindekiler" },
+    ];
+    for (let i = 0; i < tourPagesCount; i++) {
+      const a = sortedTours[i * 2];
+      const b = sortedTours[i * 2 + 1];
+      const aName = a ? getTourContentForLang(a.translations, previewLang, a.name, a.description).name : "";
+      const bName = b ? getTourContentForLang(b.translations, previewLang, b.name, b.description).name : "";
+      const label = `Sayfa ${3 + i}`;
+      const subLabel = b ? `${aName} + ${bName}` : aName;
+      items.push({ pageNumber: 3 + i, label, subLabel });
+    }
+    return items;
+  }, [sortedTours, previewLang]);
+
+  // PDF önizleme — pageBackgrounds, previewLang, currency, selectedAgencyId değişince yeniden üret.
+  useEffect(() => {
+    if (!selectedAgencyId) {
+      setPreviewUrl(null);
+      setPreviewError(null);
+      return;
+    }
+    const seq = ++previewSeqRef.current;
+    let cancelled = false;
+    setPreviewBusy(true);
+    setPreviewError(null);
+
+    const run = async () => {
+      try {
+        const dsRes = await fetch(
+          `/api/tours/catalog/dataset?agencyId=${encodeURIComponent(selectedAgencyId)}&currency=${currency}`
+        );
+        if (!dsRes.ok) {
+          const body = (await dsRes.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          throw new Error(body.error || `Veri alınamadı (${dsRes.status})`);
+        }
+        const dataset = (await dsRes.json()) as {
+          tours: CatalogTourInput[];
+          prices: CatalogPriceInput[];
+          agencyName: string;
+          logoUrl?: string | null;
+          pageBackgrounds?: Record<number, string>;
+        };
+
+        const { generateTourCatalogPdfBlob } = await import(
+          "@/lib/tour-catalog-pdf"
+        );
+
+        // En güncel state'teki pageBackgrounds'u kullan (dataset'inkini ezer).
+        const blob = await generateTourCatalogPdfBlob({
+          tours: dataset.tours,
+          prices: dataset.prices,
+          lang: previewLang,
+          agencyName: dataset.agencyName,
+          logoUrl: dataset.logoUrl ?? null,
+          currency,
+          baseUrl: window.location.origin,
+          pageBackgrounds,
+        });
+
+        if (cancelled || seq !== previewSeqRef.current) return;
+
+        const url = URL.createObjectURL(blob);
+        if (previewObjectUrlRef.current) {
+          URL.revokeObjectURL(previewObjectUrlRef.current);
+        }
+        previewObjectUrlRef.current = url;
+        setPreviewUrl(url);
+      } catch (e) {
+        if (!cancelled && seq === previewSeqRef.current) {
+          setPreviewError(e instanceof Error ? e.message : "Önizleme oluşturulamadı");
+        }
+      } finally {
+        if (!cancelled && seq === previewSeqRef.current) {
+          setPreviewBusy(false);
+        }
+      }
+    };
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAgencyId, previewLang, currency, pageBackgrounds]);
+
+  useEffect(() => {
+    return () => {
+      if (previewObjectUrlRef.current) {
+        URL.revokeObjectURL(previewObjectUrlRef.current);
+        previewObjectUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  const handlePageBgUpload = async (pageNumber: number, file: File) => {
+    setUploadingPage(pageNumber);
+    setBgError(null);
+    try {
+      const jpeg = await convertImageFileToJpeg(file);
+      const fd = new FormData();
+      fd.append("file", jpeg);
+      const res = await uploadCatalogPageBackground(pageNumber, fd);
+      if (res.error || !res.url) {
+        setBgError(res.error || "Arkaplan yüklenemedi");
+        return;
+      }
+      setPageBackgrounds((prev) => ({ ...prev, [pageNumber]: res.url! }));
+    } catch (e) {
+      setBgError(e instanceof Error ? e.message : "Arkaplan yüklenemedi");
+    } finally {
+      setUploadingPage(null);
+    }
+  };
+
+  const handlePageBgDelete = async (pageNumber: number) => {
+    if (!confirm(`Sayfa ${pageNumber} arkaplanı kaldırılsın mı?`)) return;
+    setUploadingPage(pageNumber);
+    setBgError(null);
+    try {
+      const res = await deleteCatalogPageBackground(pageNumber);
+      if (res.error) {
+        setBgError(res.error);
+        return;
+      }
+      setPageBackgrounds((prev) => {
+        const next = { ...prev };
+        delete next[pageNumber];
+        return next;
+      });
+    } finally {
+      setUploadingPage(null);
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -665,148 +806,164 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
         </Card>
       )}
 
-      {/* HTML önizleme */}
+      {/* Katalog Önizleme (PDF birebir) + Admin sayfa arkaplan paneli */}
       <div className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold">Katalog Önizleme</h2>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-            <div className="flex flex-wrap gap-1.5">
-              {CATALOG_LANGUAGES.map((lang) => (
-                <Button
-                  key={`preview-download-${lang}`}
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-2"
-                  disabled={!selectedAgencyId || downloading !== null}
-                  onClick={() => handleDownload(lang)}
-                >
-                  {downloading === lang ? (
-                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Download className="mr-1 h-3.5 w-3.5" />
-                  )}
-                  <span className="mr-1">{TOUR_LANG_FLAGS[lang]}</span>
-                  <span className="text-xs font-semibold uppercase">{lang}</span>
-                </Button>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {CATALOG_LANGUAGES.map((lang) => (
-                <button
-                  key={lang}
-                  type="button"
-                  onClick={() => setPreviewLang(lang)}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    previewLang === lang
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  }`}
-                >
-                  {TOUR_LANG_FLAGS[lang]} {TOUR_LANG_LABELS[lang]}
-                </button>
-              ))}
-            </div>
+          <div className="flex flex-wrap gap-2">
+            {CATALOG_LANGUAGES.map((lang) => (
+              <button
+                key={lang}
+                type="button"
+                onClick={() => setPreviewLang(lang)}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  previewLang === lang
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+              >
+                {TOUR_LANG_FLAGS[lang]} {TOUR_LANG_LABELS[lang]}
+              </button>
+            ))}
           </div>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-          {sortedTours.map((tour) => (
-            <CatalogPreviewCard
-              key={tour.id}
-              tour={tour}
-              lang={previewLang}
-              adult={getPriceForTour(tour.id).adult}
-              child={getPriceForTour(tour.id).child}
-              currencySymbol={currencySymbol}
-              catalogUi={catalogUi}
-            />
-          ))}
+        <div
+          className={`grid gap-4 ${
+            initialData.isAdmin ? "lg:grid-cols-[1fr_320px]" : "grid-cols-1"
+          }`}
+        >
+          <Card className="overflow-hidden">
+            <CardContent className="p-0 relative bg-slate-100">
+              {previewBusy && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white/60 z-10 pointer-events-none">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              )}
+              {previewError ? (
+                <div className="p-6 text-sm text-destructive">{previewError}</div>
+              ) : previewUrl ? (
+                <iframe
+                  key={previewUrl}
+                  src={previewUrl}
+                  title="Katalog Önizleme"
+                  className="w-full h-[900px] border-0 bg-white"
+                />
+              ) : !selectedAgencyId ? (
+                <div className="p-10 text-center text-sm text-muted-foreground">
+                  Önizleme için acente seçin.
+                </div>
+              ) : (
+                <div className="p-10 text-center text-sm text-muted-foreground">
+                  Önizleme yükleniyor…
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {initialData.isAdmin && (
+            <Card className="lg:sticky lg:top-4 self-start max-h-[900px] overflow-hidden flex flex-col">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4" />
+                  Sayfa Arkaplanları
+                </CardTitle>
+                <CardDescription>
+                  Her sayfa için A4 arkaplan görseli. Tüm acentelerin PDF&apos;lerinde
+                  aynı arkaplan kullanılır.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="overflow-y-auto flex-1 space-y-3">
+                {bgError && (
+                  <div className="rounded border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+                    {bgError}
+                  </div>
+                )}
+                {pageLayout.map((p) => {
+                  const url = pageBackgrounds[p.pageNumber];
+                  const busy = uploadingPage === p.pageNumber;
+                  return (
+                    <div
+                      key={p.pageNumber}
+                      className="rounded-md border bg-white p-2.5 space-y-2"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold leading-tight">
+                          {p.label}
+                        </p>
+                        {p.subLabel && (
+                          <p className="text-xs text-muted-foreground line-clamp-1">
+                            {p.subLabel}
+                          </p>
+                        )}
+                      </div>
+                      <div className="relative w-full aspect-[1/1.414] rounded border bg-slate-100 overflow-hidden">
+                        {url ? (
+                          <Image
+                            src={url}
+                            alt={p.label}
+                            fill
+                            className="object-cover"
+                            sizes="200px"
+                            unoptimized
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <ImageIcon className="h-8 w-8 text-muted-foreground/40" />
+                          </div>
+                        )}
+                        {busy && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-white/60">
+                            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-1.5">
+                        <label className="flex-1">
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            className="hidden"
+                            disabled={busy}
+                            onChange={async (e) => {
+                              const f = e.target.files?.[0];
+                              e.target.value = "";
+                              if (f) await handlePageBgUpload(p.pageNumber, f);
+                            }}
+                          />
+                          <span
+                            className={`flex items-center justify-center gap-1 h-8 rounded text-xs font-medium border cursor-pointer w-full ${
+                              busy
+                                ? "opacity-50 cursor-not-allowed"
+                                : "bg-primary text-primary-foreground hover:bg-primary/90"
+                            }`}
+                          >
+                            <Upload className="h-3.5 w-3.5" />
+                            {url ? "Değiştir" : "Yükle"}
+                          </span>
+                        </label>
+                        {url && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2"
+                            disabled={busy}
+                            onClick={() => handlePageBgDelete(p.pageNumber)}
+                            title="Arkaplanı kaldır"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
-  );
-}
-
-function CatalogPreviewCard({
-  tour,
-  lang,
-  adult,
-  child,
-  currencySymbol,
-  catalogUi,
-}: {
-  tour: Tour;
-  lang: CatalogLang;
-  adult: number;
-  child: number;
-  currencySymbol: string;
-  catalogUi: ReturnType<typeof getCatalogPageUi>;
-}) {
-  const content = getTourContentForLang(
-    tour.translations,
-    lang,
-    tour.name,
-    tour.description
-  );
-  const cover = tour.images?.[0];
-
-  return (
-    <Card className="overflow-hidden flex flex-col h-full border shadow-sm hover:shadow-md transition-shadow">
-      <div className="relative h-36 bg-gradient-to-br from-slate-100 to-slate-200">
-        {cover ? (
-          <Image
-            src={cover}
-            alt={content.name}
-            fill
-            className="object-cover"
-            sizes="(max-width: 768px) 100vw, 33vw"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center">
-            <ImageIcon className="h-10 w-10 text-muted-foreground/40" />
-          </div>
-        )}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3 pt-8">
-          <p className="text-white font-bold text-sm leading-tight line-clamp-2">
-            {content.name}
-          </p>
-        </div>
-      </div>
-      <CardContent className="flex-1 flex flex-col gap-2 p-4">
-        {tour.duration && (
-          <p className="text-xs text-muted-foreground">{tour.duration}</p>
-        )}
-        <div className="flex gap-3 rounded-lg bg-primary/5 border border-primary/15 px-3 py-2 text-sm">
-          <span>
-            <span className="text-muted-foreground text-xs block">
-              {catalogUi.adultPrice}
-            </span>
-            <span className="font-bold text-primary">{currencySymbol}{adult}</span>
-          </span>
-          <span>
-            <span className="text-muted-foreground text-xs block">
-              {catalogUi.childPrice}
-            </span>
-            <span className="font-bold text-primary">{currencySymbol}{child}</span>
-          </span>
-        </div>
-        {content.description && (
-          <p className="text-xs text-muted-foreground line-clamp-3 flex-1">
-            {content.description}
-          </p>
-        )}
-        {content.highlights?.length > 0 && (
-          <ul className="text-xs text-muted-foreground space-y-0.5">
-            {content.highlights.slice(0, 2).map((h, i) =>
-              h.trim() ? (
-                <li key={i} className="line-clamp-1">
-                  • {h}
-                </li>
-              ) : null
-            )}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
   );
 }

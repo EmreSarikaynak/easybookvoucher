@@ -27,6 +27,7 @@ export interface CatalogPageData {
   selectedAgencyName: string | null;
   currency: CatalogCurrency;
   isAdmin: boolean;
+  pageBackgrounds: Record<number, string>;
 }
 
 function formatDbError(error: { message: string }): string {
@@ -142,6 +143,16 @@ export async function getCatalogPageData(
   const selectedAgencyName =
     agencies.find((a) => a.id === selectedAgencyId)?.name ?? null;
 
+  const { data: bgRows } = await supabase
+    .from("catalog_page_backgrounds")
+    .select("page_number, background_url");
+  const pageBackgrounds: Record<number, string> = {};
+  for (const row of bgRows ?? []) {
+    if (row.page_number != null && row.background_url) {
+      pageBackgrounds[row.page_number] = row.background_url;
+    }
+  }
+
   return {
     data: {
       tours: tours ?? [],
@@ -151,6 +162,7 @@ export async function getCatalogPageData(
       selectedAgencyName,
       currency,
       isAdmin: admin,
+      pageBackgrounds,
     },
   };
 }
@@ -230,6 +242,122 @@ export async function assertCatalogAgencyAccess(
   }
 
   return { ok: true, agencyName: agency.name };
+}
+
+// --- Katalog sayfa arkaplanları (global, admin-only) ---
+
+export async function getCatalogPageBackgrounds(): Promise<{
+  data: Record<number, string>;
+  error?: string;
+}> {
+  const profile = await getCurrentUser();
+  if (!canViewTours(profile)) {
+    return { data: {}, error: "Yetkisiz" };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("catalog_page_backgrounds")
+    .select("page_number, background_url");
+
+  if (error) {
+    console.error("getCatalogPageBackgrounds error:", error);
+    return { data: {}, error: formatDbError(error) };
+  }
+
+  const result: Record<number, string> = {};
+  for (const row of data ?? []) {
+    if (row.page_number != null && row.background_url) {
+      result[row.page_number] = row.background_url;
+    }
+  }
+  return { data: result };
+}
+
+export async function uploadCatalogPageBackground(
+  pageNumber: number,
+  formData: FormData
+): Promise<{ url?: string; error?: string }> {
+  const profile = await getCurrentUser();
+  if (!profile || !isAdmin(profile)) {
+    return { error: "Bu işlem için yönetici yetkisi gerekir." };
+  }
+
+  if (!Number.isInteger(pageNumber) || pageNumber < 1) {
+    return { error: "Geçersiz sayfa numarası" };
+  }
+
+  const file = formData.get("file") as File | null;
+  if (!file || !file.size || !file.name) {
+    return { error: "Dosya seçilmedi" };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const fileName = `catalog-bg/page-${pageNumber}-${Date.now()}.${ext}`;
+
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  const { error: uploadError } = await supabase.storage
+    .from("tour-photos")
+    .upload(fileName, buffer, {
+      contentType: file.type || "image/jpeg",
+      cacheControl: "3600",
+      upsert: false,
+    });
+
+  if (uploadError) {
+    console.error("Catalog bg upload error:", uploadError);
+    return { error: formatDbError({ message: uploadError.message }) };
+  }
+
+  const { data: publicData } = supabase.storage
+    .from("tour-photos")
+    .getPublicUrl(fileName);
+  const publicUrl = publicData.publicUrl;
+
+  const { error: dbError } = await supabase
+    .from("catalog_page_backgrounds")
+    .upsert(
+      {
+        page_number: pageNumber,
+        background_url: publicUrl,
+        updated_by: profile.id,
+      },
+      { onConflict: "page_number" }
+    );
+
+  if (dbError) {
+    console.error("Catalog bg upsert error:", dbError);
+    return { error: formatDbError(dbError) };
+  }
+
+  revalidatePath("/tours/catalog");
+  return { url: publicUrl };
+}
+
+export async function deleteCatalogPageBackground(
+  pageNumber: number
+): Promise<{ success?: boolean; error?: string }> {
+  const profile = await getCurrentUser();
+  if (!profile || !isAdmin(profile)) {
+    return { error: "Bu işlem için yönetici yetkisi gerekir." };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase
+    .from("catalog_page_backgrounds")
+    .delete()
+    .eq("page_number", pageNumber);
+
+  if (error) {
+    console.error("Catalog bg delete error:", error);
+    return { error: formatDbError(error) };
+  }
+
+  revalidatePath("/tours/catalog");
+  return { success: true };
 }
 
 export type { Agency, Tour };
