@@ -126,6 +126,30 @@ export async function fetchCatalogPdfDataset(
     return { data: null, error: "Aktif tur bulunamadı" };
   }
 
+  // Admin tarafından kaydedilmiş tur sıralaması — varsa onu uygula,
+  // atanmamış turlar alfabetik olarak sona eklenir.
+  const { data: layoutRows } = await supabase
+    .from("catalog_tour_layout")
+    .select("tour_id, page_number, slot");
+  const layoutMap = new Map<string, { page_number: number; slot: number }>();
+  for (const r of layoutRows ?? []) {
+    if (r.tour_id && r.page_number != null && (r.slot === 0 || r.slot === 1)) {
+      layoutMap.set(r.tour_id, { page_number: r.page_number, slot: r.slot });
+    }
+  }
+
+  const assigned = tours
+    .filter((t) => layoutMap.has(t.id))
+    .sort((a, b) => {
+      const A = layoutMap.get(a.id)!;
+      const B = layoutMap.get(b.id)!;
+      return A.page_number - B.page_number || A.slot - B.slot;
+    });
+  const unassigned = tours
+    .filter((t) => !layoutMap.has(t.id))
+    .sort((a, b) => a.name.localeCompare(b.name, "tr"));
+  const orderedTours = [...assigned, ...unassigned];
+
   const { data: priceRows } = await supabase
     .from("agency_tour_prices")
     .select("tour_id, price_adult, price_child")
@@ -134,7 +158,7 @@ export async function fetchCatalogPdfDataset(
 
   const priceByTour = new Map((priceRows ?? []).map((p) => [p.tour_id, p]));
 
-  const prices: CatalogPriceInput[] = tours.map((tour) => {
+  const prices: CatalogPriceInput[] = orderedTours.map((tour) => {
     const baseAdult =
       currency === "EUR" ? tour.base_price_adult_eur : tour.base_price_adult_try;
     const baseChild =
@@ -153,8 +177,8 @@ export async function fetchCatalogPdfDataset(
   return {
     data: {
       agencyName: agency.name,
-      tourCount: tours.length,
-      tours: tours.map((t) => ({
+      tourCount: orderedTours.length,
+      tours: orderedTours.map((t) => ({
         id: t.id,
         name: t.name,
         description: t.description,

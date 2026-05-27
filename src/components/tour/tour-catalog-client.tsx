@@ -46,6 +46,7 @@ import {
   deleteCatalogPageBackground,
   type CatalogCurrency,
   type CatalogPageData,
+  type CatalogTourLayoutEntry,
 } from "@/app/actions/tour-catalog";
 import {
   CATALOG_LANGUAGES,
@@ -59,6 +60,7 @@ import type {
   CatalogTourInput,
   CatalogPriceInput,
 } from "@/lib/tour-catalog-pdf";
+import { CatalogTourLayoutPanel } from "@/components/tour/catalog-tour-layout-panel";
 
 interface PriceDraft {
   price_adult: number;
@@ -92,6 +94,9 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
   const [pageBackgrounds, setPageBackgrounds] = useState<Record<number, string>>(
     initialData.pageBackgrounds ?? {}
   );
+  const [tourLayout, setTourLayout] = useState<
+    Record<string, CatalogTourLayoutEntry>
+  >(initialData.tourLayout ?? {});
   const [uploadingPage, setUploadingPage] = useState<number | null>(null);
   const [bgError, setBgError] = useState<string | null>(null);
 
@@ -379,17 +384,36 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
     [initialData.tours]
   );
 
-  // Sayfa pozisyonu bazlı tur eşlemesi (her sayfa = 2 tur, sıra `name` ASC).
+  // Layout-aware tur sıralaması: admin layout'a göre atanmış turlar önce,
+  // atanmamışlar alfabetik sırayla sona eklenir. Layout boşsa alfabetik.
+  const orderedTours = useMemo(() => {
+    const layoutEntries = Object.keys(tourLayout);
+    if (layoutEntries.length === 0) return sortedTours;
+
+    const assigned = initialData.tours
+      .filter((t) => tourLayout[t.id])
+      .sort((a, b) => {
+        const A = tourLayout[a.id];
+        const B = tourLayout[b.id];
+        return A.page_number - B.page_number || A.slot - B.slot;
+      });
+    const unassigned = initialData.tours
+      .filter((t) => !tourLayout[t.id])
+      .sort((a, b) => a.name.localeCompare(b.name, "tr"));
+    return [...assigned, ...unassigned];
+  }, [initialData.tours, sortedTours, tourLayout]);
+
+  // Sayfa pozisyonu bazlı tur eşlemesi (her sayfa = 2 tur).
   // 1: Kapak, 2: İçindekiler, 3..N: Tur sayfaları (3 -> ilk 2 tur, 4 -> sonraki 2 tur, …)
   const pageLayout = useMemo(() => {
-    const tourPagesCount = Math.ceil(sortedTours.length / 2);
+    const tourPagesCount = Math.ceil(orderedTours.length / 2);
     const items: { pageNumber: number; label: string; subLabel?: string }[] = [
       { pageNumber: 1, label: "Sayfa 1 — Kapak" },
       { pageNumber: 2, label: "Sayfa 2 — İçindekiler" },
     ];
     for (let i = 0; i < tourPagesCount; i++) {
-      const a = sortedTours[i * 2];
-      const b = sortedTours[i * 2 + 1];
+      const a = orderedTours[i * 2];
+      const b = orderedTours[i * 2 + 1];
       const aName = a ? getTourContentForLang(a.translations, previewLang, a.name, a.description).name : "";
       const bName = b ? getTourContentForLang(b.translations, previewLang, b.name, b.description).name : "";
       const label = `Sayfa ${3 + i}`;
@@ -397,7 +421,7 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
       items.push({ pageNumber: 3 + i, label, subLabel });
     }
     return items;
-  }, [sortedTours, previewLang]);
+  }, [orderedTours, previewLang]);
 
   // PDF önizleme — pageBackgrounds, previewLang, currency, selectedAgencyId değişince yeniden üret.
   useEffect(() => {
@@ -469,7 +493,7 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
     return () => {
       cancelled = true;
     };
-  }, [selectedAgencyId, previewLang, currency, pageBackgrounds]);
+  }, [selectedAgencyId, previewLang, currency, pageBackgrounds, tourLayout]);
 
   useEffect(() => {
     return () => {
@@ -804,6 +828,15 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
             </Table>
           </CardContent>
         </Card>
+      )}
+
+      {initialData.isAdmin && (
+        <CatalogTourLayoutPanel
+          tours={initialData.tours}
+          initialLayout={tourLayout}
+          previewLang={previewLang}
+          onSaved={(next) => setTourLayout(next)}
+        />
       )}
 
       {/* Katalog Önizleme (PDF birebir) + Admin sayfa arkaplan paneli */}

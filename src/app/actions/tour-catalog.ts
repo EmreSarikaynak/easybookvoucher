@@ -19,6 +19,11 @@ export interface CatalogAgencyOption {
   name: string;
 }
 
+export interface CatalogTourLayoutEntry {
+  page_number: number;
+  slot: 0 | 1;
+}
+
 export interface CatalogPageData {
   tours: Tour[];
   agencies: CatalogAgencyOption[];
@@ -28,6 +33,7 @@ export interface CatalogPageData {
   currency: CatalogCurrency;
   isAdmin: boolean;
   pageBackgrounds: Record<number, string>;
+  tourLayout: Record<string, CatalogTourLayoutEntry>;
 }
 
 function formatDbError(error: { message: string }): string {
@@ -153,6 +159,19 @@ export async function getCatalogPageData(
     }
   }
 
+  const { data: layoutRows } = await supabase
+    .from("catalog_tour_layout")
+    .select("tour_id, page_number, slot");
+  const tourLayout: Record<string, CatalogTourLayoutEntry> = {};
+  for (const row of layoutRows ?? []) {
+    if (row.tour_id && row.page_number != null && (row.slot === 0 || row.slot === 1)) {
+      tourLayout[row.tour_id] = {
+        page_number: row.page_number,
+        slot: row.slot as 0 | 1,
+      };
+    }
+  }
+
   return {
     data: {
       tours: tours ?? [],
@@ -163,6 +182,7 @@ export async function getCatalogPageData(
       currency,
       isAdmin: admin,
       pageBackgrounds,
+      tourLayout,
     },
   };
 }
@@ -354,6 +374,91 @@ export async function deleteCatalogPageBackground(
   if (error) {
     console.error("Catalog bg delete error:", error);
     return { error: formatDbError(error) };
+  }
+
+  revalidatePath("/tours/catalog");
+  return { success: true };
+}
+
+// --- Katalog tur layout (admin-only) ---
+
+export interface CatalogTourLayoutRow {
+  tour_id: string;
+  page_number: number;
+  slot: 0 | 1;
+}
+
+/**
+ * Tüm tur layout satırlarını verilen kümeyle değiştirir.
+ * Atomik bir transaction değildir — delete + insert iki adımda yürür.
+ * UNIQUE(page_number, slot) constraint'i nedeniyle çakışan satırlar
+ * tek bir batch insert'te uygulanmadan tüm eski satırlar temizlenir.
+ */
+export async function saveCatalogTourLayout(
+  rows: CatalogTourLayoutRow[]
+): Promise<{ success?: boolean; error?: string }> {
+  const profile = await getCurrentUser();
+  if (!profile || !isAdmin(profile)) {
+    return { error: "Bu işlem için yönetici yetkisi gerekir." };
+  }
+
+  for (const r of rows) {
+    if (!r.tour_id) return { error: "Geçersiz tour_id" };
+    if (!Number.isInteger(r.page_number) || r.page_number < 1) {
+      return { error: "Geçersiz page_number" };
+    }
+    if (r.slot !== 0 && r.slot !== 1) {
+      return { error: "slot 0 veya 1 olmalıdır" };
+    }
+  }
+
+  // Dedup: aynı tour_id veya aynı (page_number, slot) birden fazla gelmesin.
+  const seenTour = new Set<string>();
+  const seenSlot = new Set<string>();
+  for (const r of rows) {
+    if (seenTour.has(r.tour_id)) {
+      return { error: "Aynı tur birden fazla kez atanmış" };
+    }
+    seenTour.add(r.tour_id);
+    const key = `${r.page_number}-${r.slot}`;
+    if (seenSlot.has(key)) {
+      return { error: `Sayfa ${r.page_number} slot ${r.slot} birden fazla kez atanmış` };
+    }
+    seenSlot.add(key);
+  }
+
+  const supabase = await createServerSupabaseClient();
+
+  // Tüm mevcut satırları sil (RLS admin tarafından izinli).
+  const { error: deleteError } = await supabase
+    .from("catalog_tour_layout")
+    .delete()
+    .gte("page_number", 1);
+
+  if (deleteError) {
+    console.error("Catalog tour layout delete error:", deleteError);
+    return { error: formatDbError(deleteError) };
+  }
+
+  if (rows.length === 0) {
+    revalidatePath("/tours/catalog");
+    return { success: true };
+  }
+
+  const insertRows = rows.map((r) => ({
+    tour_id: r.tour_id,
+    page_number: r.page_number,
+    slot: r.slot,
+    updated_by: profile.id,
+  }));
+
+  const { error: insertError } = await supabase
+    .from("catalog_tour_layout")
+    .insert(insertRows);
+
+  if (insertError) {
+    console.error("Catalog tour layout insert error:", insertError);
+    return { error: formatDbError(insertError) };
   }
 
   revalidatePath("/tours/catalog");

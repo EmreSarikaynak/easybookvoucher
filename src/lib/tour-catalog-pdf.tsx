@@ -126,14 +126,22 @@ const BORDER = "#D6E2EE";
 const PAGE_W = 595.28; // A4 pt
 const PAGE_H = 841.89;
 
+// Sayfa içi çalışma alanı: paddingTop + paddingBottom = 24 + 24 = 48
+// CARD_GAP: 2 kart arasındaki ayraç
+// CARD_H: her kart için sabit yarım yükseklik — boş sayfa oluşmasını engeller
+const PAGE_PADDING_V = 24;
+const CARD_GAP = 6;
+const PAGE_INNER_H = PAGE_H - PAGE_PADDING_V * 2;
+const CARD_H = (PAGE_INNER_H - CARD_GAP) / 2;
+
 const styles = StyleSheet.create({
   page: {
     fontFamily: "NotoSans",
     fontSize: 9.5,
     color: TEXT_DARK,
     backgroundColor: BG_PAGE,
-    paddingTop: 24,
-    paddingBottom: 24,
+    paddingTop: PAGE_PADDING_V,
+    paddingBottom: PAGE_PADDING_V,
     paddingHorizontal: 28,
     position: "relative",
   },
@@ -169,25 +177,26 @@ const styles = StyleSheet.create({
   footerText: { color: "#FFFFFF", fontSize: 8.5, fontWeight: 700 },
 
   // -- A4 arkaplan: sayfa pozisyonu bazlı (admin tarafından global olarak yüklenir).
-  //    Tüm sayfayı kaplar; opacity 1 — kullanıcı resmi kendisi hazırlar. --
-  bgFull: {
+  //    Image doğrudan absolute pozisyonda; A4 oranında olmayan resimlerde cover ile crop.
+  pageBackgroundImg: {
     position: "absolute",
     top: 0,
     left: 0,
     width: PAGE_W,
     height: PAGE_H,
+    objectFit: "cover",
   },
-  pageBackgroundImg: { width: PAGE_W, height: PAGE_H, objectFit: "cover" },
 
-  // -- 2-kart layout (sayfada ortalanmış) --
-  cardsContainer: { flex: 1, justifyContent: "center" },
+  // -- 2-kart layout: her kart sabit yarım sayfa, boş sayfa oluşmaz --
+  cardsContainer: { flex: 1, flexDirection: "column" },
   cardSeparator: {
-    height: 0.7,
+    height: CARD_GAP,
     backgroundColor: TEAL_LIGHT,
-    marginVertical: 8,
   },
 
   card: {
+    height: CARD_H,
+    overflow: "hidden",
     paddingVertical: 4,
   },
   cardTopRow: {
@@ -820,11 +829,7 @@ function TourCard({ lang, tour, imgs, price, currency }: TourCardProps) {
 
 function PageBackground({ src }: { src?: string | null }) {
   if (!src) return null;
-  return (
-    <View style={styles.bgFull}>
-      <Image style={styles.pageBackgroundImg} src={src} />
-    </View>
-  );
+  return <Image style={styles.pageBackgroundImg} src={src} />;
 }
 
 interface TourPageProps extends HFProps {
