@@ -6,6 +6,7 @@ import { Menu, LogOut, User, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ROLE_LABELS } from "@/lib/types";
 import { signOutAction } from "@/app/actions/auth";
+import { createClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 import { Logo } from "./logo";
 import Link from "next/link";
@@ -20,19 +21,44 @@ export function Header({ onMenuClick, profile }: HeaderProps) {
   const [signingOut, setSigningOut] = useState(false);
 
   const handleSignOut = async () => {
+    if (signingOut) return;
     setSigningOut(true);
+
+    // 1) Client-side signOut: tarayıcının local Supabase state'i ve cookie'leri
+    //    temizlenir, onAuthStateChange listener'lar tetiklenir.
     try {
-      const result = await signOutAction();
-      if (result.success) {
-        router.push("/");
-        router.refresh();
-      } else {
-        console.error("Çıkış hatası:", result.error);
-        setSigningOut(false);
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("Client signOut hatası:", err);
+    }
+
+    // 2) Server-side signOut: SSR cookie'lerini ve server-side session'ı sil.
+    //    Hata olsa bile client zaten temizlendi, akışı bloklamayalım.
+    try {
+      await signOutAction();
+    } catch (err) {
+      console.error("Server signOut hatası:", err);
+    }
+
+    // 3) PWA cache'lerini sıfırla — eski kullanıcının verisi başka birinde
+    //    görünmesin (paylaşılan cihaz senaryosu).
+    if (typeof window !== "undefined" && "caches" in window) {
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      } catch (err) {
+        console.error("Cache temizleme hatası:", err);
       }
-    } catch (error) {
-      console.error("Çıkış hatası:", error);
-      setSigningOut(false);
+    }
+
+    // 4) Tam sayfa yenileme ile login'e dön. router.push + refresh bazen
+    //    middleware ile yarış koşulu yaratıyor; window.location en sağlamı.
+    if (typeof window !== "undefined") {
+      window.location.replace("/");
+    } else {
+      router.replace("/");
+      router.refresh();
     }
   };
 
