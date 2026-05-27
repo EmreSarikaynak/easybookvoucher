@@ -403,6 +403,11 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
   const pdfMediaTemplateSidTr = process.env.TWILIO_PDF_MEDIA_TEMPLATE_SID_TR;
   const pdfMediaTemplateSidEn = process.env.TWILIO_PDF_MEDIA_TEMPLATE_SID_EN;
   const pdfMediaInternalTemplateSid = process.env.TWILIO_PDF_MEDIA_INTERNAL_TEMPLATE_SID;
+  // Media şablonları YALNIZCA bu bayrak "true" iken kullanılır. Media şablonları
+  // Meta onayından geçene kadar kapalı tutulur; aksi halde onaysız şablon gönderimi
+  // başarısız olup freeform'a düşer ve 24h penceresi dışındaki alıcıya ulaşmaz.
+  // Onaylanınca Cloudflare'de TWILIO_USE_MEDIA_TEMPLATES=true yapılır.
+  const mediaTemplatesEnabled = process.env.TWILIO_USE_MEDIA_TEMPLATES === "true";
   const resolvedEasybookPhone = process.env.TWILIO_EASYBOOK_PHONE || easybookPhone;
 
   const { adminBody, agencyBody, customerBody } = buildPdfWhatsAppBodies(
@@ -535,7 +540,7 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
   // Birincil şablon görsel varsa media, yoksa metin. ANCAK media şablonu henüz
   // ONAYLI DEĞİLSE Twilio gönderimi reddeder; bu durumda freeform'a düşmek
   // (24h penceresi dışında teslim edilmez) yerine ONAYLI metin şablonuna düşeriz.
-  const internalUsesMedia = Boolean(mediaVariable && pdfMediaInternalTemplateSid);
+  const internalUsesMedia = Boolean(mediaTemplatesEnabled && mediaVariable && pdfMediaInternalTemplateSid);
   const internalTemplateSid = internalUsesMedia
     ? pdfMediaInternalTemplateSid
     : pdfInternalTemplateSid;
@@ -610,7 +615,7 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
       : pdfMediaTemplateSidEn;
     const customerTextSid = customerIsTr ? pdfTemplateSidTr : pdfTemplateSidEn;
     const customerTextVars = customerIsTr ? customerTextVarsTr : customerTextVarsEn;
-    const customerUsesMedia = Boolean(mediaVariable && customerMediaSid);
+    const customerUsesMedia = Boolean(mediaTemplatesEnabled && mediaVariable && customerMediaSid);
     targets.push({
       to: opts.voucher.customerPhone,
       body: customerBody,
