@@ -60,6 +60,7 @@ export function AnnouncementsManager() {
   const [targetRole, setTargetRole] = useState("all");
   const [durationMinutes, setDurationMinutes] = useState(60 * 24);
   const [sendPush, setSendPush] = useState(true);
+  const [sendWhatsApp, setSendWhatsApp] = useState(true);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -91,18 +92,26 @@ export function AnnouncementsManager() {
       targetRole: targetRole === "all" ? null : targetRole,
       durationMinutes,
       sendPush,
+      sendWhatsApp,
     });
 
     if (res.success) {
-      const pushInfo =
-        sendPush && typeof res.pushSent === "number"
-          ? ` (${res.pushSent} kişiye push)`
-          : "";
-      setResult(`✅ Duyuru yayımlandı${pushInfo}`);
+      const parts: string[] = [];
+      if (sendPush && typeof res.pushSent === "number") {
+        parts.push(`${res.pushSent} kişiye push`);
+      }
+      if (sendWhatsApp && res.whatsapp) {
+        parts.push(
+          `WhatsApp: ${res.whatsapp.sent}/${res.whatsapp.attempted}` +
+            (res.whatsapp.failed > 0 ? ` (${res.whatsapp.failed} başarısız)` : "")
+        );
+      }
+      const detail = parts.length > 0 ? ` (${parts.join(" · ")})` : "";
+      setResult(`✅ Duyuru yayımlandı${detail}`);
       setTitle("");
       setMessage("");
       await refresh();
-      setTimeout(() => setResult(null), 5000);
+      setTimeout(() => setResult(null), 6000);
     } else {
       setResult(`❌ ${res.error || "Beklenmeyen hata"}`);
     }
@@ -207,6 +216,22 @@ export function AnnouncementsManager() {
               className="h-4 w-4 rounded border-input"
             />
             <span>Bildirim olarak da gönder (zil sesli push)</span>
+          </label>
+
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={sendWhatsApp}
+              onChange={(e) => setSendWhatsApp(e.target.checked)}
+              className="h-4 w-4 rounded border-input mt-0.5"
+            />
+            <span>
+              WhatsApp ile de gönder (hedef role bağlı kayıtlı numaralara)
+              <span className="block text-[11px] text-muted-foreground">
+                Son 24 saatte yazışılmayan numaralarda Twilio teslim
+                edemeyebilir; WhatsApp logundan durumu izleyin.
+              </span>
+            </span>
           </label>
 
           <Button onClick={handleSend} disabled={sending} className="w-full">

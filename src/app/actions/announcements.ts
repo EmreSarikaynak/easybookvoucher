@@ -7,6 +7,10 @@ import {
 } from "@/lib/supabase-server";
 import { getCurrentUser, isAdmin } from "@/lib/auth-helpers";
 import { sendPushNotifications } from "@/lib/push-send";
+import {
+  sendAnnouncementWhatsApp,
+  type AnnouncementTargetRole,
+} from "@/lib/announcement-whatsapp";
 
 export interface Announcement {
   id: string;
@@ -15,6 +19,7 @@ export interface Announcement {
   target_role: string | null;
   expires_at: string;
   send_push: boolean;
+  send_whatsapp: boolean;
   created_at: string;
   created_by: string | null;
 }
@@ -25,11 +30,23 @@ export interface CreateAnnouncementInput {
   targetRole: string | null;
   durationMinutes: number;
   sendPush: boolean;
+  sendWhatsApp: boolean;
+}
+
+export interface CreateAnnouncementResult {
+  success: boolean;
+  error?: string;
+  pushSent?: number;
+  whatsapp?: {
+    attempted: number;
+    sent: number;
+    failed: number;
+  };
 }
 
 export async function createAnnouncement(
   input: CreateAnnouncementInput
-): Promise<{ success: boolean; error?: string; pushSent?: number }> {
+): Promise<CreateAnnouncementResult> {
   const profile = await getCurrentUser();
   if (!isAdmin(profile)) {
     return { success: false, error: "Yetkisiz" };
@@ -45,17 +62,22 @@ export async function createAnnouncement(
   const expiresAt = new Date(Date.now() + duration * 60 * 1000).toISOString();
 
   const supabase = createServiceRoleClient();
-  const { error } = await supabase.from("announcements").insert({
-    title,
-    message,
-    target_role: input.targetRole,
-    expires_at: expiresAt,
-    send_push: input.sendPush,
-    created_by: profile?.id ?? null,
-  });
+  const { data: inserted, error } = await supabase
+    .from("announcements")
+    .insert({
+      title,
+      message,
+      target_role: input.targetRole,
+      expires_at: expiresAt,
+      send_push: input.sendPush,
+      send_whatsapp: input.sendWhatsApp,
+      created_by: profile?.id ?? null,
+    })
+    .select("id")
+    .single();
 
-  if (error) {
-    return { success: false, error: error.message };
+  if (error || !inserted) {
+    return { success: false, error: error?.message ?? "Duyuru kaydedilemedi" };
   }
 
   let pushSent = 0;
@@ -74,11 +96,25 @@ export async function createAnnouncement(
     }
   }
 
+  let whatsapp: CreateAnnouncementResult["whatsapp"];
+  if (input.sendWhatsApp) {
+    try {
+      whatsapp = await sendAnnouncementWhatsApp(supabase, {
+        title,
+        message,
+        targetRole: input.targetRole as AnnouncementTargetRole,
+        announcementId: inserted.id as string,
+      });
+    } catch {
+      // WhatsApp gönderimi başarısız olsa bile duyuru kaydı sağlandı
+    }
+  }
+
   revalidatePath("/settings");
   revalidatePath("/dashboard");
   revalidatePath("/announcements");
 
-  return { success: true, pushSent };
+  return { success: true, pushSent, whatsapp };
 }
 
 export async function listActiveAnnouncements(

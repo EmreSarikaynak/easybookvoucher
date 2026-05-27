@@ -73,33 +73,59 @@ const serwist = new Serwist({
 
 serwist.addEventListeners();
 
-// Push notification event handler — zil sesli + titreşimli uyarı
+// Push notification event handler — zil sesli + titreşimli uyarı + foreground broadcast
 self.addEventListener("push", ((event: any) => {
     const data = event.data?.json() ?? {};
     const title = data.title || "EasyBook Bildirim";
     const url = data.url || data.data?.url || "/dashboard";
+    // Tag'i her bildirimde unique yap: OS notification stack'inde ayrı görünür,
+    // renotify:true ile aynı kategoride üst üste gelse bile ses tekrar tetiklenir.
+    const baseTag = data.tag || "notif";
+    const uniqueTag = `${baseTag}-${Date.now()}`;
+    const body = data.body || "Yeni bir bildiriminiz var";
+
     const options: NotificationOptions & {
         vibrate?: number[];
         renotify?: boolean;
         sound?: string;
     } = {
-        body: data.body || "Yeni bir bildiriminiz var",
+        body,
         icon: "/icons/icon-192x192.png",
         badge: "/icons/icon-192x192.png",
         data: { ...(data.data || {}), url },
-        tag: data.tag || "default",
+        tag: uniqueTag,
         // requireInteraction: kullanıcı kapatana kadar gözüksün
         requireInteraction: data.requireInteraction ?? true,
         // silent:false — sistem varsayılan bildirim sesini çalsın
         silent: false,
-        // Android/Chrome'da titreşim deseni (zil benzeri)
-        vibrate: [200, 100, 200, 100, 200],
+        // Android/Chrome'da titreşim deseni (uzun, fark edilir)
+        vibrate: [300, 100, 300, 100, 300, 100, 600],
         // Aynı tag'le tekrar gelirse yeni bildirim olarak gözüksün (ses tekrar çalsın)
         renotify: true,
     };
 
     event.waitUntil(
-        (self as any).registration.showNotification(title, options)
+        Promise.all([
+            (self as any).registration.showNotification(title, options),
+            // Foreground'daki açık sekmelere "ses çal" sinyali gönder.
+            // notification-audio.tsx bu mesajı yakalayıp /sounds/notification.* çalar.
+            (self as any).clients
+                .matchAll({ type: "window", includeUncontrolled: true })
+                .then((clientList: any[]) => {
+                    for (const client of clientList) {
+                        try {
+                            client.postMessage({
+                                type: "play-notification-sound",
+                                title,
+                                body,
+                                url,
+                            });
+                        } catch {
+                            // tek client başarısız olursa diğerleri devam
+                        }
+                    }
+                }),
+        ])
     );
 }) as EventListener);
 

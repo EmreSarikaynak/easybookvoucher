@@ -1,4 +1,5 @@
-import { Megaphone } from "lucide-react";
+import Link from "next/link";
+import { Megaphone, ChevronRight } from "lucide-react";
 import { listActiveAnnouncements } from "@/app/actions/announcements";
 import type { UserRole } from "@/lib/types";
 
@@ -17,7 +18,11 @@ export async function AnnouncementMarquee({
   const trackItems = [...items, ...items];
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 shadow-sm">
+    <Link
+      href="/announcements"
+      aria-label="Tüm duyuruları görüntüle"
+      className="group relative block overflow-hidden rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
+    >
       <div className="flex items-center">
         <div className="flex items-center gap-1.5 px-3 py-2.5 bg-amber-500 text-white shrink-0">
           <Megaphone className="h-4 w-4" />
@@ -39,7 +44,12 @@ export async function AnnouncementMarquee({
             ))}
           </div>
         </div>
+
+        <div className="hidden sm:flex items-center gap-1 px-3 py-2.5 text-xs font-medium text-amber-700 shrink-0 transition group-hover:text-amber-900">
+          Detay
+          <ChevronRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
+        </div>
       </div>
-    </div>
+    </Link>
   );
 }

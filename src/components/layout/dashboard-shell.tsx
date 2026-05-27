@@ -7,6 +7,7 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { NotificationPrompt } from "@/components/pwa/notification-prompt";
 import { PushSubscriptionSync } from "@/components/pwa/push-subscription-sync";
+import { NotificationAudio } from "@/components/pwa/notification-audio";
 import { PlatformFooter } from "@/components/layout/platform-footer";
 import { SecestaFooter } from "@/components/layout/secesta-footer";
 import type { HelpNavLink } from "@/lib/help/types";
@@ -66,6 +67,9 @@ export function DashboardShell({
 
       {/* İzin verilmişse subscription'ı 24 saatte bir sessizce yenile */}
       <PushSubscriptionSync />
+
+      {/* SW'den gelen "play-notification-sound" sinyalini yakalayıp in-app ses çalar */}
+      <NotificationAudio />
     </div>
   );
 }

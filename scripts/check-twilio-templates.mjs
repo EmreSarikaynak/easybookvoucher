@@ -24,10 +24,10 @@ const TARGETS = {
   "easybook_ticket_full_en (müşteri EN, metin)": "HX904db708f87cb544eba0e484dcc166a7",
   "easybook_ticket_internal_tr (admin/acente, metin)": "HXe26a025a272376c6450b9ae6bec6db84",
   "voucher_confirmation_utility (geçici TR, metin)": "HX19a06ee7ab88346ad976f1495e31e512",
-  // Görsel header'lı media template'ler (emoji + JPEG eki)
-  "easybook_customer_media_tr (müşteri TR, görsel)": "HXdc85e721c5158553b4c5fedac7bcf565",
-  "easybook_customer_media_en (müşteri EN, görsel)": "HX8d76315a0ea74af07e4a9a55399f0708",
-  "easybook_internal_media_tr (admin/acente, görsel)": "HX5a742bd9a54a9ef14c81c34d4ff9bb0b",
+  // Görsel header'lı media template'ler (emoji + JPEG eki) — geçerli görselle yeniden oluşturuldu
+  "easybook_customer_media_tr (müşteri TR, görsel)": "HXae93b24e16c298973cfa55de05010cea",
+  "easybook_customer_media_en (müşteri EN, görsel)": "HX347fa500602caa66fe2bbeaf20d6e969",
+  "easybook_internal_media_tr (admin/acente, görsel)": "HX99b083957e5cc62e934bab85d5750f23",
 };
 
 const PADDING = Math.max(...Object.keys(TARGETS).map((k) => k.length));
