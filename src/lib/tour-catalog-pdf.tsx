@@ -126,24 +126,56 @@ const BORDER = "#D6E2EE";
 const PAGE_W = 595.28; // A4 pt
 const PAGE_H = 841.89;
 
-// Sayfa içi çalışma alanı: paddingTop + paddingBottom = 24 + 24 = 48
+// Sayfa içi çalışma alanı: paddingTop + paddingBottom = 18 + 18 = 36
 // CARD_GAP: 2 kart arasındaki ayraç
 // CARD_H: her kart için sabit yarım yükseklik — boş sayfa oluşmasını engeller
-const PAGE_PADDING_V = 24;
-const CARD_GAP = 6;
+// ToursPage'te absolute positioning ile kullanılır (React-PDF height-as-hint
+// davranışını bypass eder; geometrik olarak garanti).
+const PAGE_PADDING_V = 18;
+const PAGE_PADDING_H = 28;
+const CARD_GAP = 4;
 const PAGE_INNER_H = PAGE_H - PAGE_PADDING_V * 2;
 const CARD_H = (PAGE_INNER_H - CARD_GAP) / 2;
+
+// İçerik clip sabitleri — kart sığacak şekilde sertçe limitle
+const MAX_DESC_CHARS = 320;
+const MAX_LIST_ITEM_CHARS = 90;
+const MAX_INCLUDED = 6;
+const MAX_EXCLUDED = 4;
+
+function clipText(s: string, max: number): string {
+  if (s.length <= max) return s;
+  return s.slice(0, max - 1).trimEnd() + "…";
+}
 
 const styles = StyleSheet.create({
   page: {
     fontFamily: "NotoSans",
-    fontSize: 9.5,
+    fontSize: 9,
     color: TEXT_DARK,
     backgroundColor: BG_PAGE,
     paddingTop: PAGE_PADDING_V,
     paddingBottom: PAGE_PADDING_V,
-    paddingHorizontal: 28,
+    paddingHorizontal: PAGE_PADDING_H,
     position: "relative",
+  },
+
+  // -- Tur sayfası absolute slot'ları (her zaman tam yarım, asla taşmaz) --
+  slotTop: {
+    position: "absolute",
+    top: PAGE_PADDING_V,
+    left: PAGE_PADDING_H,
+    right: PAGE_PADDING_H,
+    height: CARD_H,
+    overflow: "hidden",
+  },
+  slotBottom: {
+    position: "absolute",
+    top: PAGE_PADDING_V + CARD_H + CARD_GAP,
+    left: PAGE_PADDING_H,
+    right: PAGE_PADDING_H,
+    height: CARD_H,
+    overflow: "hidden",
   },
 
   // -- header / footer dekoratif --
@@ -187,34 +219,30 @@ const styles = StyleSheet.create({
     objectFit: "cover",
   },
 
-  // -- 2-kart layout: her kart sabit yarım sayfa, boş sayfa oluşmaz --
-  cardsContainer: { flex: 1, flexDirection: "column" },
-  cardSeparator: {
-    height: CARD_GAP,
-    backgroundColor: TEAL_LIGHT,
-  },
-
+  // -- TourCard: slot içinde tam doldurur, overflow hidden ile asla taşmaz --
   card: {
-    height: CARD_H,
+    width: "100%",
+    height: "100%",
     overflow: "hidden",
-    paddingVertical: 4,
+    paddingVertical: 3,
+    flexDirection: "column",
   },
   cardTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 6,
+    marginBottom: 4,
   },
   cardTitleBlock: { flex: 1, paddingRight: 8 },
   cardTitle: {
     fontFamily: "Display",
     fontWeight: 700,
-    fontSize: 24,
+    fontSize: 20,
     color: NAVY_DEEP,
-    lineHeight: 1.05,
+    lineHeight: 1.0,
   },
   cardSubtitle: {
     fontFamily: "NotoSans",
-    fontSize: 11,
+    fontSize: 10,
     color: TEAL,
     marginTop: 2,
   },
@@ -223,21 +251,22 @@ const styles = StyleSheet.create({
     backgroundColor: TEAL,
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 4,
-    paddingHorizontal: 10,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
     borderRadius: 20,
   },
   durationBadgeText: {
     color: "#FFFFFF",
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: 700,
-    marginLeft: 5,
+    marginLeft: 4,
   },
 
-  // -- görsel strip --
+  // -- görsel strip (daha kompakt) --
   imageStrip: {
     flexDirection: "row",
-    marginVertical: 6,
+    marginVertical: 4,
+    height: 60,
   },
   imageCell: { padding: 1.5 },
   imageBox: {
@@ -253,78 +282,84 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
 
-  // -- alt bilgi grid --
-  infoGrid: { flexDirection: "row", marginTop: 4 },
-  leftCol: { flex: 1.5, paddingRight: 10 },
+  // -- alt bilgi grid (kalan tüm alanı doldurur, taşma overflow:hidden ile clip) --
+  infoGrid: {
+    flex: 1,
+    flexDirection: "row",
+    marginTop: 3,
+    overflow: "hidden",
+  },
+  leftCol: { flex: 1.5, paddingRight: 8, overflow: "hidden" },
   rightCol: {
     flex: 1,
     backgroundColor: CYAN_SOFT,
     borderRadius: 6,
-    padding: 8,
+    padding: 6,
     borderWidth: 0.5,
     borderColor: TEAL_LIGHT,
+    overflow: "hidden",
   },
 
   description: {
-    fontSize: 9,
+    fontSize: 8.5,
     color: TEXT_DARK,
-    lineHeight: 1.45,
+    lineHeight: 1.35,
     textAlign: "justify",
   },
 
   sectionHeader: {
-    fontSize: 9,
+    fontSize: 8.5,
     fontWeight: 700,
     color: NAVY,
-    marginBottom: 3,
+    marginBottom: 2,
     letterSpacing: 0.3,
   },
 
   pillRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginTop: 4,
+    marginTop: 3,
   },
   infoPill: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
     borderRadius: 14,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    marginRight: 5,
-    marginBottom: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    marginRight: 4,
+    marginBottom: 3,
     borderWidth: 0.5,
     borderColor: BORDER,
   },
   infoPillText: {
-    fontSize: 8.5,
+    fontSize: 8,
     color: NAVY,
     fontWeight: 700,
-    marginLeft: 4,
+    marginLeft: 3,
   },
 
   iconListItem: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 3,
+    marginBottom: 2,
   },
   iconCircle: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 6,
+    marginRight: 5,
   },
-  iconListText: { fontSize: 8.5, color: TEXT_DARK, flex: 1, lineHeight: 1.3 },
+  iconListText: { fontSize: 8, color: TEXT_DARK, flex: 1, lineHeight: 1.25 },
 
   priceBox: {
-    marginTop: 6,
+    marginTop: 5,
     backgroundColor: NAVY,
     borderRadius: 6,
-    padding: 8,
+    padding: 6,
   },
   priceLabel: {
     fontSize: 7.5,
@@ -680,7 +715,7 @@ function ImageStrip({ images }: { images: (string | null)[] }) {
 
   const cellWidth = `${100 / 4}%`;
   return (
-    <View style={[styles.imageStrip, { height: 72 }]}>
+    <View style={styles.imageStrip}>
       {list.map((src, i) => (
         <View key={i} style={[styles.imageCell, { width: cellWidth, height: "100%" }]}>
           {src ? (
@@ -714,27 +749,34 @@ function TourCard({ lang, tour, imgs, price, currency }: TourCardProps) {
   const days = formatDays(tour.departure_days, ui.weekdays);
   const depTime = formatTime(tour.departure_time);
   const meeting = (tour.meeting_point ?? "").trim();
-  const desc = content.description?.trim() ?? "";
 
-  const included = (content.included ?? []).filter((x) => x.trim());
-  const excluded = (content.excluded ?? []).filter((x) => x.trim());
+  // Sığma garantisi: dinamik içerik sertçe sınırlı (yeni sayfa açılmasın)
+  const desc = clipText(content.description?.trim() ?? "", MAX_DESC_CHARS);
+  const included = (content.included ?? [])
+    .filter((x) => x.trim())
+    .slice(0, MAX_INCLUDED)
+    .map((s) => clipText(s, MAX_LIST_ITEM_CHARS));
+  const excluded = (content.excluded ?? [])
+    .filter((x) => x.trim())
+    .slice(0, MAX_EXCLUDED)
+    .map((s) => clipText(s, MAX_LIST_ITEM_CHARS));
 
   const showAdult = price.price_adult > 0;
   const showChild = price.price_child > 0;
   const hasAnyPrice = showAdult || showChild;
 
-  // Sığma için max madde sınırı: 2/sayfa zorunluluğu nedeniyle. Eğer kullanıcı
-  // çok fazla madde girdiyse alt madde alt karta itilir; truncate edilmez —
-  // sığmazsa otomatik bir sonraki sayfaya kayar (wrap davranışı).
+  // wrap={false} kaldırıldı: artık içerik sertçe sınırlı, overflow:hidden ile
+  // taşma clip olur. Bu sayede kart asla yeni sayfaya kaymaz, "boş sayfa"
+  // oluşmaz. Slot zaten absolute positioning ile sabit yükseklikte.
   return (
-    <View style={styles.card} wrap={false}>
+    <View style={styles.card}>
       <View style={styles.cardTopRow}>
         <View style={styles.cardTitleBlock}>
           <Text style={styles.cardTitle}>{content.name}</Text>
         </View>
         {duration ? (
           <View style={styles.durationBadge}>
-            <DecoIcon iconKey="clock" size={12} color="#FFFFFF" />
+            <DecoIcon iconKey="clock" size={11} color="#FFFFFF" />
             <Text style={styles.durationBadgeText}>
               {ui.duration}: {duration}
             </Text>
@@ -753,19 +795,19 @@ function TourCard({ lang, tour, imgs, price, currency }: TourCardProps) {
             <View style={styles.pillRow}>
               {days ? (
                 <View style={styles.infoPill}>
-                  <DecoIcon iconKey="calendar" size={10} color={NAVY} />
+                  <DecoIcon iconKey="calendar" size={9} color={NAVY} />
                   <Text style={styles.infoPillText}>{days}</Text>
                 </View>
               ) : null}
               {depTime ? (
                 <View style={styles.infoPill}>
-                  <DecoIcon iconKey="clock" size={10} color={NAVY} />
+                  <DecoIcon iconKey="clock" size={9} color={NAVY} />
                   <Text style={styles.infoPillText}>{depTime}</Text>
                 </View>
               ) : null}
               {meeting ? (
                 <View style={styles.infoPill}>
-                  <DecoIcon iconKey="mapPin" size={10} color={NAVY} />
+                  <DecoIcon iconKey="mapPin" size={9} color={NAVY} />
                   <Text style={styles.infoPillText}>{meeting}</Text>
                 </View>
               ) : null}
@@ -774,7 +816,7 @@ function TourCard({ lang, tour, imgs, price, currency }: TourCardProps) {
 
           {/* Excluded — sola alıyoruz çünkü Dahil Olanlar info kartında olacak */}
           {excluded.length > 0 ? (
-            <View style={{ marginTop: 6 }}>
+            <View style={{ marginTop: 4 }}>
               <Text style={styles.sectionHeader}>{ui.excluded}</Text>
               {excluded.map((item, i) => (
                 <IconListLine key={i} icon="x" text={item} color="#C8362E" />
@@ -839,14 +881,21 @@ interface TourPageProps extends HFProps {
 }
 
 function ToursPage({ lang, pair, pageBg, currency }: TourPageProps) {
+  // Absolute positioning: her slot sabit geometride. React-PDF flex akışına
+  // güvenmediği için içerik taşsa bile slot büyümez → boş sayfa imkansız.
   return (
     <Page size="A4" style={styles.page}>
       <PageBackground src={pageBg} />
-      <View style={styles.cardsContainer}>
-        {pair[0] && <TourCard lang={lang} currency={currency} {...pair[0]} />}
-        {pair[1] && <View style={styles.cardSeparator} />}
-        {pair[1] && <TourCard lang={lang} currency={currency} {...pair[1]} />}
-      </View>
+      {pair[0] ? (
+        <View style={styles.slotTop}>
+          <TourCard lang={lang} currency={currency} {...pair[0]} />
+        </View>
+      ) : null}
+      {pair[1] ? (
+        <View style={styles.slotBottom}>
+          <TourCard lang={lang} currency={currency} {...pair[1]} />
+        </View>
+      ) : null}
     </Page>
   );
 }
