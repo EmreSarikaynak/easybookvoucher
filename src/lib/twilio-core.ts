@@ -9,20 +9,8 @@ import {
 
 export { formatWhatsAppNumber, normalisePhone, normalizePhoneDigits };
 
-const statusCallbackUrl =
-  process.env.TWILIO_STATUS_CALLBACK_URL ||
-  "https://bodrumdayiz.com.tr/api/webhooks/twilio";
-
 export const easybookPhone =
   process.env.TWILIO_EASYBOOK_PHONE || "+905366029397";
-
-const pdfTemplateSidTr = process.env.TWILIO_PDF_TEMPLATE_SID_TR;
-const pdfTemplateSidEn = process.env.TWILIO_PDF_TEMPLATE_SID_EN;
-const pdfInternalTemplateSid = process.env.TWILIO_PDF_INTERNAL_TEMPLATE_SID;
-const pdfMediaTemplateSidTr = process.env.TWILIO_PDF_MEDIA_TEMPLATE_SID_TR;
-const pdfMediaTemplateSidEn = process.env.TWILIO_PDF_MEDIA_TEMPLATE_SID_EN;
-const pdfMediaInternalTemplateSid =
-  process.env.TWILIO_PDF_MEDIA_INTERNAL_TEMPLATE_SID;
 
 function formatTourDate(tourDate: string, locale?: typeof tr): string {
   try {
@@ -231,6 +219,7 @@ export async function sendWhatsAppViaFetch(params: {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const from = process.env.TWILIO_WHATSAPP_NUMBER;
+  const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL || "https://bodrumdayiz.com.tr/api/webhooks/twilio";
 
   if (!accountSid || !authToken || !from) {
     return { success: false, error: "Twilio yapılandırması eksik (env değişkenleri)" };
@@ -306,6 +295,7 @@ async function sendWhatsAppTemplateViaFetch(
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const from = process.env.TWILIO_WHATSAPP_NUMBER;
+  const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL || "https://bodrumdayiz.com.tr/api/webhooks/twilio";
 
   if (!accountSid || !authToken || !from) {
     return { success: false, error: "Twilio yapılandırması eksik (env değişkenleri)" };
@@ -406,6 +396,15 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
   voucher: VoucherPDFInfo;
   isRevised?: boolean;
 }): Promise<{ success: boolean; error?: string; sent: number }> {
+  // Cloudflare Workers ortamında process.env'nin runtime'da okunabilmesi için değişkenleri fonksiyon içinde alıyoruz.
+  const pdfTemplateSidTr = process.env.TWILIO_PDF_TEMPLATE_SID_TR;
+  const pdfTemplateSidEn = process.env.TWILIO_PDF_TEMPLATE_SID_EN;
+  const pdfInternalTemplateSid = process.env.TWILIO_PDF_INTERNAL_TEMPLATE_SID;
+  const pdfMediaTemplateSidTr = process.env.TWILIO_PDF_MEDIA_TEMPLATE_SID_TR;
+  const pdfMediaTemplateSidEn = process.env.TWILIO_PDF_MEDIA_TEMPLATE_SID_EN;
+  const pdfMediaInternalTemplateSid = process.env.TWILIO_PDF_MEDIA_INTERNAL_TEMPLATE_SID;
+  const resolvedEasybookPhone = process.env.TWILIO_EASYBOOK_PHONE || easybookPhone;
+
   const { adminBody, agencyBody, customerBody } = buildPdfWhatsAppBodies(
     opts.pdfUrl,
     opts.voucher,
@@ -413,7 +412,7 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
     opts.imageUrl  // JPEG URL mesaj body'e de eklenir (ek gönderilemese bile link kalır)
   );
 
-  const easybookNorm = normalisePhone(easybookPhone);
+  const easybookNorm = normalisePhone(resolvedEasybookPhone);
   const dateTr = formatTourDate(opts.voucher.tourDate, tr);
   const dateEn = formatTourDate(opts.voucher.tourDate);
   const mediaVariable = getMediaVariableFromUrl(opts.imageUrl ?? opts.pdfUrl);
@@ -441,30 +440,46 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
   const catalog = opts.voucher.agencyCatalogUrl || "—";
 
   // ── METİN ŞABLONLARI (görsel yokken / media SID tanımsızken) ──────────────
-  // Onaylı `easybook_ticket_full_tr/en` ve `easybook_ticket_internal_tr`
-  // şablonları 5 değişkenli: {{1}} ad, {{2}} bilet no, {{3}} tur, {{4}} tarih,
-  // {{5}} PDF linki. Değişken SAYISI ve SIRASI şablonla birebir aynı olmalı —
-  // aksi halde {{5}} yanlış alanı (örn. otel) gösterir.
+  // Müşteri metin şablonları artık onaylı `easybook_ticket_full_tr_v2` /
+  // `_en_v2` (11 değişken). Sıra şablon gövdesiyle birebir aynı olmalı:
+  //   1 ad · 2 bilet no · 3 tur · 4 tarih · 5 otel · 6 alış noktası ·
+  //   7 alış saati · 8 kişi · 9 bilet görseli (link) · 10 PDF · 11 katalog
+  // Not: v2 metin şablonu görseli ek değil LİNK olarak gösterir; media şablonu
+  // onaylanınca kod otomatik olarak emoji+gömülü görselli sürüme yükselir.
+  //
+  // Admin/iç şablon (`easybook_ticket_internal_tr`) hâlâ 5 değişkenli.
   const internalTextVars = {
-    "1": opts.voucher.customerName,
-    "2": opts.voucher.voucherNo,
-    "3": opts.voucher.tourName,
-    "4": dateTr,
-    "5": opts.pdfUrl,
+    "1": String(opts.voucher.customerName || "—"),
+    "2": String(opts.voucher.voucherNo || "—"),
+    "3": String(opts.voucher.tourName || "—"),
+    "4": String(dateTr || "—"),
+    "5": String(opts.pdfUrl || ""),
   };
   const customerTextVarsTr = {
-    "1": opts.voucher.customerName,
-    "2": opts.voucher.voucherNo,
-    "3": opts.voucher.tourName,
-    "4": dateTr,
-    "5": opts.pdfUrl,
+    "1": String(opts.voucher.customerName || "—"),
+    "2": String(opts.voucher.voucherNo || "—"),
+    "3": String(opts.voucher.tourName || "—"),
+    "4": String(dateTr || "—"),
+    "5": String(hotel || "—"),
+    "6": String(pickup || "—"),
+    "7": String(pickupTimeLabel || "—"),
+    "8": String(buildPaxStringTr() || "—"),
+    "9": String(mediaVariable || "—"),
+    "10": String(opts.pdfUrl || ""),
+    "11": String(catalog || "—"),
   };
   const customerTextVarsEn = {
-    "1": opts.voucher.customerName,
-    "2": opts.voucher.voucherNo,
-    "3": opts.voucher.tourName,
-    "4": dateEn,
-    "5": opts.pdfUrl,
+    "1": String(opts.voucher.customerName || "—"),
+    "2": String(opts.voucher.voucherNo || "—"),
+    "3": String(opts.voucher.tourName || "—"),
+    "4": String(dateEn || "—"),
+    "5": String(hotel || "—"),
+    "6": String(pickup || "—"),
+    "7": String(pickupTimeLabel || "—"),
+    "8": String(buildPaxStringEn() || "—"),
+    "9": String(mediaVariable || "—"),
+    "10": String(opts.pdfUrl || ""),
+    "11": String(catalog || "—"),
   };
 
   // ── MEDIA ŞABLONLARI (görsel + tüm detaylar) ──────────────────────────────
@@ -475,56 +490,58 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
   //   1 görsel · 2 ad · 3 bilet · 4 tur · 5 tarih · 6 otel · 7 alış ·
   //   8 saat · 9 kişi · 10 PDF · 11 katalog
   const customerMediaVarsTr = {
-    "1": mediaVariable || "",
-    "2": opts.voucher.customerName,
-    "3": opts.voucher.voucherNo,
-    "4": opts.voucher.tourName,
-    "5": dateTr,
-    "6": hotel,
-    "7": pickup,
-    "8": pickupTimeLabel,
-    "9": buildPaxStringTr(),
-    "10": opts.pdfUrl,
-    "11": catalog,
+    "1": String(mediaVariable || ""),
+    "2": String(opts.voucher.customerName || "—"),
+    "3": String(opts.voucher.voucherNo || "—"),
+    "4": String(opts.voucher.tourName || "—"),
+    "5": String(dateTr || "—"),
+    "6": String(hotel || "—"),
+    "7": String(pickup || "—"),
+    "8": String(pickupTimeLabel || "—"),
+    "9": String(buildPaxStringTr() || "—"),
+    "10": String(opts.pdfUrl || ""),
+    "11": String(catalog || "—"),
   };
   const customerMediaVarsEn = {
-    "1": mediaVariable || "",
-    "2": opts.voucher.customerName,
-    "3": opts.voucher.voucherNo,
-    "4": opts.voucher.tourName,
-    "5": dateEn,
-    "6": hotel,
-    "7": pickup,
-    "8": pickupTimeLabel,
-    "9": buildPaxStringEn(),
-    "10": opts.pdfUrl,
-    "11": catalog,
+    "1": String(mediaVariable || ""),
+    "2": String(opts.voucher.customerName || "—"),
+    "3": String(opts.voucher.voucherNo || "—"),
+    "4": String(opts.voucher.tourName || "—"),
+    "5": String(dateEn || "—"),
+    "6": String(hotel || "—"),
+    "7": String(pickup || "—"),
+    "8": String(pickupTimeLabel || "—"),
+    "9": String(buildPaxStringEn() || "—"),
+    "10": String(opts.pdfUrl || ""),
+    "11": String(catalog || "—"),
   };
   // İç/admin media (easybook_internal_media_tr):
   //   1 görsel · 2 bilet · 3 ad · 4 telefon · 5 tur · 6 tarih · 7 otel ·
   //   8 alış · 9 saat · 10 kişi · 11 acente kodu · 12 PDF
   const internalMediaVars = {
-    "1": mediaVariable || "",
-    "2": opts.voucher.voucherNo,
-    "3": opts.voucher.customerName,
-    "4": phone,
-    "5": opts.voucher.tourName,
-    "6": dateTr,
-    "7": hotel,
-    "8": pickup,
-    "9": pickupTimeLabel,
-    "10": buildPaxStringTr(),
-    "11": agencyCode,
-    "12": opts.pdfUrl,
+    "1": String(mediaVariable || ""),
+    "2": String(opts.voucher.voucherNo || "—"),
+    "3": String(opts.voucher.customerName || "—"),
+    "4": String(phone || "—"),
+    "5": String(opts.voucher.tourName || "—"),
+    "6": String(dateTr || "—"),
+    "7": String(hotel || "—"),
+    "8": String(pickup || "—"),
+    "9": String(pickupTimeLabel || "—"),
+    "10": String(buildPaxStringTr() || "—"),
+    "11": String(agencyCode || "—"),
+    "12": String(opts.pdfUrl || ""),
   };
-  const internalTemplateSid =
-    mediaVariable && pdfMediaInternalTemplateSid
-      ? pdfMediaInternalTemplateSid
-      : pdfInternalTemplateSid;
-  const internalTemplateVars =
-    mediaVariable && pdfMediaInternalTemplateSid
-      ? internalMediaVars
-      : internalTextVars;
+  // Birincil şablon görsel varsa media, yoksa metin. ANCAK media şablonu henüz
+  // ONAYLI DEĞİLSE Twilio gönderimi reddeder; bu durumda freeform'a düşmek
+  // (24h penceresi dışında teslim edilmez) yerine ONAYLI metin şablonuna düşeriz.
+  const internalUsesMedia = Boolean(mediaVariable && pdfMediaInternalTemplateSid);
+  const internalTemplateSid = internalUsesMedia
+    ? pdfMediaInternalTemplateSid
+    : pdfInternalTemplateSid;
+  const internalTemplateVars = internalUsesMedia ? internalMediaVars : internalTextVars;
+  const internalFallbackSid = internalUsesMedia ? pdfInternalTemplateSid : undefined;
+  const internalFallbackVars = internalUsesMedia ? internalTextVars : undefined;
 
   /**
    * forceTemplate=true → freeform denemeden doğrudan onaylı template gönderir.
@@ -540,13 +557,18 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
     body: string;
     templateSid?: string;
     templateVariables?: Record<string, string>;
+    /** Birincil (media) şablon başarısızsa denenecek onaylı metin şablonu. */
+    fallbackTemplateSid?: string;
+    fallbackTemplateVariables?: Record<string, string>;
     forceTemplate?: boolean;
   }> = [
     {
-      to: easybookPhone,
+      to: resolvedEasybookPhone,
       body: adminBody,
       templateSid: internalTemplateSid,
       templateVariables: internalTemplateVars,
+      fallbackTemplateSid: internalFallbackSid,
+      fallbackTemplateVariables: internalFallbackVars,
       forceTemplate: true,
     },
   ];
@@ -563,6 +585,8 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
       body: adminBody,
       templateSid: internalTemplateSid,
       templateVariables: internalTemplateVars,
+      fallbackTemplateSid: internalFallbackSid,
+      fallbackTemplateVariables: internalFallbackVars,
       forceTemplate: true,
     });
   }
@@ -573,6 +597,8 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
       body: agencyBody,
       templateSid: internalTemplateSid,
       templateVariables: internalTemplateVars,
+      fallbackTemplateSid: internalFallbackSid,
+      fallbackTemplateVariables: internalFallbackVars,
       forceTemplate: true,
     });
   }
@@ -583,19 +609,19 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
       ? pdfMediaTemplateSidTr
       : pdfMediaTemplateSidEn;
     const customerTextSid = customerIsTr ? pdfTemplateSidTr : pdfTemplateSidEn;
+    const customerTextVars = customerIsTr ? customerTextVarsTr : customerTextVarsEn;
+    const customerUsesMedia = Boolean(mediaVariable && customerMediaSid);
     targets.push({
       to: opts.voucher.customerPhone,
       body: customerBody,
-      templateSid:
-        mediaVariable && customerMediaSid ? customerMediaSid : customerTextSid,
-      templateVariables:
-        mediaVariable && customerMediaSid
-          ? customerIsTr
-            ? customerMediaVarsTr
-            : customerMediaVarsEn
-          : customerIsTr
-            ? customerTextVarsTr
-            : customerTextVarsEn,
+      templateSid: customerUsesMedia ? customerMediaSid : customerTextSid,
+      templateVariables: customerUsesMedia
+        ? customerIsTr
+          ? customerMediaVarsTr
+          : customerMediaVarsEn
+        : customerTextVars,
+      fallbackTemplateSid: customerUsesMedia ? customerTextSid : undefined,
+      fallbackTemplateVariables: customerUsesMedia ? customerTextVars : undefined,
       forceTemplate: true,
     });
   }
@@ -616,7 +642,19 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
         bodyForLog: target.body,
         voucherNo: opts.voucher.voucherNo,
       });
-      // Template başarısızsa son çare olarak freeform dene (lokal/test ortamı için)
+      // Birincil (media) şablon başarısızsa — örn. henüz onaylı değilse — ONAYLI
+      // metin şablonuyla tekrar dene. Bu, 24h penceresi dışındaki alıcılara da
+      // teslimi garantiler (freeform pencere dışında düşer).
+      if (!result.success && target.fallbackTemplateSid) {
+        result = await sendWhatsAppTemplateViaFetch({
+          to: target.to,
+          contentSid: target.fallbackTemplateSid,
+          variables: target.fallbackTemplateVariables ?? {},
+          bodyForLog: target.body,
+          voucherNo: opts.voucher.voucherNo,
+        });
+      }
+      // Hiçbir onaylı şablon gönderilemezse son çare freeform (lokal/test ortamı için)
       if (!result.success) {
         result = await sendWhatsAppViaFetch({
           to: target.to,

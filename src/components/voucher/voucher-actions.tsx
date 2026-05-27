@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Download, MessageCircle, Send, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Download, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VoucherTicket } from "./voucher-ticket";
 import { downloadPDF, generatePDF, generateTicketJpegBlob } from "@/lib/pdf";
-import { sendToCustomer, sendToEasyBook } from "@/lib/whatsapp";
 import type { Voucher } from "@/lib/types";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
@@ -38,6 +37,17 @@ export function VoucherActions({ voucher, autoSend, isRevised, onPdfUploaded }: 
     }
     return ticketRef.current;
   };
+
+  // Prevent accidental navigation while auto-send is in progress
+  useEffect(() => {
+    if (autoSendStatus !== 'sending') return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [autoSendStatus]);
 
   // Auto-send effect: triggers once when autoSend=true and component is mounted
   useEffect(() => {
@@ -191,6 +201,23 @@ export function VoucherActions({ voucher, autoSend, isRevised, onPdfUploaded }: 
 
   return (
     <div className="space-y-6">
+      {/* Full-screen blocking overlay while auto-send is running */}
+      {autoSendStatus === 'sending' && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-black/60 backdrop-blur-sm"
+          aria-modal="true"
+          aria-live="assertive"
+        >
+          <div className="flex flex-col items-center gap-4 rounded-2xl bg-white px-8 py-10 shadow-2xl max-w-sm w-full mx-4 text-center">
+            <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
+            <p className="text-base font-semibold text-gray-800">
+              Lütfen bekleyin, PDF oluşturuluyor ve WhatsApp mesajları gönderiliyor...
+            </p>
+            <p className="text-sm text-gray-500">Bu işlem tamamlanana kadar lütfen sayfadan ayrılmayın.</p>
+          </div>
+        </div>
+      )}
+
       {/* Auto-send status banner */}
       {autoSendStatus !== 'idle' && (
         <div className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium ${

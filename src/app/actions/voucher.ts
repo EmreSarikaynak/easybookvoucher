@@ -47,30 +47,26 @@ export async function createVoucher(payload: VoucherPayload) {
     return { error: "Oturum açmanız gerekiyor" };
   }
 
-  // Kullanıcının profil bilgisini al (sales person tarafı için phone de lazım)
+  // Kullanıcının profil bilgisini al (acente eşlemesi için agency_id lazım)
   const { data: profile } = await supabase
     .from("profiles")
-    .select("agency_id, phone, full_name")
+    .select("agency_id")
     .eq("id", user.id)
     .single();
 
   const targetAgencyId = profile?.agency_id;
   let agencyPrefix = "EBook";
-  let agencyName: string | null = null;
-  let agencyPhone: string | null = null;
 
   if (targetAgencyId) {
     const { data: targetAgency } = await supabase
       .from("agencies")
-      .select("agency_code, name, phone")
+      .select("agency_code")
       .eq("id", targetAgencyId)
       .single();
 
     if (targetAgency?.agency_code) {
       agencyPrefix = targetAgency.agency_code;
     }
-    agencyName = targetAgency?.name ?? null;
-    agencyPhone = normalizeStoredPhone(targetAgency?.phone ?? null);
   }
 
   let finalVoucherNo = payload.voucher_no;
@@ -123,39 +119,10 @@ export async function createVoucher(payload: VoucherPayload) {
   }
 
 
-  // Bilet kaydedildikten sonra ilgili herkese WhatsApp bildirimi gönder.
-  // Sıra: müşteri (TR/EN, prefix'e göre) + EasyBook + acente + sales person.
-  let tourName = "Belirtilmemiş Tur";
-  if (payload.tour_id) {
-    const { data: tourData } = await supabase
-      .from("tours")
-      .select("name")
-      .eq("id", payload.tour_id)
-      .single();
-    if (tourData?.name) tourName = tourData.name;
-  }
-
-  const adminPhonesFromSettings = await readAdminWhatsappPhones(supabase);
-
-  try {
-    const { sendVoucherNotifications } = await import("@/lib/twilio");
-    await sendVoucherNotifications({
-      customerPhone: payload.customer_phone ?? null,
-      agencyPhone: agencyPhone,
-      salesPersonPhone: profile?.phone ?? null,
-      adminPhonesFromSettings,
-      voucher: {
-        voucherNo: finalVoucherNo,
-        tourName,
-        tourDate: payload.tour_date,
-        customerName: payload.customer_name,
-        agencyName,
-      },
-    });
-  } catch (waError) {
-    console.error("WhatsApp bildirimleri gönderilirken hata:", waError);
-  }
-
+  // WhatsApp bildirimi create anında GÖNDERİLMEZ. Bilet sayfası ?new=1 ile
+  // açıldığında PDF üretilip tek ve tam bilgili bildirim (admin/acente/müşteri)
+  // /api/vouchers/send-pdf-whatsapp üzerinden gönderilir. Burada ikinci bir
+  // kısa bildirim göndermek alıcılara çift mesaj gitmesine yol açıyordu.
   revalidatePath("/vouchers");
   return { success: true, voucherId: insertedId };
 }

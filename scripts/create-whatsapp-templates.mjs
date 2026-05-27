@@ -79,8 +79,8 @@ const internalBodyTr =
   "📄 PDF Bilet: {{12}}\n\n" +
   "Bu otomatik bir bildirimdir.";
 
-const sampleImg = "https://bodrumdayiz.com.tr/voucher-pdfs/ornek.jpg";
-const samplePdf = "https://bodrumdayiz.com.tr/voucher-pdfs/ornek.pdf";
+const sampleImg = "https://yjxsnudpiknohrxxgyra.supabase.co/storage/v1/object/public/voucher-pdfs/5cc5d1bd-194b-4e6e-a09a-0fdcb4c7438b.jpg";
+const samplePdf = "https://yjxsnudpiknohrxxgyra.supabase.co/storage/v1/object/public/voucher-pdfs/5cc5d1bd-194b-4e6e-a09a-0fdcb4c7438b.pdf";
 
 const TEMPLATES = [
   {
