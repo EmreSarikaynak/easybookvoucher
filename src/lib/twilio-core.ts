@@ -176,6 +176,138 @@ export function buildPdfWhatsAppBodies(
   return { adminBody, agencyBody, customerBody };
 }
 
+// ── İPTAL BİLDİRİMLERİ ─────────────────────────────────────────────────────
+export interface CancellationInfo {
+  voucherNo: string;
+  tourName: string;
+  tourDate: string;
+  customerName: string;
+  customerPhone?: string | null;
+  hotel?: string | null;
+  pickupTime?: string | null;
+  pickupPlace?: string | null;
+  paxAdult?: number;
+  paxChild?: number;
+  paxInfant?: number;
+  agencyName?: string | null;
+  agencyCode?: string | null;
+  totalPrice?: number | null;
+  depositPaid?: number | null;
+  currency?: string | null;
+  /** İptal eden kullanıcının adı — sadece admin/iç mesaja eklenir */
+  cancelledByName?: string | null;
+}
+
+export interface CancellationBodies {
+  adminBody: string;
+  agencyBody: string;
+  customerBody: string;
+}
+
+function formatPrice(amount: number | null | undefined, currency: string | null | undefined): string {
+  if (amount == null || Number.isNaN(amount)) return "—";
+  const symbol = currency === "TRY" ? "₺" : currency === "USD" ? "$" : currency === "EUR" ? "€" : currency ?? "";
+  const n = Number(amount).toLocaleString("tr-TR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${n} ${symbol}`.trim();
+}
+
+/**
+ * Bilet iptali için üç ayrı mesaj metni üretir:
+ * - admin: tüm operasyonel detay + iptal eden kişi + müşteri wa.me linki
+ * - agency: acenteye iptal özeti
+ * - customer: misafire nazik TR/EN iptal bildirimi (acente adı yok)
+ */
+export function buildCancellationWhatsAppBodies(v: CancellationInfo): CancellationBodies {
+  const dateTr = formatTourDate(v.tourDate, tr);
+  const dateEn = formatTourDate(v.tourDate);
+
+  const paxPartsTr: string[] = [];
+  if ((v.paxAdult ?? 0) > 0) paxPartsTr.push(`${v.paxAdult} Yetişkin`);
+  if ((v.paxChild ?? 0) > 0) paxPartsTr.push(`${v.paxChild} Çocuk`);
+  if ((v.paxInfant ?? 0) > 0) paxPartsTr.push(`${v.paxInfant} Bebek`);
+  const paxStrTr = paxPartsTr.join(" + ") || "—";
+
+  const paxPartsEn: string[] = [];
+  if ((v.paxAdult ?? 0) > 0) paxPartsEn.push(`${v.paxAdult} Adults`);
+  if ((v.paxChild ?? 0) > 0) paxPartsEn.push(`${v.paxChild} Children`);
+  if ((v.paxInfant ?? 0) > 0) paxPartsEn.push(`${v.paxInfant} Infants`);
+  const paxStrEn = paxPartsEn.join(" + ") || "—";
+
+  const pickupLabel = formatPickupTimeLabel(v.pickupTime);
+  const waCustomerLink = buildWaMeLink(v.customerPhone);
+  const agencyCode = v.agencyCode?.trim() || "—";
+
+  const adminBody =
+    `❌ *BİLET İPTAL EDİLDİ*\n\n` +
+    `🎫 Bilet No: ${v.voucherNo}\n` +
+    `👤 Misafir: ${v.customerName}\n` +
+    (v.customerPhone ? `📱 Telefon: ${v.customerPhone}\n` : "") +
+    `🚢 Tur: ${v.tourName}\n` +
+    `📅 Tarih: ${dateTr}\n` +
+    (v.hotel ? `🏨 Otel: ${v.hotel}\n` : "") +
+    (v.pickupPlace ? `📍 Alış: ${v.pickupPlace}\n` : "") +
+    (pickupLabel ? `⏰ Saat: ${pickupLabel}\n` : "") +
+    `👥 PAX: ${paxStrTr}\n` +
+    `🏢 Acente Kodu: ${agencyCode}\n` +
+    (v.totalPrice != null ? `💰 Toplam: ${formatPrice(v.totalPrice, v.currency)}\n` : "") +
+    (v.depositPaid != null && v.depositPaid > 0
+      ? `💵 Alınan Ön Ödeme: ${formatPrice(v.depositPaid, v.currency)}\n`
+      : "") +
+    (v.cancelledByName ? `🛑 İptal Eden: ${v.cancelledByName}\n` : "") +
+    (waCustomerLink ? `💬 Müşteri İle Yazış: ${waCustomerLink}\n` : "") +
+    `\nLütfen iptali sisteminize işleyiniz.`;
+
+  const agencyBody =
+    `❌ *BİLET İPTAL — ACENTE BİLDİRİMİ*\n\n` +
+    `Merhaba,\n` +
+    `Acentenize kayıtlı aşağıdaki bilet iptal edildi:\n\n` +
+    `🎫 Bilet No: ${v.voucherNo}\n` +
+    `👤 Misafir: ${v.customerName}\n` +
+    (v.customerPhone ? `📱 Misafir Tel: ${v.customerPhone}\n` : "") +
+    `🚢 Tur: ${v.tourName}\n` +
+    `📅 Tarih: ${dateTr}\n` +
+    (v.hotel ? `🏨 Otel: ${v.hotel}\n` : "") +
+    (v.pickupPlace ? `📍 Alış: ${v.pickupPlace}\n` : "") +
+    (pickupLabel ? `⏰ Saat: ${pickupLabel}\n` : "") +
+    `👥 PAX: ${paxStrTr}\n` +
+    (v.totalPrice != null ? `💰 Toplam: ${formatPrice(v.totalPrice, v.currency)}\n` : "") +
+    (v.depositPaid != null && v.depositPaid > 0
+      ? `💵 Alınan Ön Ödeme: ${formatPrice(v.depositPaid, v.currency)}\n`
+      : "") +
+    `\nMisafir ile iletişime geçip iade/operasyon işlemlerini tamamlayınız.`;
+
+  const isCustomerTr = v.customerPhone ? isTurkishPhone(v.customerPhone) : true;
+
+  const customerBody = isCustomerTr
+    ? `Sayın ${v.customerName},\n\n` +
+      `Aşağıdaki tur rezervasyonunuz iptal edilmiştir:\n\n` +
+      `🎫 Bilet No: ${v.voucherNo}\n` +
+      `🚢 Tur: ${v.tourName}\n` +
+      `📅 Tarih: ${dateTr}\n` +
+      (v.hotel ? `🏨 Otel: ${v.hotel}\n` : "") +
+      (v.pickupPlace ? `📍 Alış Noktası: ${v.pickupPlace}\n` : "") +
+      (pickupLabel ? `⏰ Alış Saati: ${pickupLabel}\n` : "") +
+      `👥 Kişi Sayısı: ${paxStrTr}\n\n` +
+      `Bu iptal işlemi sehven yapıldıysa veya hakkında sorularınız varsa lütfen WhatsApp üzerinden bizimle iletişime geçin.\n\n` +
+      `İyi günler dileriz. 🌊`
+    : `Dear ${v.customerName},\n\n` +
+      `Your tour booking below has been cancelled:\n\n` +
+      `🎫 Ticket No: ${v.voucherNo}\n` +
+      `🚢 Tour: ${v.tourName}\n` +
+      `📅 Date: ${dateEn}\n` +
+      (v.hotel ? `🏨 Hotel: ${v.hotel}\n` : "") +
+      (v.pickupPlace ? `📍 Pickup: ${v.pickupPlace}\n` : "") +
+      (pickupLabel ? `⏰ Pickup Time: ${pickupLabel}\n` : "") +
+      `👥 Guests: ${paxStrEn}\n\n` +
+      `If this cancellation was made by mistake or you have any questions, please contact us via WhatsApp.\n\n` +
+      `Have a great day. 🌊`;
+
+  return { adminBody, agencyBody, customerBody };
+}
+
 export interface FetchSendResult {
   success: boolean;
   messageId?: string;
@@ -711,4 +843,105 @@ export async function sendVoucherPDFNotificationsFetch(opts: {
   }
 
   return { success: true, sent, error: lastError || undefined };
+}
+
+/**
+ * Bilet iptali bildirimleri — admin (EasyBook + ayarlardaki ek adminler) +
+ * acente + müşteri'ye freeform WhatsApp gönderir.
+ *
+ * Not: İptal için onaylı template şu an yok; tüm gönderim freeform yapılır.
+ * 24 saat penceresi dışındaki numaralarda Twilio "undelivered" döner — bu
+ * kabul edilebilir çünkü admin/acente genelde sistemde aktiftir ve müşteri
+ * son 24 saatte mutlaka karşılıklı mesajlaşmış olur (PDF bildirimi sırasında).
+ */
+export async function sendVoucherCancellationNotificationsFetch(opts: {
+  agencyPhone?: string | null;
+  adminPhonesFromSettings?: string[] | null;
+  voucher: CancellationInfo;
+}): Promise<{
+  success: boolean;
+  error?: string;
+  sent: number;
+  failed: number;
+  results: Array<{ to: string; role: string; success: boolean; error?: string }>;
+}> {
+  const resolvedEasybookPhone = process.env.TWILIO_EASYBOOK_PHONE || easybookPhone;
+  const easybookNorm = normalisePhone(resolvedEasybookPhone);
+
+  const { adminBody, agencyBody, customerBody } = buildCancellationWhatsAppBodies(
+    opts.voucher
+  );
+
+  type Target = { to: string; body: string; role: "admin" | "agency" | "customer" };
+  const targets: Target[] = [
+    { to: resolvedEasybookPhone, body: adminBody, role: "admin" },
+  ];
+
+  const seenAdminNorms = new Set<string>([easybookNorm]);
+  for (const adminPhone of opts.adminPhonesFromSettings ?? []) {
+    if (!adminPhone) continue;
+    const norm = normalisePhone(adminPhone);
+    if (seenAdminNorms.has(norm)) continue;
+    seenAdminNorms.add(norm);
+    targets.push({ to: adminPhone, body: adminBody, role: "admin" });
+  }
+
+  if (opts.agencyPhone) {
+    const agencyNorm = normalisePhone(opts.agencyPhone);
+    if (!seenAdminNorms.has(agencyNorm)) {
+      targets.push({ to: opts.agencyPhone, body: agencyBody, role: "agency" });
+    }
+  }
+
+  if (opts.voucher.customerPhone) {
+    targets.push({
+      to: opts.voucher.customerPhone,
+      body: customerBody,
+      role: "customer",
+    });
+  }
+
+  const results: Array<{ to: string; role: string; success: boolean; error?: string }> = [];
+  let sent = 0;
+  let failed = 0;
+  let lastError = "";
+
+  for (const target of targets) {
+    const result = await sendWhatsAppViaFetch({
+      to: target.to,
+      body: target.body,
+      voucherNo: opts.voucher.voucherNo,
+      includeMedia: false,
+    });
+    if (result.success) {
+      sent++;
+    } else {
+      failed++;
+      lastError = result.error || lastError;
+    }
+    results.push({
+      to: target.to,
+      role: target.role,
+      success: result.success,
+      error: result.error,
+    });
+  }
+
+  if (sent === 0 && targets.length > 0) {
+    return {
+      success: false,
+      error: lastError || "Hiçbir iptal bildirimi gönderilemedi",
+      sent: 0,
+      failed,
+      results,
+    };
+  }
+
+  return {
+    success: true,
+    sent,
+    failed,
+    results,
+    error: lastError || undefined,
+  };
 }

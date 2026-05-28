@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Edit, XCircle, RefreshCcw, Trash2, Copy, ExternalLink, Check, ImageIcon } from "lucide-react";
+import { ArrowLeft, Edit, XCircle, RefreshCcw, Trash2, Copy, ExternalLink, Check, ImageIcon, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +39,7 @@ export function VoucherDetailContent({ voucher: initialVoucher, isAdmin, isNewVo
   const [voucher, setVoucher] = useState<Voucher>(initialVoucher);
   const [copied, setCopied] = useState(false);
   const [copiedJpeg, setCopiedJpeg] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const jpegUrl = getVoucherJpegUrl(voucher.pdf_url);
 
   const handleCopyLink = () => {
@@ -56,15 +57,54 @@ export function VoucherDetailContent({ voucher: initialVoucher, isAdmin, isNewVo
   };
 
   const handleCancel = async () => {
-    if (!confirm("Bu bileti iptal etmek istediğinize emin misiniz?")) return;
+    if (
+      !confirm(
+        "Bu bileti iptal etmek istediğinize emin misiniz?\n\n" +
+          "Müşteri, acente ve admin'lere WhatsApp bildirimi gönderilecektir."
+      )
+    )
+      return;
 
-    const { cancelVoucher } = await import("@/app/actions/voucher");
-    const result = await cancelVoucher(voucher.id);
+    setIsCancelling(true);
+    try {
+      const res = await fetch("/api/vouchers/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voucherId: voucher.id }),
+      });
 
-    if (!result.error) {
+      let result: {
+        success?: boolean;
+        sent?: number;
+        failed?: number;
+        error?: string;
+        notificationsError?: string;
+      };
+      try {
+        result = await res.json();
+      } catch {
+        result = { success: false, error: `HTTP ${res.status}` };
+      }
+
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || `HTTP ${res.status}`);
+      }
+
       setVoucher({ ...voucher, status: "cancelled" });
-    } else {
-      alert("İptal sırasında hata: " + result.error);
+
+      const sentMsg =
+        typeof result.sent === "number"
+          ? ` ${result.sent} WhatsApp bildirimi gönderildi${result.failed && result.failed > 0 ? `, ${result.failed} başarısız` : ""}.`
+          : "";
+      const warning = result.notificationsError
+        ? `\n\nUyarı: bazı bildirimler iletilemedi (${result.notificationsError}).`
+        : "";
+      alert(`Bilet iptal edildi.${sentMsg}${warning}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert("İptal sırasında hata: " + msg);
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -119,9 +159,18 @@ export function VoucherDetailContent({ voucher: initialVoucher, isAdmin, isNewVo
             </Link>
           </Button>
           {voucher.status === "active" && (
-            <Button variant="destructive" size="sm" onClick={handleCancel}>
-              <XCircle className="mr-2 h-4 w-4" />
-              İptal Et
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleCancel}
+              disabled={isCancelling}
+            >
+              {isCancelling ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <XCircle className="mr-2 h-4 w-4" />
+              )}
+              {isCancelling ? "İptal Ediliyor..." : "İptal Et"}
             </Button>
           )}
           {voucher.status === "cancelled" && isAdmin && (
