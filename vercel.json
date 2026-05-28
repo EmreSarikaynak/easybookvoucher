@@ -1,9 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/sync-exchange-rates",
-      "schedule": "0 0 * * *",
-      "timezone": "Europe/Istanbul"
-    }
-  ]
-}

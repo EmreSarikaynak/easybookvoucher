@@ -3,10 +3,15 @@ import { createServiceRoleClient } from "@/lib/supabase-server";
 import { syncTcmbRatesToDatabase } from "@/lib/exchange-rates";
 
 /**
- * Günlük kur senkronu (Vercel Cron veya harici scheduler).
+ * Günlük TCMB kur senkronu — harici scheduler tarafından çağrılır.
  * Authorization: Bearer CRON_SECRET
  *
- * Vercel cron: Europe/Istanbul 00:00 (vercel.json).
+ * Deploy hedefi Cloudflare Workers olduğu için Vercel cron çalışmaz.
+ * GitHub Actions ile günlük çalışıyor:
+ *   .github/workflows/sync-exchange-rates.yml — 21:00 UTC (= 00:00 Europe/Istanbul)
+ *
+ * Manuel tetik için: GitHub → Actions → "Sync TCMB Exchange Rates" →
+ * "Run workflow", veya /exchange-rates sayfasından admin senkron butonu.
  */
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
