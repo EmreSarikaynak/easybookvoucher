@@ -10,27 +10,26 @@ interface CountryCode {
   name: string; // full name for search
 }
 
-// Sıralama: önce sık kullanılan ülkeler (TR ve hedef pazarlar), ardından
-// kalan tüm ülkeler Türkçe isim alfabetik olarak. Arama kutusu zaten filtreliyor.
+// Sıralama: önce TR (ev sahibi), ardından Türkiye'ye en çok turist gönderen
+// ilk 15 ülke (Kültür ve Turizm Bakanlığı 2024 yabancı ziyaretçi verilerine
+// göre büyükten küçüğe). Geri kalan tüm ülkeler Türkçe isim alfabetik.
 const PRIORITY_COUNTRIES: CountryCode[] = [
   { flag: "🇹🇷", code: "+90",  abbr: "TR",  name: "Türkiye" },
-  { flag: "🇩🇪", code: "+49",  abbr: "DE",  name: "Almanya" },
   { flag: "🇷🇺", code: "+7",   abbr: "RU",  name: "Rusya" },
+  { flag: "🇩🇪", code: "+49",  abbr: "DE",  name: "Almanya" },
   { flag: "🇬🇧", code: "+44",  abbr: "GB",  name: "İngiltere" },
-  { flag: "🇮🇶", code: "+964", abbr: "IQ",  name: "Irak" },
-  { flag: "🇸🇦", code: "+966", abbr: "SA",  name: "Suudi Arabistan" },
-  { flag: "🇦🇪", code: "+971", abbr: "AE",  name: "BAE" },
-  { flag: "🇰🇼", code: "+965", abbr: "KW",  name: "Kuveyt" },
-  { flag: "🇶🇦", code: "+974", abbr: "QA",  name: "Katar" },
+  { flag: "🇧🇬", code: "+359", abbr: "BG",  name: "Bulgaristan" },
   { flag: "🇮🇷", code: "+98",  abbr: "IR",  name: "İran" },
-  { flag: "🇫🇷", code: "+33",  abbr: "FR",  name: "Fransa" },
-  { flag: "🇳🇱", code: "+31",  abbr: "NL",  name: "Hollanda" },
-  { flag: "🇧🇪", code: "+32",  abbr: "BE",  name: "Belçika" },
-  { flag: "🇮🇹", code: "+39",  abbr: "IT",  name: "İtalya" },
-  { flag: "🇪🇸", code: "+34",  abbr: "ES",  name: "İspanya" },
   { flag: "🇵🇱", code: "+48",  abbr: "PL",  name: "Polonya" },
   { flag: "🇺🇦", code: "+380", abbr: "UA",  name: "Ukrayna" },
+  { flag: "🇳🇱", code: "+31",  abbr: "NL",  name: "Hollanda" },
+  { flag: "🇬🇪", code: "+995", abbr: "GE",  name: "Gürcistan" },
   { flag: "🇺🇸", code: "+1",   abbr: "US",  name: "ABD" },
+  { flag: "🇷🇴", code: "+40",  abbr: "RO",  name: "Romanya" },
+  { flag: "🇦🇿", code: "+994", abbr: "AZ",  name: "Azerbaycan" },
+  { flag: "🇫🇷", code: "+33",  abbr: "FR",  name: "Fransa" },
+  { flag: "🇮🇶", code: "+964", abbr: "IQ",  name: "Irak" },
+  { flag: "🇸🇦", code: "+966", abbr: "SA",  name: "Suudi Arabistan" },
 ];
 
 const OTHER_COUNTRIES: CountryCode[] = [
@@ -48,12 +47,12 @@ const OTHER_COUNTRIES: CountryCode[] = [
   { flag: "🇦🇼", code: "+297", abbr: "AW",  name: "Aruba" },
   { flag: "🇦🇺", code: "+61",  abbr: "AU",  name: "Avustralya" },
   { flag: "🇦🇹", code: "+43",  abbr: "AT",  name: "Avusturya" },
-  { flag: "🇦🇿", code: "+994", abbr: "AZ",  name: "Azerbaycan" },
   { flag: "🇧🇸", code: "+1242", abbr: "BS", name: "Bahamalar" },
   { flag: "🇧🇭", code: "+973", abbr: "BH",  name: "Bahreyn" },
   { flag: "🇧🇩", code: "+880", abbr: "BD",  name: "Bangladeş" },
   { flag: "🇧🇧", code: "+1246", abbr: "BB", name: "Barbados" },
   { flag: "🇧🇾", code: "+375", abbr: "BY",  name: "Belarus" },
+  { flag: "🇧🇪", code: "+32",  abbr: "BE",  name: "Belçika" },
   { flag: "🇧🇿", code: "+501", abbr: "BZ",  name: "Belize" },
   { flag: "🇧🇯", code: "+229", abbr: "BJ",  name: "Benin" },
   { flag: "🇧🇲", code: "+1441", abbr: "BM", name: "Bermuda" },
@@ -66,7 +65,6 @@ const OTHER_COUNTRIES: CountryCode[] = [
   { flag: "🇮🇴", code: "+246", abbr: "IO",  name: "Britanya Hint Okyanusu Toprakları" },
   { flag: "🇻🇬", code: "+1284", abbr: "VG", name: "Britanya Virjin Adaları" },
   { flag: "🇧🇳", code: "+673", abbr: "BN",  name: "Brunei" },
-  { flag: "🇧🇬", code: "+359", abbr: "BG",  name: "Bulgaristan" },
   { flag: "🇧🇫", code: "+226", abbr: "BF",  name: "Burkina Faso" },
   { flag: "🇧🇮", code: "+257", abbr: "BI",  name: "Burundi" },
   { flag: "🇰🇭", code: "+855", abbr: "KH",  name: "Kamboçya" },
@@ -112,7 +110,6 @@ const OTHER_COUNTRIES: CountryCode[] = [
   { flag: "🇵🇫", code: "+689", abbr: "PF",  name: "Fransız Polinezyası" },
   { flag: "🇬🇦", code: "+241", abbr: "GA",  name: "Gabon" },
   { flag: "🇬🇲", code: "+220", abbr: "GM",  name: "Gambiya" },
-  { flag: "🇬🇪", code: "+995", abbr: "GE",  name: "Gürcistan" },
   { flag: "🇬🇭", code: "+233", abbr: "GH",  name: "Gana" },
   { flag: "🇬🇮", code: "+350", abbr: "GI",  name: "Cebelitarık" },
   { flag: "🇬🇷", code: "+30",  abbr: "GR",  name: "Yunanistan" },
@@ -202,7 +199,6 @@ const OTHER_COUNTRIES: CountryCode[] = [
   { flag: "🇵🇹", code: "+351", abbr: "PT",  name: "Portekiz" },
   { flag: "🇵🇷", code: "+1787", abbr: "PR", name: "Porto Riko" },
   { flag: "🇷🇪", code: "+262", abbr: "RE",  name: "Réunion" },
-  { flag: "🇷🇴", code: "+40",  abbr: "RO",  name: "Romanya" },
   { flag: "🇷🇼", code: "+250", abbr: "RW",  name: "Ruanda" },
   { flag: "🇧🇱", code: "+590", abbr: "BL",  name: "Saint Barthélemy" },
   { flag: "🇸🇭", code: "+290", abbr: "SH",  name: "Saint Helena" },
@@ -258,6 +254,11 @@ const OTHER_COUNTRIES: CountryCode[] = [
   { flag: "🇾🇪", code: "+967", abbr: "YE",  name: "Yemen" },
   { flag: "🇿🇲", code: "+260", abbr: "ZM",  name: "Zambiya" },
   { flag: "🇿🇼", code: "+263", abbr: "ZW",  name: "Zimbabve" },
+  { flag: "🇦🇪", code: "+971", abbr: "AE",  name: "BAE" },
+  { flag: "🇰🇼", code: "+965", abbr: "KW",  name: "Kuveyt" },
+  { flag: "🇶🇦", code: "+974", abbr: "QA",  name: "Katar" },
+  { flag: "🇮🇹", code: "+39",  abbr: "IT",  name: "İtalya" },
+  { flag: "🇪🇸", code: "+34",  abbr: "ES",  name: "İspanya" },
 ].sort((a, b) => a.name.localeCompare(b.name, "tr"));
 
 const COUNTRY_CODES: CountryCode[] = [...PRIORITY_COUNTRIES, ...OTHER_COUNTRIES];
