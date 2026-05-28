@@ -22,7 +22,7 @@ import {
 import { createClient } from "@/lib/supabase";
 import { CURRENCY_OPTIONS, CURRENCY_SYMBOLS, type ExchangeRate, type CurrencyType } from "@/lib/types";
 import { fetchTcmbRates } from "@/app/actions/exchange";
-import { buildRatePairsFromTcmb } from "@/lib/exchange-rates";
+import { buildRatePairsFromTcmb } from "@/lib/exchange-rates-utils";
 
 interface RateCell {
   id?: string;

@@ -1,68 +1,32 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { convertPrice } from "@/lib/currency-converter";
-import { round2 } from "@/lib/pricing";
-import type { CurrencyType, ExchangeRate } from "@/lib/types";
+import type { CurrencyType } from "@/lib/types";
+import {
+  buildRatePairsFromTcmb,
+  getIstanbulDateString,
+  resolveAgencyAmountInCurrency,
+  resolveTourBaseInCurrency,
+  type DashboardRates,
+  type RatePair,
+  type ResolvedAgencyAmounts,
+  type ResolvedBasePrices,
+  type TcmbCurrency,
+} from "@/lib/exchange-rates-utils";
 
-export type RatePair = Pick<ExchangeRate, "from_currency" | "to_currency" | "rate">;
-
-export interface DashboardRates {
-  /** 1 EUR = X TRY */
-  eurTry: number | null;
-  /** 1 USD = X TRY */
-  usdTry: number | null;
-  /** 1 GBP = X TRY */
-  gbpTry: number | null;
-  /** 1 EUR = X USD */
-  eurUsd: number | null;
-  lastUpdated: string | null;
-  effectiveDate: string;
-  source: "database" | "tcmb" | "none";
-}
-
-interface TcmbCurrency {
-  code: string;
-  buying: number;
-  selling: number;
-}
-
-/** TCMB today.xml verisinden upsert satırları üretir (exchange-rates ayarlarıyla aynı mantık). */
-export function buildRatePairsFromTcmb(data: {
-  USD: TcmbCurrency | null;
-  EUR: TcmbCurrency | null;
-  GBP: TcmbCurrency | null;
-}): RatePair[] {
-  const pairs: RatePair[] = [];
-  const push = (from: CurrencyType, to: CurrencyType, rate: number) => {
-    if (rate > 0 && Number.isFinite(rate)) {
-      pairs.push({ from_currency: from, to_currency: to, rate: parseFloat(rate.toFixed(6)) });
-    }
-  };
-
-  const { USD, EUR, GBP } = data;
-
-  if (USD) push("USD", "TRY", USD.buying);
-  if (EUR) push("EUR", "TRY", EUR.buying);
-  if (GBP) push("GBP", "TRY", GBP.buying);
-
-  if (USD) push("TRY", "USD", 1 / USD.selling);
-  if (EUR) push("TRY", "EUR", 1 / EUR.selling);
-  if (GBP) push("TRY", "GBP", 1 / GBP.selling);
-
-  if (EUR && USD) {
-    push("EUR", "USD", EUR.buying / USD.selling);
-    push("USD", "EUR", USD.buying / EUR.selling);
-  }
-  if (GBP && USD) {
-    push("GBP", "USD", GBP.buying / USD.selling);
-    push("USD", "GBP", USD.buying / GBP.selling);
-  }
-  if (GBP && EUR) {
-    push("GBP", "EUR", GBP.buying / EUR.selling);
-    push("EUR", "GBP", EUR.buying / GBP.selling);
-  }
-
-  return pairs;
-}
+// Pure helper'lar exchange-rates-utils.ts'e taşındı (client-safe).
+// Geriye uyumluluk için buradan re-export ediliyor.
+export {
+  buildRatePairsFromTcmb,
+  getIstanbulDateString,
+  resolveAgencyAmountInCurrency,
+  resolveTourBaseInCurrency,
+};
+export type {
+  DashboardRates,
+  RatePair,
+  ResolvedAgencyAmounts,
+  ResolvedBasePrices,
+  TcmbCurrency,
+};
 
 /** Veritabanından belirli tarih için en güncel kur çiftlerini düz liste olarak yükler. */
 export async function loadExchangeRatePairs(
@@ -138,13 +102,6 @@ export async function upsertExchangeRatePairs(
 function findRate(pairs: RatePair[], from: CurrencyType, to: CurrencyType): number | null {
   const direct = pairs.find((p) => p.from_currency === from && p.to_currency === to);
   return direct?.rate ?? null;
-}
-
-/** Türkiye saatine göre YYYY-MM-DD (gece yarısı cron için). */
-export function getIstanbulDateString(date: Date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Istanbul",
-  }).format(date);
 }
 
 export interface SyncTcmbResult {
@@ -266,80 +223,6 @@ export async function fetchTcmbRatesRaw(): Promise<{
   }
 }
 
-export interface ResolvedBasePrices {
-  adult: number | null;
-  child: number | null;
-  missing: boolean;
-}
-
-/**
- * Tur taban fiyatlarını hedef para birimine çözer.
- * EUR ana kaynak; TRY ayrı sütun; USD/GBP EUR'dan güncel kurla türetilir.
- */
-export function resolveTourBaseInCurrency(
-  currency: CurrencyType,
-  eurAdult: number | null | undefined,
-  eurChild: number | null | undefined,
-  tryAdult: number | null | undefined,
-  tryChild: number | null | undefined,
-  rates: RatePair[]
-): ResolvedBasePrices {
-  const conv = (amount: number | null | undefined, from: CurrencyType, to: CurrencyType) => {
-    if (amount == null || amount <= 0) return null;
-    return round2(convertPrice(amount, from, to, rates));
-  };
-
-  if (currency === "EUR") {
-    const adult = eurAdult != null && eurAdult > 0 ? round2(eurAdult) : null;
-    const child = eurChild != null && eurChild > 0 ? round2(eurChild) : null;
-    return { adult, child, missing: !adult && !child };
-  }
-
-  if (currency === "TRY") {
-    let adult =
-      tryAdult != null && tryAdult > 0 ? round2(tryAdult) : conv(eurAdult, "EUR", "TRY");
-    let child =
-      tryChild != null && tryChild > 0 ? round2(tryChild) : conv(eurChild, "EUR", "TRY");
-    return { adult, child, missing: !adult && !child };
-  }
-
-  const adult = conv(eurAdult, "EUR", currency);
-  const child = conv(eurChild, "EUR", currency);
-  return { adult, child, missing: !adult && !child };
-}
-
-/**
- * Acente fiyat/maliyet satırını hedef para birimine çözer.
- * Önce doğrudan currency satırı; yoksa EUR satırından dönüştür.
- */
-export function resolveAgencyAmountInCurrency(
-  currency: CurrencyType,
-  directAdult: number | null | undefined,
-  directChild: number | null | undefined,
-  eurAdult: number | null | undefined,
-  eurChild: number | null | undefined,
-  rates: RatePair[]
-): { adult: number | null; child: number | null } {
-  const hasDirect =
-    (directAdult != null && directAdult > 0) || (directChild != null && directChild > 0);
-  if (hasDirect) {
-    return {
-      adult: directAdult != null && directAdult > 0 ? round2(directAdult) : null,
-      child: directChild != null && directChild > 0 ? round2(directChild) : null,
-    };
-  }
-
-  if (currency === "EUR") {
-    return {
-      adult: eurAdult != null && eurAdult > 0 ? round2(eurAdult) : null,
-      child: eurChild != null && eurChild > 0 ? round2(eurChild) : null,
-    };
-  }
-
-  const conv = (n: number | null | undefined) => {
-    if (n == null || n <= 0) return null;
-    return round2(convertPrice(n, "EUR", currency, rates));
-  };
-
-  return { adult: conv(eurAdult), child: conv(eurChild) };
-}
+// resolveTourBaseInCurrency / resolveAgencyAmountInCurrency / ResolvedBasePrices
+// pure helper'lar exchange-rates-utils.ts'e taşındı ve dosyanın üstünden
+// re-export ediliyor (client-safe).
