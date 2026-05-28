@@ -1,8 +1,84 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase-server";
+import { normalizePhoneDigits } from "@/lib/phone";
 import twilio from "twilio";
 
 const HARDCODED_ADMIN = "+905366029397";
+
+const ROLE_LABEL_TR: Record<string, string> = {
+  super_admin: "süper admin",
+  admin: "admin",
+  sales: "satıcı",
+  agency_admin: "acente yöneticisi",
+  agency: "acente",
+  customer: "müşteri",
+};
+
+type SenderMatch = {
+  /** Kısa görünür ad (örn. "Ali Veli" veya "Bodrum Tours") */
+  name: string;
+  /** Eklenecek rol etiketi ("sales", "agency", "customer", ...) */
+  role: string;
+  /** Profil/acente için ek detay (örn. acente adı veya kodu) */
+  extra?: string;
+};
+
+type ActiveVoucher = {
+  voucher_no: string;
+  tour_date: string;
+  customer_name: string;
+  hotel: string | null;
+  pickup_place: string | null;
+  pickup_time: string | null;
+  pdf_url: string | null;
+  status: string;
+  tour: { name: string } | null;
+  agency: { name: string | null; agency_code: string | null } | null;
+};
+
+function formatPickupTime(value: unknown): string | null {
+  if (value == null || value === "") return null;
+  const s = String(value);
+  return s.length >= 5 ? s.slice(0, 5) : s;
+}
+
+function formatTourDateTr(value: string): string {
+  try {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleDateString("tr-TR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+      weekday: "long",
+    });
+  } catch {
+    return value;
+  }
+}
+
+function formatVoucherBlock(v: ActiveVoucher, index: number): string {
+  const tourName = v.tour?.name || "—";
+  const dateLabel = formatTourDateTr(v.tour_date);
+  const pickupLabel = formatPickupTime(v.pickup_time);
+  const agencyName = v.agency?.name || "—";
+  const agencyCode = v.agency?.agency_code || "—";
+
+  const lines: string[] = [];
+  lines.push(`${index}) ${v.voucher_no} — ${v.customer_name}`);
+  lines.push(`   🚢 ${tourName}`);
+  lines.push(`   📅 ${dateLabel}`);
+  if (v.hotel) lines.push(`   🏨 Otel: ${v.hotel}`);
+  if (v.pickup_place || pickupLabel) {
+    const parts: string[] = [];
+    if (v.pickup_place) parts.push(`📍 ${v.pickup_place}`);
+    if (pickupLabel) parts.push(`⏰ ${pickupLabel}`);
+    lines.push(`   ${parts.join(" · ")}`);
+  }
+  lines.push(`   🏢 Acente: ${agencyCode} / ${agencyName}`);
+  if (v.pdf_url) lines.push(`   📄 PDF: ${v.pdf_url}`);
+  return lines.join("\n");
+}
 
 export async function POST(req: Request) {
   try {
@@ -10,12 +86,12 @@ export async function POST(req: Request) {
     const params = new URLSearchParams(text);
     const data = Object.fromEntries(params.entries());
 
-    const messageSid   = data.MessageSid  || data.SmsSid || "";
+    const messageSid    = data.MessageSid  || data.SmsSid || "";
     const messageStatus = data.MessageStatus || data.SmsStatus || "";
-    const body         = (data.Body || "").trim();
-    const from         = data.From || data.SmsSender || "";
-    const errorCode    = data.ErrorCode;
-    const errorMessage = data.ErrorMessage;
+    const body          = (data.Body || "").trim();
+    const from          = data.From || data.SmsSender || "";
+    const errorCode     = data.ErrorCode;
+    const errorMessage  = data.ErrorMessage;
 
     if (!messageSid) {
       return NextResponse.json({ error: "Missing MessageSid" }, { status: 400 });
@@ -23,7 +99,6 @@ export async function POST(req: Request) {
 
     const supabase = createServiceRoleClient();
 
-    // ── 1. Outbound status callback ──────────────────────────────────────
     if (messageStatus && messageStatus !== "received") {
       const updateData: Record<string, string> = {
         status: messageStatus,
@@ -42,16 +117,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, type: "status_update" });
     }
 
-    // ── 2. Inbound message ───────────────────────────────────────────────
     if (from) {
-      // Clean phone: strip "whatsapp:" prefix for display & wa.me link
       const rawPhone = from.replace(/^whatsapp:/i, "");
-      const digitsOnly = rawPhone.replace(/[^0-9]/g, "");
-      const waLink = `https://wa.me/${digitsOnly}`;
-
+      const digits = normalizePhoneDigits(rawPhone);
+      const last10 = digits.slice(-10);
+      const waLink = digits ? `https://wa.me/${digits}` : "";
+      const displayNumber = digits ? `+${digits}` : rawPhone;
       const displayBody = body || "(Medya / Ses / Boş mesaj)";
 
-      // Save to logs
       await supabase.from("whatsapp_logs").insert({
         message_sid: messageSid,
         phone_number: rawPhone,
@@ -61,17 +134,112 @@ export async function POST(req: Request) {
         voucher_no: null,
       });
 
-      // Forward to admin(s)
+      let sender: SenderMatch | null = null;
+      let activeVouchers: ActiveVoucher[] = [];
+
+      if (last10) {
+        try {
+          const { data: profileRow } = await supabase
+            .from("profiles")
+            .select(
+              "full_name, role, agency_id, agency:agencies(name, agency_code)"
+            )
+            .ilike("phone", `%${last10}`)
+            .limit(1)
+            .maybeSingle();
+          if (profileRow) {
+            const agencyJoin = Array.isArray(profileRow.agency)
+              ? profileRow.agency[0]
+              : profileRow.agency;
+            const agencyExtras: string[] = [];
+            if (agencyJoin?.agency_code) agencyExtras.push(String(agencyJoin.agency_code));
+            if (agencyJoin?.name) agencyExtras.push(String(agencyJoin.name));
+            sender = {
+              name: profileRow.full_name || "Kayıtlı kullanıcı",
+              role: String(profileRow.role || "unknown"),
+              extra: agencyExtras.join(" / ") || undefined,
+            };
+          }
+        } catch (err) {
+          console.error("profiles lookup error:", err);
+        }
+
+        if (!sender) {
+          try {
+            const { data: agencyRow } = await supabase
+              .from("agencies")
+              .select("name, agency_code")
+              .ilike("phone", `%${last10}`)
+              .limit(1)
+              .maybeSingle();
+            if (agencyRow) {
+              sender = {
+                name: agencyRow.name || "Acente",
+                role: "agency",
+                extra: agencyRow.agency_code
+                  ? `kod ${agencyRow.agency_code}`
+                  : undefined,
+              };
+            }
+          } catch (err) {
+            console.error("agencies lookup error:", err);
+          }
+        }
+
+        if (!sender) {
+          try {
+            const todayIso = new Date().toISOString().slice(0, 10);
+            const { data: rows } = await supabase
+              .from("vouchers")
+              .select(
+                "voucher_no, tour_date, customer_name, hotel, pickup_place, pickup_time, pdf_url, status, tour:tours(name), agency:agencies(name, agency_code)"
+              )
+              .ilike("customer_phone", `%${last10}`)
+              .eq("status", "active")
+              .gte("tour_date", todayIso)
+              .order("tour_date", { ascending: true })
+              .limit(3);
+            const normalised = (rows ?? []).map((r) => ({
+              ...r,
+              tour: Array.isArray(r.tour) ? r.tour[0] ?? null : r.tour,
+              agency: Array.isArray(r.agency) ? r.agency[0] ?? null : r.agency,
+            })) as ActiveVoucher[];
+            activeVouchers = normalised;
+            if (normalised.length > 0) {
+              sender = {
+                name: normalised[0].customer_name || "Misafir",
+                role: "customer",
+              };
+            }
+          } catch (err) {
+            console.error("vouchers lookup error:", err);
+          }
+        }
+      }
+
+      const senderRoleLabel = sender
+        ? ROLE_LABEL_TR[sender.role] || sender.role
+        : null;
+      const senderLine = sender
+        ? `👤 Gönderen: ${sender.name}${senderRoleLabel ? ` (${senderRoleLabel}${sender.extra ? ` · ${sender.extra}` : ""})` : ""}`
+        : `👤 Gönderen: Bilinmeyen numara`;
+
+      const voucherBlock =
+        activeVouchers.length > 0
+          ? `\n🎫 *AKTİF BİLET${activeVouchers.length > 1 ? "LER" : ""}:*\n─────────────\n${activeVouchers
+              .map((v, i) => formatVoucherBlock(v, i + 1))
+              .join("\n\n")}\n─────────────\n`
+          : "";
+
       const forwardMsg =
         `📩 *GELEN WHATSAPP MESAJI*\n\n` +
-        `📱 Gönderen: ${rawPhone}\n` +
-        `💬 Yanıt için tıkla: ${waLink}\n\n` +
-        `─────────────────\n` +
-        `${displayBody}\n` +
-        `─────────────────\n` +
+        `${senderLine}\n` +
+        `📱 Numara: ${displayNumber}\n` +
+        (waLink ? `💬 Yanıtla: ${waLink}\n` : "") +
+        voucherBlock +
+        `\n💬 Mesaj:\n"${displayBody}"\n\n` +
         `Bu mesaj otomatik iletilmiştir.`;
 
-      // Read admin number from settings
       let adminPhoneFromSettings: string | null = null;
       try {
         const { parseWhatsappPhoneSetting } = await import("@/lib/settings-utils");
@@ -83,7 +251,6 @@ export async function POST(req: Request) {
         adminPhoneFromSettings = parseWhatsappPhoneSetting(settingRow?.value);
       } catch { /* ignore */ }
 
-      // Twilio client
       const accountSid = process.env.TWILIO_ACCOUNT_SID;
       const authToken  = process.env.TWILIO_AUTH_TOKEN;
       const twilioFrom = process.env.TWILIO_WHATSAPP_NUMBER;
@@ -92,11 +259,11 @@ export async function POST(req: Request) {
         const client = twilio(accountSid, authToken);
 
         const formatTo = (phone: string) => {
-          let digits = phone.replace(/[^0-9]/g, "");
-          if (!phone.startsWith("+") && !phone.startsWith("00") && digits.length <= 11) {
-            digits = digits.startsWith("0") ? "90" + digits.slice(1) : "90" + digits;
+          let d = phone.replace(/[^0-9]/g, "");
+          if (!phone.startsWith("+") && !phone.startsWith("00") && d.length <= 11) {
+            d = d.startsWith("0") ? "90" + d.slice(1) : "90" + d;
           }
-          return `whatsapp:+${digits}`;
+          return `whatsapp:+${d}`;
         };
 
         const targets = new Set<string>();
@@ -104,7 +271,6 @@ export async function POST(req: Request) {
         if (adminPhoneFromSettings) {
           targets.add(formatTo(adminPhoneFromSettings));
         }
-        // Don't forward back to the sender
         const senderFormatted = formatTo(rawPhone);
         targets.delete(senderFormatted);
 
@@ -116,7 +282,6 @@ export async function POST(req: Request) {
               body: forwardMsg,
             } as Parameters<typeof client.messages.create>[0]);
 
-            // Log the forwarded outbound message
             await supabase.from("whatsapp_logs").insert({
               message_sid: msg.sid,
               phone_number: to.replace("whatsapp:", ""),
@@ -131,7 +296,6 @@ export async function POST(req: Request) {
         }
       }
 
-      // Empty TwiML response (no auto-reply to sender)
       const twiml = new twilio.twiml.MessagingResponse();
       return new NextResponse(twiml.toString(), {
         headers: { "Content-Type": "text/xml" },

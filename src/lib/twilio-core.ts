@@ -101,7 +101,9 @@ export function buildPdfWhatsAppBodies(
     `${adminTitle}\n\n` +
     `🎫 Bilet No: ${voucher.voucherNo}\n` +
     `👤 Misafir: ${voucher.customerName}\n` +
-    (voucher.customerPhone ? `📱 Telefon: ${voucher.customerPhone}\n` : "") +
+    (voucher.customerPhone
+      ? `📱 Müşteri: ${voucher.customerPhone}${waCustomerLink ? ` → ${waCustomerLink}` : ""}\n`
+      : "") +
     `🚢 Tur: ${voucher.tourName}\n` +
     `📅 Tarih: ${dateTr}\n` +
     (voucher.hotel ? `🏨 Otel: ${voucher.hotel}\n` : "") +
@@ -109,7 +111,6 @@ export function buildPdfWhatsAppBodies(
     (pickupLabel ? `⏰ Saat: ${pickupLabel}\n` : "") +
     `👥 PAX: ${paxStr}\n` +
     `🏢 Acente Kodu: ${agencyCode}\n` +
-    (waCustomerLink ? `💬 Müşteri İle Yazış: ${waCustomerLink}\n` : "") +
     (imageUrl ? `\n🖼 *Bilet Görseli (JPEG):*\n${imageUrl}\n` : "") +
     `\n📄 *PDF Bilet:*\n${pdfUrl}\n\n` +
     `Bu otomatik bir bildirimdir.`;
@@ -124,7 +125,6 @@ export function buildPdfWhatsAppBodies(
     `Acentenize kayıtlı ${isRevised ? "güncellenmiş" : "yeni"} bilet bilgileri:\n\n` +
     `🎫 Bilet No: ${voucher.voucherNo}\n` +
     `👤 Misafir: ${voucher.customerName}\n` +
-    (voucher.customerPhone ? `📱 Misafir Tel: ${voucher.customerPhone}\n` : "") +
     `🚢 Tur: ${voucher.tourName}\n` +
     `📅 Tarih: ${dateTr}\n` +
     (voucher.hotel ? `🏨 Otel: ${voucher.hotel}\n` : "") +
@@ -244,7 +244,9 @@ export function buildCancellationWhatsAppBodies(v: CancellationInfo): Cancellati
     `❌ *BİLET İPTAL EDİLDİ*\n\n` +
     `🎫 Bilet No: ${v.voucherNo}\n` +
     `👤 Misafir: ${v.customerName}\n` +
-    (v.customerPhone ? `📱 Telefon: ${v.customerPhone}\n` : "") +
+    (v.customerPhone
+      ? `📱 Müşteri: ${v.customerPhone}${waCustomerLink ? ` → ${waCustomerLink}` : ""}\n`
+      : "") +
     `🚢 Tur: ${v.tourName}\n` +
     `📅 Tarih: ${dateTr}\n` +
     (v.hotel ? `🏨 Otel: ${v.hotel}\n` : "") +
@@ -257,7 +259,6 @@ export function buildCancellationWhatsAppBodies(v: CancellationInfo): Cancellati
       ? `💵 Alınan Ön Ödeme: ${formatPrice(v.depositPaid, v.currency)}\n`
       : "") +
     (v.cancelledByName ? `🛑 İptal Eden: ${v.cancelledByName}\n` : "") +
-    (waCustomerLink ? `💬 Müşteri İle Yazış: ${waCustomerLink}\n` : "") +
     `\nLütfen iptali sisteminize işleyiniz.`;
 
   const agencyBody =
@@ -266,7 +267,6 @@ export function buildCancellationWhatsAppBodies(v: CancellationInfo): Cancellati
     `Acentenize kayıtlı aşağıdaki bilet iptal edildi:\n\n` +
     `🎫 Bilet No: ${v.voucherNo}\n` +
     `👤 Misafir: ${v.customerName}\n` +
-    (v.customerPhone ? `📱 Misafir Tel: ${v.customerPhone}\n` : "") +
     `🚢 Tur: ${v.tourName}\n` +
     `📅 Tarih: ${dateTr}\n` +
     (v.hotel ? `🏨 Otel: ${v.hotel}\n` : "") +
