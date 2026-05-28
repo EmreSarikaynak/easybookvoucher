@@ -17,6 +17,7 @@ import {
 import type { Tour } from "@/lib/types";
 import type { ResolvedTourPriceSet } from "@/lib/tour-catalog-data";
 import { TourPriceBlock } from "./tour-price-block";
+import { PickupZonesTable } from "./pickup-zones-table";
 
 interface TourViewPanelProps {
   tour: Tour;
@@ -135,6 +136,10 @@ export function TourViewPanel({ tour, prices, agencyCode }: TourViewPanelProps) 
             ))}
           </ul>
         </div>
+      )}
+
+      {tour.pickup_zones && tour.pickup_zones.length > 0 && (
+        <PickupZonesTable zones={tour.pickup_zones} variant="admin" />
       )}
 
       {tour.tour_managers && tour.tour_managers.length > 0 && (

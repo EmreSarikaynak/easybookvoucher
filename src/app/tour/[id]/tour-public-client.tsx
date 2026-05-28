@@ -26,6 +26,7 @@ import {
 import { EASYBOOK_CONTACT } from "@/lib/constants";
 import { SecestaFooter } from "@/components/layout/secesta-footer";
 import { TourPriceBlock } from "@/components/tour/tour-price-block";
+import { PickupZonesTable } from "@/components/tour/pickup-zones-table";
 import type { Tour } from "@/lib/types";
 import type { ResolvedTourPriceSet } from "@/lib/tour-catalog-data";
 
@@ -211,18 +212,24 @@ export function TourPublicClient({
           </section>
         )}
 
-        {tour.pickup_locations?.length > 0 && (
+        {tour.pickup_zones && tour.pickup_zones.length > 0 ? (
           <section>
-            <h2 className="text-xl font-semibold mb-2 flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-primary" />
-              {ui.pickupLocations}
-            </h2>
-            <ul className="text-sm text-muted-foreground space-y-1">
-              {tour.pickup_locations.map((loc) => (
-                <li key={loc}>• {loc}</li>
-              ))}
-            </ul>
+            <PickupZonesTable zones={tour.pickup_zones} variant="public" />
           </section>
+        ) : (
+          tour.pickup_locations?.length > 0 && (
+            <section>
+              <h2 className="text-xl font-semibold mb-2 flex items-center gap-2">
+                <MapPin className="h-5 w-5 text-primary" />
+                {ui.pickupLocations}
+              </h2>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                {tour.pickup_locations.map((loc) => (
+                  <li key={loc}>• {loc}</li>
+                ))}
+              </ul>
+            </section>
+          )
         )}
 
         {videos.length > 0 && (

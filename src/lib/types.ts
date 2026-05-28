@@ -30,6 +30,15 @@ export interface Agency {
   created_at: string;
 }
 
+export interface PickupZone {
+  /** Bölge/semt — örn. "Bodrum Merkez", "Gümbet", "Yalı Kavak" */
+  region: string;
+  /** HH:mm — örn. "06:10" */
+  time: string;
+  /** Buluşma noktası — örn. "Otel Önü", "Torba Kavşak Köprü Altı" */
+  meeting_point: string;
+}
+
 export interface Tour {
   id: string;
   name: string;
@@ -38,6 +47,13 @@ export interface Tour {
   currency: CurrencyType;
   duration: string | null;
   pickup_locations: string[];
+  /**
+   * Bölgeye göre alış tablosu (saat + buluşma noktası).
+   * Rafting gibi çoğu noktadan transfer yapan turlarda kullanılır.
+   * Yapılı tablo gerekmiyorsa NULL/boş — eski 'meeting_point'/'departure_time'
+   * alanlarına geri düşülür.
+   */
+  pickup_zones?: PickupZone[] | null;
   images: string[];
   videos?: string[];
   translations?: TourTranslations;

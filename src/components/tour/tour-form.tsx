@@ -77,6 +77,7 @@ export function TourForm({
     departure_days: [] as string[],
     departure_time: "" as string,
     meeting_point: "" as string,
+    pickup_zones: [] as { region: string; time: string; meeting_point: string }[],
   });
 
   useEffect(() => {
@@ -106,6 +107,11 @@ export function TourForm({
         departure_days: tour.departure_days ?? [],
         departure_time: tour.departure_time ?? "",
         meeting_point: tour.meeting_point ?? "",
+        pickup_zones: (tour.pickup_zones ?? []).map((z) => ({
+          region: z?.region ?? "",
+          time: z?.time ?? "",
+          meeting_point: z?.meeting_point ?? "",
+        })),
       });
     } else {
       setFormData({
@@ -126,6 +132,7 @@ export function TourForm({
         departure_days: [],
         departure_time: "",
         meeting_point: "",
+        pickup_zones: [],
       });
     }
   }, [visible, tour]);
@@ -164,6 +171,7 @@ export function TourForm({
         departure_days: formData.departure_days,
         departure_time: formData.departure_time || null,
         meeting_point: formData.meeting_point || null,
+        pickup_zones: formData.pickup_zones,
       };
 
       const result =
@@ -390,6 +398,91 @@ export function TourForm({
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Alış Bölgeleri (Pickup Zones) — bölgeye göre saat + buluşma noktası tablosu.
+           Rafting gibi çoğu noktadan transfer yapan turlarda kullanılır; boş bırakılırsa
+           yukarıdaki "Buluşma Noktası" + "Kalkış Saati" alanları geçerli kalır. */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <Label>Alış Bölgeleri</Label>
+            <p className="text-xs text-muted-foreground">
+              Bölgeye göre farklı kalkış saati ve buluşma noktası — örn. Rafting transferi
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              setFormData((p) => ({
+                ...p,
+                pickup_zones: [
+                  ...p.pickup_zones,
+                  { region: "", time: "", meeting_point: "" },
+                ],
+              }))
+            }
+          >
+            + Bölge Ekle
+          </Button>
+        </div>
+        {formData.pickup_zones.length > 0 && (
+          <div className="grid grid-cols-[1fr_110px_1.4fr_40px] gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground px-1">
+            <span>Bölge</span>
+            <span>Saat</span>
+            <span>Buluşma Yeri</span>
+            <span />
+          </div>
+        )}
+        {formData.pickup_zones.map((zone, index) => (
+          <div
+            key={index}
+            className="grid grid-cols-[1fr_110px_1.4fr_40px] gap-2"
+          >
+            <Input
+              placeholder="Bodrum Merkez"
+              value={zone.region}
+              onChange={(e) => {
+                const zs = [...formData.pickup_zones];
+                zs[index] = { ...zs[index], region: e.target.value };
+                setFormData((p) => ({ ...p, pickup_zones: zs }));
+              }}
+            />
+            <Input
+              type="time"
+              value={zone.time}
+              onChange={(e) => {
+                const zs = [...formData.pickup_zones];
+                zs[index] = { ...zs[index], time: e.target.value };
+                setFormData((p) => ({ ...p, pickup_zones: zs }));
+              }}
+            />
+            <Input
+              placeholder="Otel Önü"
+              value={zone.meeting_point}
+              onChange={(e) => {
+                const zs = [...formData.pickup_zones];
+                zs[index] = { ...zs[index], meeting_point: e.target.value };
+                setFormData((p) => ({ ...p, pickup_zones: zs }));
+              }}
+            />
+            <Button
+              type="button"
+              variant="destructive"
+              size="icon"
+              onClick={() =>
+                setFormData((p) => ({
+                  ...p,
+                  pickup_zones: p.pickup_zones.filter((_, i) => i !== index),
+                }))
+              }
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
       </div>
 
       <div className="space-y-2">

@@ -115,6 +115,7 @@ interface TourPayload {
   default_price: number;
   currency: CurrencyType;
   pickup_locations: string[];
+  pickup_zones?: { region: string; time: string; meeting_point: string }[] | null;
   images: string[];
   videos: string[];
   translations: TourTranslations;
@@ -197,6 +198,15 @@ function buildTourRow(payload: TourPayload) {
   const primaryName = primaryTranslationName(payload.translations) || payload.name;
   const trDesc = payload.translations.tr?.description?.trim() || payload.description;
 
+  // Boş satırları (region+time+meeting_point hepsi boş) at, kalanları temizle
+  const cleanZones = (payload.pickup_zones ?? [])
+    .map((z) => ({
+      region: (z?.region ?? "").trim(),
+      time: (z?.time ?? "").trim(),
+      meeting_point: (z?.meeting_point ?? "").trim(),
+    }))
+    .filter((z) => z.region || z.time || z.meeting_point);
+
   return {
     name: primaryName,
     description: trDesc || null,
@@ -204,6 +214,7 @@ function buildTourRow(payload: TourPayload) {
     default_price: payload.default_price,
     currency: payload.currency,
     pickup_locations: payload.pickup_locations ?? [],
+    pickup_zones: cleanZones.length > 0 ? cleanZones : null,
     images: payload.images ?? [],
     videos: payload.videos ?? [],
     translations: payload.translations ?? {},
