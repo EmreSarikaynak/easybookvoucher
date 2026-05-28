@@ -2,7 +2,11 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const SECESTA_URL = "https://secesta.com";
-const YEAR = 2026;
+const COMPANY = "Secesta Software Solutions";
+const FOUNDED_YEAR = 2020;
+const CURRENT_YEAR = new Date().getFullYear();
+const COPYRIGHT_YEARS =
+  CURRENT_YEAR > FOUNDED_YEAR ? `${FOUNDED_YEAR}–${CURRENT_YEAR}` : `${CURRENT_YEAR}`;
 
 type SecestaFooterVariant = "default" | "compact" | "login" | "minimal";
 
@@ -59,11 +63,19 @@ export function SecestaFooter({
       )}
       aria-label="Secesta software credit"
     >
-      <div className="mx-auto max-w-4xl text-center space-y-2">
+      <div className="mx-auto max-w-4xl text-center space-y-2.5">
         {showPlatformNote && (
           <p className={cn("text-xs sm:text-sm leading-relaxed", s.text)}>
             EasyBook Voucher is designed and developed by{" "}
-            <span className={cn("font-medium", s.accent)}>Secesta Software Solutions®</span>.
+            <Link
+              href={SECESTA_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn("font-semibold tracking-tight transition-colors", s.link)}
+            >
+              {COMPANY}
+            </Link>
+            <span aria-hidden>®</span>.
           </p>
         )}
 
@@ -71,31 +83,28 @@ export function SecestaFooter({
           Professional travel booking, voucher management, and digital operations software for modern agencies.
         </p>
 
-        <div className={cn("flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] sm:text-xs", s.text)}>
-          <span>Copyright © {YEAR}. All rights reserved.</span>
-          <span className="opacity-40" aria-hidden>
-            |
+        <div
+          className={cn(
+            "flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] sm:text-xs",
+            s.text
+          )}
+        >
+          <span>
+            <span aria-hidden>© </span>
+            <span className="sr-only">Copyright </span>
+            {COPYRIGHT_YEARS}{" "}
+            <span className={cn("font-medium", s.accent)}>{COMPANY}</span>
+            <span aria-hidden>®</span>. All rights reserved.
           </span>
-          <Link
-            href={SECESTA_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cn("font-semibold tracking-tight transition-colors", s.link)}
-          >
-            Secesta
-          </Link>
-          <span className="opacity-40" aria-hidden>
-            |
-          </span>
-          <span className="font-medium">Software Solutions®</span>
         </div>
 
-        <p className={cn("text-[10px] opacity-70", s.text)}>
+        <p className={cn("text-[10px] sm:text-[11px] opacity-70", s.text)}>
           <Link
             href={SECESTA_URL}
             target="_blank"
             rel="noopener noreferrer"
             className={cn("inline-flex items-center gap-1 transition-colors", s.link)}
+            aria-label={`Visit ${COMPANY} website`}
           >
             secesta.com
             <span aria-hidden>↗</span>
