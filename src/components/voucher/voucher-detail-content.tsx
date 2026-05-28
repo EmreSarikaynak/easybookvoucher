@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Edit, XCircle, RefreshCcw, Trash2, Copy, ExternalLink, Check, ImageIcon, Loader2 } from "lucide-react";
+import { ArrowLeft, Edit, XCircle, RefreshCcw, Trash2, Copy, ExternalLink, Check, ImageIcon, Loader2, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +40,19 @@ export function VoucherDetailContent({ voucher: initialVoucher, isAdmin, isNewVo
   const [copied, setCopied] = useState(false);
   const [copiedJpeg, setCopiedJpeg] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
-  const jpegUrl = getVoucherJpegUrl(voucher.pdf_url);
+  const [jpegLoadFailed, setJpegLoadFailed] = useState(false);
+  // Revize sonrası aynı URL'de yeni JPEG var; updated_at ile cache bust et.
+  // Eski biletlerde updated_at olmayabilir; o zaman saf URL kullan.
+  const baseJpegUrl = getVoucherJpegUrl(voucher.pdf_url);
+  const jpegUrl = baseJpegUrl
+    ? voucher.updated_at
+      ? `${baseJpegUrl}?v=${encodeURIComponent(voucher.updated_at)}`
+      : baseJpegUrl
+    : null;
+  // Voucher değişirse (revize yüklendi) hata durumunu sıfırla.
+  useEffect(() => {
+    setJpegLoadFailed(false);
+  }, [jpegUrl]);
 
   const handleCopyLink = () => {
     if (!voucher.pdf_url) return;
@@ -264,10 +276,43 @@ export function VoucherDetailContent({ voucher: initialVoucher, isAdmin, isNewVo
                         </a>
                       </Button>
                     </div>
+                    {jpegLoadFailed && (
+                      <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          Bu bilet için JPEG görseli henüz oluşturulmamış. Aşağıdaki
+                          “TR PDF / EN PDF” butonlarına basarak yeni PDF + JPEG
+                          oluşturabilir, paylaşımı yenileyebilirsiniz.
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  <a href={jpegUrl} target="_blank" rel="noopener noreferrer" className="block overflow-hidden rounded-lg border bg-white">
-                    <img src={jpegUrl} alt="Bilet JPEG önizleme" className="h-auto w-full object-contain" />
-                  </a>
+                  {jpegLoadFailed ? (
+                    <div className="flex h-full min-h-[100px] flex-col items-center justify-center gap-1 overflow-hidden rounded-lg border border-dashed border-amber-300 bg-amber-50/60 p-3 text-center dark:border-amber-900 dark:bg-amber-950/20">
+                      <ImageIcon className="h-6 w-6 text-amber-500" />
+                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                        JPEG bulunamadı
+                      </p>
+                      <p className="text-[10px] leading-tight text-amber-700/80 dark:text-amber-300/80">
+                        Aşağıdaki önizlemeden yeniden üretebilirsiniz.
+                      </p>
+                    </div>
+                  ) : (
+                    <a
+                      href={jpegUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block overflow-hidden rounded-lg border bg-white"
+                    >
+                      <img
+                        src={jpegUrl}
+                        alt="Bilet JPEG önizleme"
+                        className="h-auto w-full object-contain"
+                        loading="lazy"
+                        onError={() => setJpegLoadFailed(true)}
+                      />
+                    </a>
+                  )}
                 </div>
               )}
             </CardContent>
