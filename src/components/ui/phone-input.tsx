@@ -59,6 +59,7 @@ const OTHER_COUNTRIES: CountryCode[] = [
   { flag: "🇧🇲", code: "+1441", abbr: "BM", name: "Bermuda" },
   { flag: "🇧🇹", code: "+975", abbr: "BT",  name: "Butan" },
   { flag: "🇧🇴", code: "+591", abbr: "BO",  name: "Bolivya" },
+  { flag: "🇧🇶", code: "+599", abbr: "BQ",  name: "Bonaire, Sint Eustatius ve Saba" },
   { flag: "🇧🇦", code: "+387", abbr: "BA",  name: "Bosna Hersek" },
   { flag: "🇧🇼", code: "+267", abbr: "BW",  name: "Botsvana" },
   { flag: "🇧🇷", code: "+55",  abbr: "BR",  name: "Brezilya" },

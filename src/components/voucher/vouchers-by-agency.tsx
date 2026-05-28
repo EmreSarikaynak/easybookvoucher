@@ -73,13 +73,16 @@ export function VouchersByAgency({ vouchers }: VouchersByAgencyProps) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
       {groups.map((group) => {
         const isOpen = openId === group.id;
         return (
           <div
             key={group.id}
-            className="rounded-lg border bg-card overflow-hidden"
+            className={cn(
+              "rounded-lg border bg-card overflow-hidden",
+              isOpen && "col-span-full"
+            )}
           >
             <button
               type="button"
@@ -91,22 +94,22 @@ export function VouchersByAgency({ vouchers }: VouchersByAgencyProps) {
               )}
               aria-expanded={isOpen}
             >
-              <div className="rounded-full bg-primary/10 p-2.5 shrink-0">
-                <Building2 className="h-5 w-5 text-primary" />
+              <div className="rounded-full bg-primary/10 p-2 shrink-0">
+                <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               </div>
 
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-base truncate">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h3 className="font-semibold text-sm sm:text-base truncate">
                     {group.name}
                   </h3>
                   {group.code && (
-                    <span className="text-xs text-muted-foreground font-mono shrink-0">
+                    <span className="text-[10px] sm:text-xs text-muted-foreground font-mono shrink-0">
                       {group.code}
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 sm:gap-3 mt-1 text-[11px] sm:text-xs text-muted-foreground flex-wrap">
                   <span className="flex items-center gap-1">
                     <Users className="h-3 w-3" />
                     {group.vouchers.length} bilet
@@ -129,7 +132,7 @@ export function VouchersByAgency({ vouchers }: VouchersByAgencyProps) {
 
               <ChevronDown
                 className={cn(
-                  "h-5 w-5 text-muted-foreground shrink-0 transition-transform",
+                  "h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground shrink-0 transition-transform",
                   isOpen && "rotate-180"
                 )}
               />
