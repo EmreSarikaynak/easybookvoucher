@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { uploadTourImages, uploadTourVideos } from "@/app/actions/tour";
 import { isYoutubeUrl } from "@/lib/tour-i18n";
 import { convertImageFileToJpeg } from "@/lib/image-client";
+import { isStaleServerActionError, recoverFromStaleDeploy } from "@/lib/stale-action";
 
 interface TourMediaSectionProps {
   images: string[];
@@ -46,7 +47,13 @@ export function TourMediaSection({
         if (result.urls?.length) {
           onImagesChange([...images, ...result.urls]);
         }
-      } catch {
+      } catch (err) {
+        console.error("Image upload error:", err);
+        if (isStaleServerActionError(err)) {
+          alert("Yeni bir sürüm yayınlandı. Sayfa otomatik yenileniyor…");
+          await recoverFromStaleDeploy();
+          return;
+        }
         alert("Resim yüklenirken hata oluştu.");
       } finally {
         setUploadingImages(false);
@@ -72,7 +79,13 @@ export function TourMediaSection({
         if (result.urls?.length) {
           onVideosChange([...videos, ...result.urls]);
         }
-      } catch {
+      } catch (err) {
+        console.error("Video upload error:", err);
+        if (isStaleServerActionError(err)) {
+          alert("Yeni bir sürüm yayınlandı. Sayfa otomatik yenileniyor…");
+          await recoverFromStaleDeploy();
+          return;
+        }
         alert("Video yüklenirken hata oluştu.");
       } finally {
         setUploadingVideos(false);

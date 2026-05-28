@@ -20,6 +20,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { createTour, updateTour } from "@/app/actions/tour";
+import { isStaleServerActionError, recoverFromStaleDeploy } from "@/lib/stale-action";
 import { TourTranslationTabs } from "./tour-translation-tabs";
 import { TourMediaSection } from "./tour-media-section";
 import {
@@ -203,6 +204,14 @@ export function TourForm({
       }
     } catch (error) {
       console.error("Save error:", error);
+      if (isStaleServerActionError(error)) {
+        setSaveResult({
+          type: "error",
+          text: "Yeni bir sürüm yayınlandı. Sayfa otomatik yenileniyor…",
+        });
+        await recoverFromStaleDeploy();
+        return;
+      }
       setSaveResult({ type: "error", text: "Kaydetme sırasında bir hata oluştu!" });
     } finally {
       setLoading(false);
