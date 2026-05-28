@@ -10,6 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendWhatsAppViaFetch } from "@/lib/twilio-core";
 import { parseWhatsappPhonesSetting } from "@/lib/settings-utils";
+import { toWhatsAppFormat } from "@/lib/whatsapp-markdown";
 
 export type AnnouncementTargetRole =
   | "admin"
@@ -78,10 +79,11 @@ export function buildAnnouncementWhatsAppBody(
   title: string,
   message: string
 ): string {
+  const formattedMessage = toWhatsAppFormat(message.trim());
   return (
     `🔔 *Yeni Duyuru — Easy Book Tours*\n\n` +
     `*${title.trim()}*\n\n` +
-    `${message.trim()}\n\n` +
+    `${formattedMessage}\n\n` +
     `— EasyBook`
   );
 }

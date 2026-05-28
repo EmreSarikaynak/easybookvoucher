@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Megaphone, ChevronRight } from "lucide-react";
 import { listActiveAnnouncements } from "@/app/actions/announcements";
+import { whatsappMarkdownToPlain } from "@/lib/whatsapp-markdown";
 import type { UserRole } from "@/lib/types";
 
 interface AnnouncementMarqueeProps {
@@ -13,7 +14,14 @@ export async function AnnouncementMarquee({
   const announcements = await listActiveAnnouncements(role ?? null);
   if (announcements.length === 0) return null;
 
-  const items = announcements.map((a) => `${a.title} — ${a.message}`);
+  // Tek satır kayan yazıda biçim etiketleri görünmemeli; düz metne çevir
+  // ve newline'ları tek boşluğa indir.
+  const items = announcements.map(
+    (a) =>
+      `${whatsappMarkdownToPlain(a.title)} — ${whatsappMarkdownToPlain(
+        a.message
+      ).replace(/\s*\n+\s*/g, " ")}`
+  );
   // Tekrarlama: kayan animasyon kesintisiz olsun diye 2 kez duplike ediyoruz
   const trackItems = [...items, ...items];
 

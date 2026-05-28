@@ -1,10 +1,22 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Megaphone, Send, Trash2, Clock, Users } from "lucide-react";
+import {
+  Megaphone,
+  Send,
+  Trash2,
+  Clock,
+  Users,
+  Bell,
+  MessageCircle,
+  Sparkles,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { WhatsAppEditor } from "@/components/ui/whatsapp-editor";
+import { FormattedWhatsAppText } from "@/components/ui/formatted-whatsapp-text";
 import {
   Card,
   CardContent,
@@ -135,53 +147,60 @@ export function AnnouncementsManager() {
   );
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <Megaphone className="h-4 w-4" />
-          Duyuru Yönetimi
-        </CardTitle>
-        <CardDescription>
-          Acentelere ve kullanıcılara kayan yazı + push bildirim olarak duyuru gönderin.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Yeni duyuru formu */}
-        <div className="space-y-4">
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+      {/* Yeni duyuru formu */}
+      <Card className="border-amber-200/60 shadow-sm">
+        <CardHeader className="border-b bg-gradient-to-r from-amber-50/80 via-yellow-50/50 to-transparent pb-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-sm">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Yeni Duyuru</CardTitle>
+              <CardDescription className="mt-1">
+                Kayan yazı, push ve isteğe bağlı WhatsApp. Mesajda{" "}
+                <code className="rounded bg-muted px-1 text-[11px]">**kalın**</code>{" "}
+                kullanın; duyuru ve WhatsApp&apos;ta aynı görünür.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5 pt-5">
           <div className="space-y-2">
-            <Label>Başlık</Label>
+            <Label htmlFor="announcement-title">Başlık</Label>
             <Input
+              id="announcement-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Önemli duyuru"
-              maxLength={100}
+              className="text-base"
             />
+            <p className="text-[11px] text-muted-foreground">
+              WhatsApp&apos;ta başlık otomatik kalın gönderilir.
+            </p>
           </div>
 
           <div className="space-y-2">
-            <Label>Mesaj</Label>
-            <textarea
+            <Label htmlFor="announcement-message">Mesaj</Label>
+            <WhatsAppEditor
+              id="announcement-message"
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Acentelerimize özel kampanya başladı..."
-              maxLength={300}
-              rows={3}
-              className="flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onChange={setMessage}
+              placeholder="Acentelerimize özel **kampanya** başladı. Detaylar için panele girin."
+              rows={6}
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Hedef Kitle</Label>
+              <Label>Hedef kitle</Label>
               <Select value={targetRole} onValueChange={setTargetRole}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Herkes</SelectItem>
-                  <SelectItem value="agency_admin">
-                    Acente Yöneticileri
-                  </SelectItem>
+                  <SelectItem value="agency_admin">Acente Yöneticileri</SelectItem>
                   <SelectItem value="sales">Satış Temsilcileri</SelectItem>
                   <SelectItem value="admin">Adminler</SelectItem>
                 </SelectContent>
@@ -189,7 +208,7 @@ export function AnnouncementsManager() {
             </div>
 
             <div className="space-y-2">
-              <Label>Geçerlilik Süresi</Label>
+              <Label>Geçerlilik süresi</Label>
               <Select
                 value={String(durationMinutes)}
                 onValueChange={(v) => setDurationMinutes(Number(v))}
@@ -208,87 +227,123 @@ export function AnnouncementsManager() {
             </div>
           </div>
 
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={sendPush}
-              onChange={(e) => setSendPush(e.target.checked)}
-              className="h-4 w-4 rounded border-input"
-            />
-            <span>Bildirim olarak da gönder (zil sesli push)</span>
-          </label>
+          <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+            <label className="flex cursor-pointer items-center gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={sendPush}
+                onChange={(e) => setSendPush(e.target.checked)}
+                className="h-4 w-4 rounded border-input accent-amber-600"
+              />
+              <Bell className="h-4 w-4 text-amber-600 shrink-0" />
+              <span>Bildirim olarak da gönder (zil sesli push)</span>
+            </label>
 
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={sendWhatsApp}
-              onChange={(e) => setSendWhatsApp(e.target.checked)}
-              className="h-4 w-4 rounded border-input mt-0.5"
-            />
-            <span>
-              WhatsApp ile de gönder (hedef role bağlı kayıtlı numaralara)
-              <span className="block text-[11px] text-muted-foreground">
-                Son 24 saatte yazışılmayan numaralarda Twilio teslim
-                edemeyebilir; WhatsApp logundan durumu izleyin.
+            <label className="flex cursor-pointer items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={sendWhatsApp}
+                onChange={(e) => setSendWhatsApp(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-input accent-amber-600"
+              />
+              <MessageCircle className="mt-0.5 h-4 w-4 text-emerald-600 shrink-0" />
+              <span>
+                WhatsApp ile de gönder
+                <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                  Hedef role bağlı kayıtlı numaralara. 24 saat penceresi dışındaki
+                  numaralarda teslim edilemeyebilir.
+                </span>
               </span>
-            </span>
-          </label>
+            </label>
+          </div>
 
-          <Button onClick={handleSend} disabled={sending} className="w-full">
+          <Button
+            onClick={handleSend}
+            disabled={sending}
+            size="lg"
+            className="w-full bg-amber-600 hover:bg-amber-700"
+          >
             <Send className="mr-2 h-4 w-4" />
             {sending ? "Yayımlanıyor..." : "Duyuru Yayımla"}
           </Button>
 
-          {result && <p className="text-sm">{result}</p>}
-        </div>
-
-        {/* Aktif duyurular listesi */}
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-muted-foreground">
-            Aktif Duyurular {activeOnes.length > 0 && `(${activeOnes.length})`}
-          </h3>
-
-          {loading ? (
-            <p className="text-xs text-muted-foreground">Yükleniyor...</p>
-          ) : activeOnes.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              Şu an aktif duyuru yok.
+          {result && (
+            <p
+              className={`rounded-lg px-3 py-2 text-sm ${
+                result.startsWith("✅")
+                  ? "bg-emerald-50 text-emerald-800"
+                  : "bg-red-50 text-red-800"
+              }`}
+            >
+              {result}
             </p>
-          ) : (
-            <div className="space-y-2">
-              {activeOnes.map((a) => (
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Aktif / geçmiş liste */}
+      <div className="space-y-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Megaphone className="h-4 w-4 text-amber-600" />
+              Aktif duyurular
+              {activeOnes.length > 0 && (
+                <Badge variant="secondary" className="ml-1">
+                  {activeOnes.length}
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <p className="text-sm text-muted-foreground">Yükleniyor...</p>
+            ) : activeOnes.length === 0 ? (
+              <div className="rounded-lg border border-dashed py-8 text-center">
+                <Megaphone className="mx-auto h-8 w-8 text-muted-foreground/40" />
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Şu an yayında duyuru yok.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {activeOnes.map((a) => (
+                  <AnnouncementListItem
+                    key={a.id}
+                    announcement={a}
+                    active
+                    onDelete={() => handleDelete(a.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {expiredOnes.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Geçmiş ({expiredOnes.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1 pt-0">
+              {expiredOnes.slice(0, 8).map((a) => (
                 <div
                   key={a.id}
-                  className="rounded-lg border bg-card p-3 flex items-start gap-3"
+                  className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50"
                 >
-                  <Megaphone className="h-4 w-4 mt-0.5 text-primary shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-medium text-sm">{a.title}</p>
-                      <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">
-                        Aktif
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5 break-words">
-                      {a.message}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{a.title}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {a.message.replace(/\*\*/g, "").slice(0, 80)}
+                      {a.message.length > 80 ? "…" : ""}
                     </p>
-                    <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {formatRemaining(a.expires_at)}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Users className="h-3 w-3" />
-                        {a.target_role
-                          ? ROLE_LABEL[a.target_role] ?? a.target_role
-                          : "Herkes"}
-                      </span>
-                    </div>
                   </div>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 text-destructive shrink-0"
+                    className="h-7 w-7 shrink-0 text-destructive"
                     onClick={() => handleDelete(a.id)}
                     title="Sil"
                   >
@@ -296,40 +351,65 @@ export function AnnouncementsManager() {
                   </Button>
                 </div>
               ))}
-            </div>
-          )}
-        </div>
-
-        {/* Geçmiş duyurular */}
-        {expiredOnes.length > 0 && (
-          <details className="text-xs">
-            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-              Geçmiş duyurular ({expiredOnes.length})
-            </summary>
-            <div className="mt-2 space-y-1">
-              {expiredOnes.slice(0, 10).map((a) => (
-                <div
-                  key={a.id}
-                  className="flex items-center justify-between gap-2 py-1.5 px-2 rounded hover:bg-muted/50"
-                >
-                  <span className="truncate">
-                    <span className="font-medium">{a.title}</span>
-                    <span className="text-muted-foreground"> — {a.message}</span>
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-destructive shrink-0"
-                    onClick={() => handleDelete(a.id)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </details>
+            </CardContent>
+          </Card>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
+  );
+}
+
+function AnnouncementListItem({
+  announcement: a,
+  active,
+  onDelete,
+}: {
+  announcement: Announcement;
+  active?: boolean;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="group rounded-xl border bg-card p-4 shadow-sm transition hover:shadow-md">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+          <Megaphone className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-semibold text-sm">{a.title}</p>
+            {active && (
+              <Badge className="bg-emerald-600 hover:bg-emerald-600 text-[10px]">
+                Yayında
+              </Badge>
+            )}
+          </div>
+          <FormattedWhatsAppText
+            text={a.message}
+            className="mt-1.5 text-muted-foreground"
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {formatRemaining(a.expires_at)}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Users className="h-3 w-3" />
+              {a.target_role
+                ? ROLE_LABEL[a.target_role] ?? a.target_role
+                : "Herkes"}
+            </span>
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0 text-destructive opacity-70 group-hover:opacity-100"
+          onClick={onDelete}
+          title="Sil"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
   );
 }

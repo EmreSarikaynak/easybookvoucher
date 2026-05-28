@@ -11,6 +11,7 @@ import {
   sendAnnouncementWhatsApp,
   type AnnouncementTargetRole,
 } from "@/lib/announcement-whatsapp";
+import { whatsappMarkdownToPlain } from "@/lib/whatsapp-markdown";
 
 export interface Announcement {
   id: string;
@@ -85,7 +86,7 @@ export async function createAnnouncement(
     try {
       const result = await sendPushNotifications({
         title,
-        body: message,
+        body: whatsappMarkdownToPlain(message),
         url: "/dashboard",
         tag: "announcement",
         targetRole: input.targetRole,
