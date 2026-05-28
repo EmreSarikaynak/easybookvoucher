@@ -130,17 +130,34 @@ function applyAgencyLabel(
   return item;
 }
 
+/**
+ * Cari menüsü: admin → ana menüde (öncelikli erişim),
+ * acente kullanıcı → "Profilim" altında (müşteri yanında yanlışlıkla
+ * açılmaması için kapalı grupta).
+ */
+function isCariInProfileGroup(
+  item: DashboardNavItem,
+  profile: Profile | null
+): boolean {
+  return !!item.cariMenu && !isAdminRole(profile?.role);
+}
+
 /** Ana menü: "Profilim" altına taşınan finansal öğeler hariç. */
 export function filterDashboardNav(profile: Profile | null): DashboardNavItem[] {
   return DASHBOARD_NAV.filter(
-    (item) => !item.profileMenu && passesRoleFilter(item, profile)
+    (item) =>
+      !item.profileMenu &&
+      !isCariInProfileGroup(item, profile) &&
+      passesRoleFilter(item, profile)
   ).map((item) => applyAgencyLabel(item, profile));
 }
 
 /** "Profilim" grubu: kâr/maliyet gibi hassas, varsayılan kapalı öğeler. */
 export function getProfileNavItems(profile: Profile | null): DashboardNavItem[] {
   return DASHBOARD_NAV.filter(
-    (item) => item.profileMenu && passesRoleFilter(item, profile)
+    (item) =>
+      (item.profileMenu || isCariInProfileGroup(item, profile)) &&
+      passesRoleFilter(item, profile)
   ).map((item) => applyAgencyLabel(item, profile));
 }
 
