@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { VoucherList } from "@/components/voucher/voucher-list";
+import { VouchersByAgency } from "@/components/voucher/vouchers-by-agency";
 import { VoucherFilters } from "@/components/voucher/voucher-filters";
 import { NewVoucherButton } from "@/components/voucher/new-voucher-button";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
@@ -87,7 +88,11 @@ export default async function VouchersPage({ searchParams }: PageProps) {
         <VoucherFilters />
       </Suspense>
 
-      <VoucherList vouchers={vouchers} loading={false} userRole={currentUser?.role} />
+      {isAdmin ? (
+        <VouchersByAgency vouchers={vouchers} />
+      ) : (
+        <VoucherList vouchers={vouchers} loading={false} userRole={currentUser?.role} />
+      )}
     </div>
   );
 }
