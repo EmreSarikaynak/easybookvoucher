@@ -7,6 +7,107 @@ import { formatDbError } from "@/lib/error-messages";
 import { parseWhatsappPhonesSetting } from "@/lib/settings-utils";
 import { normalizeStoredPhone } from "@/lib/phone";
 import { buildAgencyCatalogUrl } from "@/lib/site-url";
+import { snapshotManyToEur } from "@/lib/eur-snapshot";
+import { getAgencyTourCost } from "./agency-tour-prices";
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Voucher kaydederken total_price / deposit_paid / easybook_cost'u EUR'a
+ * snapshot'lar. Cari hesap EUR cinsinden tutulduğu için bu snapshot
+ * voucher oluşturulduğu anda kilitlenir; sonradan kurlar değişse de
+ * cari bakiyesi kaymaz.
+ *
+ * easybookCostInCurrency: voucher currency cinsinden hesaplanmış toplam
+ * EasyBook maliyeti (pax_adult * cost_adult + pax_child * cost_child).
+ * Bilinmiyorsa null geç — easybook_cost_eur de null kalır.
+ *
+ * existing: update path için — mevcut snapshot rate'i koruyup yeni tutarları
+ * o kura göre EUR'a çevirir. Currency değişmişse veya mevcut rate yoksa
+ * yeni snapshot alınır.
+ */
+async function buildVoucherEurFields(args: {
+  total_price: number;
+  deposit_paid: number;
+  easybookCostInCurrency: number | null;
+  currency: CurrencyType;
+  existing?: {
+    rate: number | null;
+    rateDate: string | null;
+    currency: CurrencyType | null;
+  };
+}): Promise<{
+  total_price_eur: number | null;
+  deposit_paid_eur: number | null;
+  easybook_cost_eur: number | null;
+  eur_rate_snapshot: number | null;
+  eur_rate_date: string | null;
+}> {
+  const { total_price, deposit_paid, easybookCostInCurrency, currency, existing } = args;
+
+  const cost = easybookCostInCurrency ?? 0;
+
+  // UPDATE path: aynı currency + mevcut snapshot varsa kuru koru
+  if (existing && existing.rate && existing.currency === currency) {
+    return {
+      total_price_eur: round2(total_price * existing.rate),
+      deposit_paid_eur: round2(deposit_paid * existing.rate),
+      easybook_cost_eur:
+        easybookCostInCurrency != null ? round2(cost * existing.rate) : null,
+      eur_rate_snapshot: existing.rate,
+      eur_rate_date: existing.rateDate,
+    };
+  }
+
+  // CREATE path veya currency değişti / mevcut snapshot yok → yeniden snapshot
+  const snap = await snapshotManyToEur(
+    [total_price, deposit_paid, cost],
+    currency,
+    new Date()
+  );
+  if (!snap) {
+    return {
+      total_price_eur: null,
+      deposit_paid_eur: null,
+      easybook_cost_eur: null,
+      eur_rate_snapshot: null,
+      eur_rate_date: null,
+    };
+  }
+  return {
+    total_price_eur: snap.amountsEur[0],
+    deposit_paid_eur: snap.amountsEur[1],
+    easybook_cost_eur:
+      easybookCostInCurrency != null ? snap.amountsEur[2] : null,
+    eur_rate_snapshot: snap.rate,
+    eur_rate_date: snap.rateDate,
+  };
+}
+
+/**
+ * Bir voucher için (agencyId, tourId, currency, pax) bilgileriyle toplam
+ * EasyBook maliyetini voucher currency cinsinden döner. Bilinmiyorsa null.
+ */
+async function resolveEasybookCostForVoucher(args: {
+  agencyId: string | null | undefined;
+  tourId: string | null;
+  currency: CurrencyType;
+  paxAdult: number;
+  paxChild: number;
+}): Promise<number | null> {
+  const { agencyId, tourId, currency, paxAdult, paxChild } = args;
+  if (!agencyId || !tourId) return null;
+  try {
+    const lookup = await getAgencyTourCost(agencyId, tourId, currency);
+    if (!lookup || lookup.missing) return null;
+    return round2(
+      lookup.cost_adult * (paxAdult || 0) + lookup.cost_child * (paxChild || 0)
+    );
+  } catch (e) {
+    console.warn("resolveEasybookCostForVoucher:", e);
+    return null;
+  }
+}
 
 function normalizeVoucherPayloadPhones(payload: VoucherPayload): VoucherPayload {
   return {
@@ -100,6 +201,21 @@ export async function createVoucher(payload: VoucherPayload) {
     }
   }
 
+  // EUR snapshot — voucher oluşturma anındaki TCMB kuru ile kilitlenir
+  const easybookCostInCurrency = await resolveEasybookCostForVoucher({
+    agencyId: profile?.agency_id,
+    tourId: payload.tour_id,
+    currency: payload.currency,
+    paxAdult: payload.pax_adult,
+    paxChild: payload.pax_child,
+  });
+  const eurFields = await buildVoucherEurFields({
+    total_price: payload.total_price,
+    deposit_paid: payload.deposit_paid,
+    easybookCostInCurrency,
+    currency: payload.currency,
+  });
+
   const { data: insertedRows, error } = await supabase.from("vouchers").insert({
     ...payload,
     voucher_no: finalVoucherNo,
@@ -109,6 +225,7 @@ export async function createVoucher(payload: VoucherPayload) {
     sales_person_id: user.id,
     agency_id: profile?.agency_id || null,
     status: "active",
+    ...eurFields,
   }).select("id").single();
 
   const insertedId: string | undefined = insertedRows?.id;
@@ -209,6 +326,36 @@ export async function updateVoucher(id: string, payload: VoucherPayload) {
   payload = normalizeVoucherPayloadPhones(payload);
   const supabase = await createServerSupabaseClient();
 
+  const { data: existing } = await supabase
+    .from("vouchers")
+    .select("agency_id, currency, eur_rate_snapshot, eur_rate_date")
+    .eq("id", id)
+    .single();
+
+  const easybookCostInCurrency = await resolveEasybookCostForVoucher({
+    agencyId: existing?.agency_id,
+    tourId: payload.tour_id,
+    currency: payload.currency,
+    paxAdult: payload.pax_adult,
+    paxChild: payload.pax_child,
+  });
+
+  const eurFields = await buildVoucherEurFields({
+    total_price: payload.total_price,
+    deposit_paid: payload.deposit_paid,
+    easybookCostInCurrency,
+    currency: payload.currency,
+    existing: existing
+      ? {
+          rate: existing.eur_rate_snapshot
+            ? Number(existing.eur_rate_snapshot)
+            : null,
+          rateDate: existing.eur_rate_date ?? null,
+          currency: (existing.currency as CurrencyType) ?? null,
+        }
+      : undefined,
+  });
+
   const { error } = await supabase
     .from("vouchers")
     .update({
@@ -216,6 +363,7 @@ export async function updateVoucher(id: string, payload: VoucherPayload) {
       tour_id: payload.tour_id || null,
       pickup_time: payload.pickup_time || null,
       customer_phone: payload.customer_phone,
+      ...eurFields,
     })
     .eq("id", id);
 
@@ -226,6 +374,7 @@ export async function updateVoucher(id: string, payload: VoucherPayload) {
 
   revalidatePath("/vouchers");
   revalidatePath(`/vouchers/${id}`);
+  revalidatePath("/cari");
   return { success: true };
 }
 

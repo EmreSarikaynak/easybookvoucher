@@ -534,6 +534,7 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
             <Select
               value={formData.currency}
               onValueChange={(val) => handleChange("currency", val)}
+              disabled={isEditing}
             >
               <SelectTrigger className="flex-1">
                 <SelectValue />
@@ -546,6 +547,16 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
               </SelectContent>
             </Select>
           </div>
+          {isEditing && (
+            <p className="text-[11px] text-muted-foreground -mt-1 ml-[9.25rem]">
+              Para birimi düzenlenemez; cari hesap için bilet oluşturulduğu kurda kilitli kalır.
+            </p>
+          )}
+          {!isEditing && formData.currency !== "EUR" && (
+            <p className="text-[11px] text-muted-foreground -mt-1 ml-[9.25rem]">
+              Bilet müşteriye seçtiğiniz para biriminde verilir. Cari hesabınıza EUR olarak yansır.
+            </p>
+          )}
           <div className="flex items-center gap-3">
             <Label htmlFor="deposit_paid" className="shrink-0 w-36">Ön Ödeme</Label>
             <Input

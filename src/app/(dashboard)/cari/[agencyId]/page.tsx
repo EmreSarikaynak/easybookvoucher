@@ -34,6 +34,12 @@ const fmt = (c: string, v: number) =>
     maximumFractionDigits: 0,
   })}`;
 
+const fmtEur = (v: number) =>
+  `€${Math.abs(v).toLocaleString("tr-TR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })}`;
+
 const fmtDate = (d: string) => {
   try {
     return new Date(d).toLocaleDateString("tr-TR", {
@@ -69,24 +75,12 @@ export default async function AgencyCariPage({ params }: PageProps) {
     );
   }
 
-  const totalDebt = data.lines.reduce(
-    (s, l) => s + Math.max(0, l.net_debt),
-    0
-  );
-  const totalCredit = data.lines.reduce(
-    (s, l) => s + Math.max(0, -l.net_debt),
-    0
-  );
+  // Birincil görünüm: konsolide EUR bakiye.
+  const eur = data.eur;
   const status: "debt" | "credit" | "settled" =
-    data.lines.length === 0
-      ? "settled"
-      : totalDebt > 0
-        ? "debt"
-        : totalCredit > 0
-          ? "credit"
-          : "settled";
+    eur.net_debt_eur > 0 ? "debt" : eur.net_debt_eur < 0 ? "credit" : "settled";
 
-  // En çok borçlu olunan döviz, "Ödeme Ekle" diyaloğunda varsayılan olarak seçilsin.
+  // Ödeme diyaloğu için varsayılan currency — en yüksek borçlu para birimi.
   const dominantCurrency: CurrencyType =
     (data.lines
       .slice()
@@ -97,6 +91,9 @@ export default async function AgencyCariPage({ params }: PageProps) {
     (s, l) => s + l.missing_cost_count,
     0
   );
+
+  const missingEur =
+    eur.voucher_count_missing_eur + eur.payment_count_missing_eur;
 
   return (
     <div className="space-y-6">
@@ -130,7 +127,7 @@ export default async function AgencyCariPage({ params }: PageProps) {
         )}
       </div>
 
-      {/* Bakiye özeti */}
+      {/* Birincil bakiye — EUR konsolide */}
       <Card
         className={
           status === "debt"
@@ -143,7 +140,7 @@ export default async function AgencyCariPage({ params }: PageProps) {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
-              <Wallet className="h-4 w-4" /> Net Bakiye
+              <Wallet className="h-4 w-4" /> Net Bakiye (EUR)
             </CardTitle>
             <span
               className={`inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-1 ${
@@ -170,12 +167,74 @@ export default async function AgencyCariPage({ params }: PageProps) {
             </span>
           </div>
         </CardHeader>
-        <CardContent>
-          {data.lines.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">
-              Bu acente için henüz aktif bilet veya ödeme yok.
-            </p>
-          ) : (
+        <CardContent className="space-y-3">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <div>
+              <p className="text-xs text-muted-foreground">EasyBook Alacak</p>
+              <p className="text-xl font-bold text-amber-700 tabular-nums">
+                {fmtEur(eur.cost_total_eur)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Acentenin Ödediği</p>
+              <p className="text-xl font-bold text-emerald-700 tabular-nums">
+                {fmtEur(eur.payments_total_eur)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Net Bakiye</p>
+              <p
+                className={`text-2xl font-bold tabular-nums ${
+                  status === "settled"
+                    ? "text-slate-600"
+                    : status === "debt"
+                      ? "text-amber-700"
+                      : "text-emerald-700"
+                }`}
+              >
+                {status === "settled"
+                  ? fmtEur(0)
+                  : `${status === "debt" ? "+" : "−"}${fmtEur(eur.net_debt_eur)}`}
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Bilet ve ödemeler kayıt anındaki TCMB kuru ile EUR&apos;ya
+            kilitlenir. Bilet kendi para biriminde verilmeye devam eder; cari
+            hesap her zaman EUR cinsinden gösterilir.
+          </p>
+          {missingCostTotal > 0 && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>
+                <strong>{missingCostTotal} bilet</strong> için EasyBook maliyeti
+                tanımlı değil (turun taban fiyatı yok). Bakiyeye dahil
+                edilmediler.
+              </span>
+            </div>
+          )}
+          {missingEur > 0 && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>
+                <strong>{missingEur} kayıt</strong> için EUR snapshot eksik (o
+                tarihte kur yoktu). Bakiyeye dahil edilmediler — Döviz Kurları
+                sayfasından senkron yaptıktan sonra otomatik tamamlanırlar.
+              </span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Para birimi bazlı detay (referans) */}
+      {data.lines.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm text-muted-foreground">
+              Para birimi bazlı detay (referans)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="border-b text-left text-muted-foreground">
@@ -189,7 +248,7 @@ export default async function AgencyCariPage({ params }: PageProps) {
                       Acentenin Ödediği
                     </th>
                     <th className="py-2 pr-3 font-medium text-right">
-                      Net Bakiye
+                      Net (Bilet kuru)
                     </th>
                   </tr>
                 </thead>
@@ -233,23 +292,13 @@ export default async function AgencyCariPage({ params }: PageProps) {
                 </tbody>
               </table>
             </div>
-          )}
-          <p className="mt-3 text-xs text-muted-foreground">
-            <strong>Net Bakiye</strong> = EasyBook Alacak − Acentenin Ödediği.
-            Pozitif: acente borçlu. Negatif: EasyBook iade borçlusu.
-          </p>
-          {missingCostTotal > 0 && (
-            <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span>
-                <strong>{missingCostTotal} bilet</strong> için EasyBook
-                maliyeti tanımlı değil (USD/GBP bilet ya da turun taban fiyatı
-                yok). Net bakiye hesabına dahil edilmediler.
-              </span>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              Bu tablo bilet para birimi cinsinden ham toplamları gösterir.
+              Bakiye hesabı yukarıdaki EUR konsolide görünümden yapılır.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Aktif biletler */}
       <Card>
@@ -302,6 +351,9 @@ export default async function AgencyCariPage({ params }: PageProps) {
                       <th className="py-2 pr-3 font-medium text-right">
                         Tutar
                       </th>
+                      <th className="py-2 pr-3 font-medium text-right">
+                        EUR Karşılığı
+                      </th>
                       <th className="py-2 pr-3 font-medium">İlgili Bilet</th>
                       <th className="py-2 pr-3 font-medium">Not</th>
                       <th className="py-2 pr-3 font-medium w-10" />
@@ -318,6 +370,17 @@ export default async function AgencyCariPage({ params }: PageProps) {
                           <span className="text-[11px] text-muted-foreground font-normal">
                             {p.currency}
                           </span>
+                        </td>
+                        <td className="py-2 pr-3 text-right tabular-nums">
+                          {p.amount_eur != null ? (
+                            <span className="text-emerald-700 font-medium">
+                              {fmtEur(p.amount_eur)}
+                            </span>
+                          ) : (
+                            <span className="text-amber-700 text-[11px]">
+                              kur eksik
+                            </span>
+                          )}
                         </td>
                         <td className="py-2 pr-3 font-mono text-xs">
                           {p.related_voucher_no ?? "—"}
@@ -365,6 +428,9 @@ function VoucherList({ rows, cancelled }: VoucherListProps) {
             <th className="py-2 pr-3 font-medium text-right text-amber-700">
               EasyBook Alacak
             </th>
+            <th className="py-2 pr-3 font-medium text-right">
+              EUR Karşılığı
+            </th>
             <th className="py-2 pr-3 font-medium" />
           </tr>
         </thead>
@@ -410,6 +476,24 @@ function VoucherList({ rows, cancelled }: VoucherListProps) {
                       {r.currency}
                     </span>
                   </>
+                )}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums">
+                {r.missing_cost ? (
+                  <span className="text-muted-foreground text-[11px]">—</span>
+                ) : r.easybook_cost_eur != null ? (
+                  <span
+                    className="text-amber-700 font-medium"
+                    title={
+                      r.eur_rate_snapshot
+                        ? `1 ${r.currency} = ${Number(r.eur_rate_snapshot).toFixed(4)} EUR (${r.eur_rate_date ?? "—"})`
+                        : undefined
+                    }
+                  >
+                    {fmtEur(r.easybook_cost_eur)}
+                  </span>
+                ) : (
+                  <span className="text-amber-700 text-[11px]">kur eksik</span>
                 )}
               </td>
               <td className="py-2 pr-3">

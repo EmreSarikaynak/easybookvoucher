@@ -18,11 +18,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const symbol = (c: string) =>
-  c === "TRY" ? "₺" : c === "USD" ? "$" : c === "GBP" ? "£" : "€";
-
-const fmt = (c: string, v: number) =>
-  `${symbol(c)}${Math.abs(v).toLocaleString("tr-TR", {
+const fmtEur = (v: number) =>
+  `€${Math.abs(v).toLocaleString("tr-TR", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   })}`;
@@ -53,70 +50,88 @@ export default async function CariLandingPage() {
   }
 
   const cards = data ?? [];
-  const totalsByCurrency = new Map<
-    string,
-    { debt: number; credit: number }
-  >();
+
+  // Konsolide EUR toplamı — tüm acentelerin EUR net bakiyesi.
+  let totalDebtEur = 0;
+  let totalCreditEur = 0;
+  let missingEurCount = 0;
   for (const c of cards) {
-    for (const l of c.lines) {
-      const t = totalsByCurrency.get(l.currency) ?? { debt: 0, credit: 0 };
-      if (l.net_debt > 0) t.debt += l.net_debt;
-      else if (l.net_debt < 0) t.credit += -l.net_debt;
-      totalsByCurrency.set(l.currency, t);
-    }
+    if (c.eur.net_debt_eur > 0) totalDebtEur += c.eur.net_debt_eur;
+    else if (c.eur.net_debt_eur < 0) totalCreditEur += -c.eur.net_debt_eur;
+    missingEurCount +=
+      c.eur.voucher_count_missing_eur + c.eur.payment_count_missing_eur;
   }
+  const netTotalEur = totalDebtEur - totalCreditEur;
+  const netPositive = netTotalEur >= 0;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-bold">Acente Cari Hesap</h1>
         <p className="text-sm text-muted-foreground">
-          Her acentenin EasyBook&apos;a borcu ve alacağı para birimi bazında.
-          Kartlardan acente seçip detay listeyi açabilirsiniz.
+          Tüm cari bakiyeler EUR cinsinden konsolide gösterilir. Bilet
+          oluşturulduğu/ödendiği günkü TCMB kuru ile EUR&apos;ya kilitlenir,
+          sonradan kurlar değişse de bakiye kaymaz.
         </p>
       </div>
 
-      {/* Genel toplam — bütün acentelerin net borç/alacak toplamı, döviz bazlı */}
-      {totalsByCurrency.size > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from(totalsByCurrency.entries())
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([cur, t]) => {
-              const net = t.debt - t.credit;
-              const positive = net >= 0;
-              return (
-                <Card key={cur}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
-                      <Wallet className="h-3.5 w-3.5" /> Toplam ({cur})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-1">
-                    <p
-                      className={`text-2xl font-bold ${
-                        positive ? "text-amber-700" : "text-emerald-700"
-                      }`}
-                    >
-                      {positive ? "+" : "−"}
-                      {fmt(cur, net)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {positive
-                        ? "Acentelerden tahsil edilecek"
-                        : "EasyBook borçlu"}
-                    </p>
-                    <div className="flex gap-4 pt-1 text-xs">
-                      <span className="text-amber-700">
-                        Alacak: <strong>{fmt(cur, t.debt)}</strong>
-                      </span>
-                      <span className="text-emerald-700">
-                        Borç: <strong>{fmt(cur, t.credit)}</strong>
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+      {/* Genel toplam — konsolide EUR */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+              <Wallet className="h-3.5 w-3.5" /> Net Bakiye (EUR)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            <p
+              className={`text-2xl font-bold ${
+                netPositive ? "text-amber-700" : "text-emerald-700"
+              }`}
+            >
+              {netPositive ? "+" : "−"}
+              {fmtEur(netTotalEur)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {netPositive
+                ? "Acentelerden tahsil edilecek (net)"
+                : "EasyBook acentelere borçlu (net)"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs uppercase tracking-wide text-muted-foreground">
+              Toplam Alacak
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-amber-700">{fmtEur(totalDebtEur)}</p>
+            <p className="text-xs text-muted-foreground">EasyBook → Acente</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs uppercase tracking-wide text-muted-foreground">
+              Toplam Borç
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-emerald-700">{fmtEur(totalCreditEur)}</p>
+            <p className="text-xs text-muted-foreground">Acente → EasyBook (fazla ödeme)</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {missingEurCount > 0 && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>
+            <strong>{missingEurCount}</strong> kayıt için EUR snapshot eksik
+            (kur henüz tanımsız). Bu kayıtlar bakiye toplamına dahil edilmedi;
+            Döviz Kurları sayfasından TCMB senkronu yaptıktan sonra otomatik
+            doldurulurlar.
+          </span>
         </div>
       )}
 
@@ -129,20 +144,9 @@ export default async function CariLandingPage() {
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {cards.map((c) => {
-            const totalDebt = c.lines.reduce(
-              (s, l) => s + Math.max(0, l.net_debt),
-              0
-            );
-            const totalCredit = c.lines.reduce(
-              (s, l) => s + Math.max(0, -l.net_debt),
-              0
-            );
+            const net = c.eur.net_debt_eur;
             const status: "debt" | "credit" | "settled" =
-              totalDebt > 0
-                ? "debt"
-                : totalCredit > 0
-                  ? "credit"
-                  : "settled";
+              net > 0 ? "debt" : net < 0 ? "credit" : "settled";
             const missingCost = c.lines.reduce(
               (s, l) => s + l.missing_cost_count,
               0
@@ -206,47 +210,46 @@ export default async function CariLandingPage() {
                       )}
                     </div>
 
-                    {/* Para birimi bazlı net bakiye */}
-                    {c.lines.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        Hareket yok.
-                      </p>
-                    ) : (
-                      <div className="space-y-1">
-                        {c.lines.map((l) => {
-                          const positive = l.net_debt > 0;
-                          const zero = l.net_debt === 0;
-                          return (
-                            <div
-                              key={l.currency}
-                              className="flex items-center justify-between text-sm tabular-nums"
-                            >
-                              <span className="text-muted-foreground text-xs">
-                                {l.currency}
-                              </span>
-                              <span
-                                className={`font-semibold ${
-                                  zero
-                                    ? "text-slate-600"
-                                    : positive
-                                      ? "text-amber-700"
-                                      : "text-emerald-700"
-                                }`}
-                              >
-                                {zero ? (
-                                  fmt(l.currency, 0)
-                                ) : (
-                                  <>
-                                    {positive ? "+" : "−"}
-                                    {fmt(l.currency, l.net_debt)}
-                                  </>
-                                )}
-                              </span>
-                            </div>
-                          );
-                        })}
+                    {/* EUR net bakiye — büyük, birincil */}
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xs text-muted-foreground">
+                        Net Bakiye
+                      </span>
+                      <span
+                        className={`text-xl font-bold tabular-nums ${
+                          status === "settled"
+                            ? "text-slate-600"
+                            : status === "debt"
+                              ? "text-amber-700"
+                              : "text-emerald-700"
+                        }`}
+                      >
+                        {status === "settled" ? (
+                          fmtEur(0)
+                        ) : (
+                          <>
+                            {status === "debt" ? "+" : "−"}
+                            {fmtEur(net)}
+                          </>
+                        )}
+                      </span>
+                    </div>
+
+                    {/* Alt bilgiler */}
+                    <div className="grid grid-cols-2 gap-1.5 text-[11px] text-muted-foreground tabular-nums">
+                      <div className="flex items-center justify-between">
+                        <span>Alacak:</span>
+                        <span className="font-medium text-amber-700">
+                          {fmtEur(c.eur.cost_total_eur)}
+                        </span>
                       </div>
-                    )}
+                      <div className="flex items-center justify-between">
+                        <span>Tahsil:</span>
+                        <span className="font-medium text-emerald-700">
+                          {fmtEur(c.eur.payments_total_eur)}
+                        </span>
+                      </div>
+                    </div>
 
                     <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground border-t pt-2">
                       <span>Aktif bilet: {c.voucher_count_active}</span>
@@ -256,6 +259,14 @@ export default async function CariLandingPage() {
                       {missingCost > 0 && (
                         <span className="text-amber-700">
                           Maliyet eksik: {missingCost}
+                        </span>
+                      )}
+                      {(c.eur.voucher_count_missing_eur > 0 ||
+                        c.eur.payment_count_missing_eur > 0) && (
+                        <span className="text-amber-700">
+                          Kur eksik:{" "}
+                          {c.eur.voucher_count_missing_eur +
+                            c.eur.payment_count_missing_eur}
                         </span>
                       )}
                     </div>

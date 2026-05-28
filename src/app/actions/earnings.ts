@@ -8,6 +8,7 @@ import {
   resolveAgencyAmountInCurrency,
   resolveTourBaseInCurrency,
 } from "@/lib/exchange-rates";
+import { computeEurRate } from "@/lib/eur-snapshot";
 import {
   computeVoucherEarnings,
   resolvePerPaxCost,
@@ -29,6 +30,11 @@ export interface VoucherEarningRow {
   currency: string;
   total_price: number;
   deposit_paid: number;
+  /** EUR snapshot (voucher kaydedildiği gün kilitlenmiş). */
+  total_price_eur: number | null;
+  deposit_paid_eur: number | null;
+  easybook_cost_eur: number | null;
+  eur_rate_snapshot: number | null;
   /** EasyBook'a borç (maliyet). missing_cost ise anlamlı değildir. */
   easybook_cost: number;
   /** Acentenin liste satış fiyatı toplamı. */
@@ -39,6 +45,8 @@ export interface VoucherEarningRow {
   extra_markup: number;
   /** Toplam kazanç = bilet fiyatı − maliyet. */
   total_profit: number;
+  /** EUR cinsinden toplam kazanç (snapshot ile). */
+  total_profit_eur: number | null;
   /** Maliyet hesaplanamıyor (taban fiyat yok / USD-GBP / tur yok). */
   missing_cost: boolean;
   source: string;
@@ -55,6 +63,16 @@ export interface CurrencyTotals {
   missing_cost_count: number;
 }
 
+/** Konsolide EUR özeti — birincil görünüm. */
+export interface EurAggregateTotals {
+  total_sales_eur: number;
+  easybook_debt_eur: number;
+  collected_deposit_eur: number;
+  total_profit_eur: number;
+  voucher_count_with_eur: number;
+  voucher_count_missing_eur: number;
+}
+
 export interface AgencySummary {
   agency_id: string;
   agency_code: string | null;
@@ -63,6 +81,19 @@ export interface AgencySummary {
   total_pax_adult: number;
   total_pax_child: number;
   totals_by_currency: Record<string, CurrencyTotals>;
+  /** Birincil görünüm: konsolide EUR. */
+  eur: EurAggregateTotals;
+}
+
+function emptyEurAggregate(): EurAggregateTotals {
+  return {
+    total_sales_eur: 0,
+    easybook_debt_eur: 0,
+    collected_deposit_eur: 0,
+    total_profit_eur: 0,
+    voucher_count_with_eur: 0,
+    voucher_count_missing_eur: 0,
+  };
 }
 
 export interface EarningsReport {
@@ -110,7 +141,9 @@ export async function fetchEarningsReport(
     .from("vouchers")
     .select(
       `id, voucher_no, tour_date, tour_id, agency_id, pax_adult, pax_child, pax_infant,
-       currency, total_price, deposit_paid, source, status,
+       currency, total_price, deposit_paid,
+       total_price_eur, deposit_paid_eur, easybook_cost_eur, eur_rate_snapshot, eur_rate_date,
+       source, status,
        tour:tours(name),
        agency:agencies(name, agency_code)`
     )
@@ -206,6 +239,14 @@ export async function fetchEarningsReport(
     const paxChild = v.pax_child ?? 0;
     const totalPrice = v.total_price ?? 0;
     const deposit = v.deposit_paid ?? 0;
+    const totalPriceEur =
+      v.total_price_eur != null ? Number(v.total_price_eur) : null;
+    const depositEur =
+      v.deposit_paid_eur != null ? Number(v.deposit_paid_eur) : null;
+    const easybookCostEur =
+      v.easybook_cost_eur != null ? Number(v.easybook_cost_eur) : null;
+    const eurRate =
+      v.eur_rate_snapshot != null ? Number(v.eur_rate_snapshot) : null;
 
     const cur = currency as CurrencyType;
     const prices = priceMap.get(`${agencyId}__${tourId}__${currency}`);
@@ -273,6 +314,15 @@ export async function fetchEarningsReport(
       name?: string | null;
     } | null;
 
+    // Voucher EUR snapshot — yoksa rapor zamanı kurları ile fallback
+    const fbRate = computeEurRate(currency as CurrencyType, ratePairs);
+    const profitEur =
+      !missingCost && eurRate != null
+        ? round2(earnings.total_profit * eurRate)
+        : !missingCost && fbRate != null
+          ? round2(earnings.total_profit * fbRate)
+          : null;
+
     rows.push({
       voucher_id: v.id,
       voucher_no: v.voucher_no,
@@ -287,11 +337,16 @@ export async function fetchEarningsReport(
       currency,
       total_price: round2(totalPrice),
       deposit_paid: round2(deposit),
+      total_price_eur: totalPriceEur,
+      deposit_paid_eur: depositEur,
+      easybook_cost_eur: easybookCostEur,
+      eur_rate_snapshot: eurRate,
       easybook_cost: earnings.easybook_cost,
       list_price: earnings.list_price,
       standard_margin: earnings.standard_margin,
       extra_markup: earnings.extra_markup,
       total_profit: earnings.total_profit,
+      total_profit_eur: profitEur,
       missing_cost: missingCost,
       source: v.source ?? "manual",
     });
@@ -306,12 +361,40 @@ export async function fetchEarningsReport(
         total_pax_adult: 0,
         total_pax_child: 0,
         totals_by_currency: {},
+        eur: emptyEurAggregate(),
       });
     }
     const sum = summaryMap.get(agencyId)!;
     sum.voucher_count += 1;
     sum.total_pax_adult += paxAdult;
     sum.total_pax_child += paxChild;
+
+    // EUR aggregation
+    const useRate = eurRate ?? fbRate;
+    if (useRate != null) {
+      const salesEur = totalPriceEur ?? round2(totalPrice * useRate);
+      const depEur = depositEur ?? round2(deposit * useRate);
+      sum.eur.total_sales_eur = round2(sum.eur.total_sales_eur + salesEur);
+      sum.eur.collected_deposit_eur = round2(
+        sum.eur.collected_deposit_eur + depEur
+      );
+      if (!missingCost) {
+        const debtEur =
+          easybookCostEur ?? round2(earnings.easybook_cost * useRate);
+        sum.eur.easybook_debt_eur = round2(
+          sum.eur.easybook_debt_eur + debtEur
+        );
+        const pEur = profitEur ?? round2(earnings.total_profit * useRate);
+        sum.eur.total_profit_eur = round2(
+          sum.eur.total_profit_eur + pEur
+        );
+        sum.eur.voucher_count_with_eur += 1;
+      } else {
+        sum.eur.voucher_count_missing_eur += 1;
+      }
+    } else {
+      sum.eur.voucher_count_missing_eur += 1;
+    }
     if (!sum.totals_by_currency[currency]) {
       sum.totals_by_currency[currency] = {
         total_sales: 0,

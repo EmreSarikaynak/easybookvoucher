@@ -13,6 +13,8 @@ const currencySymbol = (c: string) =>
   c === "TRY" ? "₺" : c === "USD" ? "$" : c === "GBP" ? "£" : "€";
 
 const fmt = (c: string, v: number) => `${currencySymbol(c)}${v.toFixed(0)}`;
+const fmtEur = (v: number) =>
+  `€${Math.abs(v).toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
 export function EarningsClient({ initialReport }: { initialReport: EarningsReport }) {
   const router = useRouter();
@@ -64,6 +66,19 @@ export function EarningsClient({ initialReport }: { initialReport: EarningsRepor
 
   const missingCostTotal = initialReport.rows.filter((r) => r.missing_cost).length;
 
+  // Konsolide EUR — agency summaries'in eur alanlarını topla
+  const eurGrand = initialReport.agencySummaries.reduce(
+    (acc, s) => {
+      acc.sales += s.eur.total_sales_eur;
+      acc.debt += s.eur.easybook_debt_eur;
+      acc.deposit += s.eur.collected_deposit_eur;
+      acc.profit += s.eur.total_profit_eur;
+      acc.missing += s.eur.voucher_count_missing_eur;
+      return acc;
+    },
+    { sales: 0, debt: 0, deposit: 0, profit: 0, missing: 0 }
+  );
+
   return (
     <div className="space-y-6">
       <Card>
@@ -90,6 +105,53 @@ export function EarningsClient({ initialReport }: { initialReport: EarningsRepor
             &quot;maliyet eksik&quot; olarak işaretlendi.
           </span>
         </div>
+      )}
+
+      {/* Konsolide EUR — birincil görünüm */}
+      {initialReport.agencySummaries.length > 0 && (
+        <Card className="border-emerald-300 bg-emerald-50/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2 text-emerald-900">
+              <TrendingUp className="h-4 w-4" /> Konsolide Özet (EUR)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <p className="text-xs text-muted-foreground">Toplam Satış</p>
+                <p className="text-2xl font-bold">{fmtEur(eurGrand.sales)}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Tahsil: {fmtEur(eurGrand.deposit)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">EasyBook Alacak</p>
+                <p className="text-2xl font-bold text-amber-700">
+                  {fmtEur(eurGrand.debt)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Toplam Kazanç</p>
+                <p className="text-2xl font-bold text-emerald-700">
+                  {fmtEur(eurGrand.profit)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">EUR Snapshot Yok</p>
+                <p className="text-2xl font-bold text-amber-700">
+                  {eurGrand.missing}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Hesaba dahil edilmedi
+                </p>
+              </div>
+            </div>
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              Tüm tutarlar bilet oluşturulduğu/ödendiği tarihteki TCMB kuru ile
+              EUR&apos;ya kilitlenmiştir.
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

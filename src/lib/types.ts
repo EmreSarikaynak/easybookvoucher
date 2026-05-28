@@ -134,7 +134,13 @@ export interface Voucher {
   notes: string | null;
   photo_url: string | null;
   pdf_url: string | null;
-  exchange_rate_snapshot: ExchangeRateSnapshot | null; // Snapshot of rates at creation
+  exchange_rate_snapshot: ExchangeRateSnapshot | null; // Snapshot of rates at creation (legacy)
+  /** EUR snapshot — voucher kayıt anındaki kur ile kilitlenir. Cari hesap EUR cinsinden. */
+  total_price_eur: number | null;
+  deposit_paid_eur: number | null;
+  easybook_cost_eur: number | null;
+  eur_rate_snapshot: number | null;
+  eur_rate_date: string | null;
   created_at: string;
   updated_at: string;
   // Joined fields
