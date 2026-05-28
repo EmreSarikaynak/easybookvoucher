@@ -261,7 +261,7 @@ export function TourCostsEditor({ tours }: TourCostsEditorProps) {
         </div>
       </div>
 
-      <div className="flex items-center justify-end gap-3 sticky bottom-0 bg-white/95 py-3 px-1 border-t">
+      <div className="flex items-center justify-end gap-3 sticky bottom-16 lg:bottom-0 bg-white/95 py-3 px-1 border-t">
         {dirtyCount > 0 && (
           <span className="text-xs text-muted-foreground">
             {dirtyCount} tur değiştirildi

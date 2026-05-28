@@ -22,6 +22,7 @@ import {
 import { createClient } from "@/lib/supabase";
 import { CURRENCY_OPTIONS, CURRENCY_SYMBOLS, type ExchangeRate, type CurrencyType } from "@/lib/types";
 import { fetchTcmbRates } from "@/app/actions/exchange";
+import { buildRatePairsFromTcmb } from "@/lib/exchange-rates";
 
 interface RateCell {
   id?: string;
@@ -35,7 +36,12 @@ interface RatesMap {
   };
 }
 
-export function ExchangeRates() {
+interface ExchangeRatesProps {
+  /** Acente vb. — yalnızca görüntüleme */
+  readOnly?: boolean;
+}
+
+export function ExchangeRates({ readOnly = false }: ExchangeRatesProps) {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -183,10 +189,8 @@ export function ExchangeRates() {
         return;
       }
 
-      const { USD, EUR, GBP } = result.data;
       const newRates = { ...rates };
 
-      // Helper to update a rate
       const updateRate = (from: string, to: string, val: number) => {
         if (!newRates[from]) newRates[from] = {};
         if (!newRates[from][to]) newRates[from][to] = { id: undefined, rate: 0, changed: false };
@@ -194,33 +198,12 @@ export function ExchangeRates() {
         newRates[from][to] = {
           ...newRates[from][to],
           rate: parseFloat(val.toFixed(4)),
-          changed: true
+          changed: true,
         };
       };
 
-      // 1. Update Foreign -> TRY (Buying Rate)
-      if (USD) updateRate("USD", "TRY", USD.buying);
-      if (EUR) updateRate("EUR", "TRY", EUR.buying);
-      if (GBP) updateRate("GBP", "TRY", GBP.buying);
-
-      // 2. Update TRY -> Foreign (1 / Selling Rate usually, or Buying for parity? Let's use 1/Selling for 'Cost')
-      if (USD) updateRate("TRY", "USD", 1 / USD.selling);
-      if (EUR) updateRate("TRY", "EUR", 1 / EUR.selling);
-      if (GBP) updateRate("TRY", "GBP", 1 / GBP.selling);
-
-      // 3. Cross Rates (derived from TRY parity approx)
-      // EUR -> USD = EUR.Buying / USD.Selling
-      if (EUR && USD) {
-        updateRate("EUR", "USD", EUR.buying / USD.selling);
-        updateRate("USD", "EUR", USD.buying / EUR.selling);
-      }
-      if (GBP && USD) {
-        updateRate("GBP", "USD", GBP.buying / USD.selling);
-        updateRate("USD", "GBP", USD.buying / GBP.selling);
-      }
-      if (GBP && EUR) {
-        updateRate("GBP", "EUR", GBP.buying / EUR.selling);
-        updateRate("EUR", "GBP", EUR.buying / GBP.selling);
+      for (const pair of buildRatePairsFromTcmb(result.data)) {
+        updateRate(pair.from_currency, pair.to_currency, pair.rate);
       }
 
       setRates(newRates);
@@ -241,41 +224,72 @@ export function ExchangeRates() {
           <div>
             <CardTitle className="text-base">Döviz Kurları</CardTitle>
             <CardDescription>
-              Para birimi dönüşüm oranlarını ayarlayın
+              {readOnly
+                ? "Güncel döviz kurları (EUR tabanlı hesaplamalarda kullanılır)"
+                : "Para birimi dönüşüm oranlarını ayarlayın"}
               {lastUpdated && (
                 <span className="ml-2 text-xs">
                   (Son güncelleme:{" "}
-                  {new Date(lastUpdated).toLocaleString("tr-TR")})
+                  {new Date(lastUpdated).toLocaleString("tr-TR", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                  )
                 </span>
               )}
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleFetchTcmb} title="TCMB'den Çek">
-              <span className="text-xs font-bold mr-1">TCMB</span> <RefreshCw className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="sm" onClick={fetchRates} title="Yenile">
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+            {!readOnly && (
+              <>
+                <Button variant="outline" size="sm" onClick={handleFetchTcmb} title="TCMB'den Çek">
+                  <span className="text-xs font-bold mr-1">TCMB</span>{" "}
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="sm" onClick={fetchRates} title="Yenile">
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+            {readOnly && (
+              <Button variant="outline" size="sm" onClick={fetchRates} title="Yenile">
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        <div className="mb-4 flex items-center gap-4">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
           <div className="flex-1">
             <label className="text-sm font-medium mb-2 block">
-              Tarih Seçin (Kurların geçerli olduğu tarih)
+              Geçerlilik tarihi
             </label>
-            <Input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="max-w-xs"
-            />
+            {readOnly ? (
+              <p className="text-sm font-medium tabular-nums">
+                {new Date(selectedDate + "T12:00:00").toLocaleDateString("tr-TR", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </p>
+            ) : (
+              <Input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="max-w-xs"
+              />
+            )}
           </div>
-          <div className="text-sm text-muted-foreground">
-            Seçilen tarihteki kurları görüntülüyor ve düzenliyorsunuz
-          </div>
+          {!readOnly && (
+            <div className="text-sm text-muted-foreground">
+              Seçilen tarihteki kurları görüntülüyor ve düzenliyorsunuz
+            </div>
+          )}
         </div>
         <div className="overflow-x-auto">
           <Table>

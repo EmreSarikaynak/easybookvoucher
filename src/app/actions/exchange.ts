@@ -1,65 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-
-interface TcmbRate {
-    code: string;
-    buying: number;
-    selling: number;
-}
+import { createServiceRoleClient } from "@/lib/supabase-server";
+import { getCurrentUser, isAdmin } from "@/lib/auth-helpers";
+import { fetchTcmbRatesRaw, syncTcmbRatesToDatabase } from "@/lib/exchange-rates";
 
 export async function fetchTcmbRates() {
-    try {
-        const response = await fetch("https://www.tcmb.gov.tr/kurlar/today.xml", {
-            next: { revalidate: 3600 }, // Cache for 1 hour
-        });
-
-        if (!response.ok) {
-            throw new Error("TCMB erişim hatası");
-        }
-
-        const xmlText = await response.text();
-
-        // Simple regex parsing to avoid heavy xml libraries
-        // We look for <Currency CurrencyCode="USD"> ... <ForexBuying>30.50</ForexBuying>
-
-        const extractRate = (code: string) => {
-            const currencyBlockRegex = new RegExp(`<Currency CrossOrder="[^"]*" Kod="${code}" CurrencyCode="${code}">([\\s\\S]*?)<\\/Currency>`, "i");
-            const match = xmlText.match(currencyBlockRegex);
-            if (!match) return null;
-
-            const block = match[1];
-            const buyingMatch = block.match(/<ForexBuying>([0-9.]+)<\/ForexBuying>/);
-            const sellingMatch = block.match(/<ForexSelling>([0-9.]+)<\/ForexSelling>/);
-
-            if (buyingMatch && sellingMatch) {
-                return {
-                    code,
-                    buying: parseFloat(buyingMatch[1]),
-                    selling: parseFloat(sellingMatch[1])
-                };
-            }
-            return null;
-        };
-
-        const usd = extractRate("USD");
-        const eur = extractRate("EUR");
-        const gbp = extractRate("GBP");
-
-        return {
-            success: true,
-            data: {
-                USD: usd,
-                EUR: eur,
-                GBP: gbp
-            },
-            lastUpdate: new Date().toISOString()
-        };
-
-    } catch (error) {
-        console.error("TCMB fetch error:", error);
-        return { success: false, error: "Merkez Bankası verileri alınamadı." };
+    const result = await fetchTcmbRatesRaw();
+    if (!result.success) {
+        return { success: false as const, error: result.error ?? "Merkez Bankası verileri alınamadı." };
     }
+    return {
+        success: true as const,
+        data: result.data,
+        lastUpdate: result.lastUpdate,
+    };
 }
 
 /**
@@ -140,5 +95,34 @@ export async function getAllExchangeRatesForDate(date: string) {
     } catch (error) {
         console.error("Error fetching all exchange rates:", error);
         return { success: false, error: "Kur bilgileri alınamadı." };
+    }
+}
+
+/** Admin: TCMB'den çekip veritabanına kaydet (sayfa üzerinden manuel). */
+export async function syncExchangeRatesFromTcmb(): Promise<{
+    success: boolean;
+    effectiveDate?: string;
+    pairCount?: number;
+    error?: string;
+}> {
+    const profile = await getCurrentUser();
+    if (!isAdmin(profile)) {
+        return { success: false, error: "Yetkisiz" };
+    }
+
+    try {
+        const supabase = createServiceRoleClient();
+        const result = await syncTcmbRatesToDatabase(supabase);
+        if (result.success) {
+            revalidatePath("/exchange-rates");
+            revalidatePath("/dashboard");
+            revalidatePath("/settings");
+        }
+        return result;
+    } catch (e) {
+        return {
+            success: false,
+            error: e instanceof Error ? e.message : "Senkron başarısız",
+        };
     }
 }

@@ -336,7 +336,13 @@
   }
 
   .animate-marquee {
-    animation: marquee 18s linear infinite;
+    animation: marquee var(--marquee-d, 18s) linear infinite;
+  }
+
+  @media (max-width: 639px) {
+    .animate-marquee {
+      animation-duration: var(--marquee-d-mobile, var(--marquee-d, 10s));
+    }
   }
 
   .animate-marquee:hover {

@@ -79,7 +79,7 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
   const agencyId = profile?.agency_id ?? null;
 
   // Otomatik fiyat hesaplama:
-  // - Sadece EUR/TRY desteklenir (USD/GBP için lookup yok).
+  // - Tüm para birimleri; EUR taban + güncel kurla USD/GBP türetilir.
   // - Kullanıcı total_price'a elle dokunduktan sonra üzerine yazılmaz.
   // - Düzenleme modunda otomatik tetiklenmez (kullanıcı kayıtlı değeri korumak ister).
   const [manuallyEditedTotal, setManuallyEditedTotal] = useState(isEditing);
@@ -92,8 +92,6 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
     if (manuallyEditedTotal) return;
     if (!agencyId) return;
     if (!formData.tour_id) return;
-    if (formData.currency !== "EUR" && formData.currency !== "TRY") return;
-
     const adult = formData.pax_adult === "" ? 0 : Number(formData.pax_adult);
     const child = formData.pax_child === "" ? 0 : Number(formData.pax_child);
     const key = `${formData.tour_id}|${formData.currency}|${adult}|${child}`;
@@ -124,13 +122,11 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
     manuallyEditedTotal,
   ]);
 
-  // EasyBook maliyetini izle: total_price maliyetin altındaysa (negatif kazanç)
-  // acenteyi engellemeyen bir uyarıyla bilgilendir. USD/GBP'de maliyet bilinmez.
+  // EasyBook maliyetini izle: total_price maliyetin altındaysa uyarı göster.
   const [easybookCost, setEasybookCost] = useState<number | null>(null);
   useEffect(() => {
     setEasybookCost(null);
     if (!agencyId || !formData.tour_id) return;
-    if (formData.currency !== "EUR" && formData.currency !== "TRY") return;
 
     const adult = formData.pax_adult === "" ? 0 : Number(formData.pax_adult);
     const child = formData.pax_child === "" ? 0 : Number(formData.pax_child);

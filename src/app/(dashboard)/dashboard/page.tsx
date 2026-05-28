@@ -9,12 +9,13 @@ import {
   BarChart3,
   Building2,
   BookOpen,
-  Wallet,
+  Receipt,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getCurrentUser, isAdmin } from "@/lib/auth-helpers";
 import { AnnouncementMarquee } from "@/components/dashboard/announcement-marquee";
+import { ExchangeRatesBanner } from "@/components/dashboard/exchange-rates-banner";
 import { AgencyQrCard } from "@/components/dashboard/agency-qr-card";
 import { buildAgencyCatalogUrl } from "@/lib/site-url";
 import { qrToDataUrl } from "@/lib/qr";
@@ -151,14 +152,13 @@ export default async function DashboardPage() {
     ];
   } else {
     const agencyId = profile?.agency_id;
-    const agencyName = profile?.agency?.name;
-    if (agencyName) {
-      greeting = `Hoş Geldiniz — ${agencyName}`;
+    const agencyCode = profile?.agency?.agency_code;
+    if (agencyCode) {
+      greeting = `Hoş Geldiniz — ${agencyCode}`;
     }
 
     if (agencyId) {
       const stats = await getAgencyStats(agencyId);
-      const agencyCode = profile?.agency?.agency_code;
       const publicEnabled =
         (profile?.agency as { public_catalog_enabled?: boolean } | undefined)
           ?.public_catalog_enabled !== false;
@@ -212,7 +212,6 @@ export default async function DashboardPage() {
       { label: "Biletlerimi Gör", href: "/vouchers" },
       { label: "Tur Kataloğu", href: "/tours/catalog" },
       { label: "Destek Talebi Aç", href: "/support" },
-      { label: "Kazançlar", href: "/earnings" },
     ];
   }
 
@@ -257,9 +256,9 @@ export default async function DashboardPage() {
           color: "bg-orange-500",
         },
         {
-          icon: Wallet,
-          label: "Kazançlar",
-          href: "/earnings",
+          icon: Receipt,
+          label: "Cari Hesabım",
+          href: "/cari",
           color: "bg-purple-600",
         },
         {
@@ -275,10 +274,9 @@ export default async function DashboardPage() {
       <AnnouncementMarquee role={profile?.role ?? null} />
 
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold">{greeting}</h1>
-        <p className="text-sm text-muted-foreground">
-          EasyBook Bilet Yönetim Sistemi
-        </p>
+        <h1 className="text-base font-semibold tracking-tight sm:text-lg">
+          {greeting}
+        </h1>
       </div>
 
       {agencyQr && (
@@ -288,6 +286,8 @@ export default async function DashboardPage() {
           qrDataUrl={agencyQr.qrDataUrl}
         />
       )}
+
+      <ExchangeRatesBanner />
 
       {/* İstatistik Kartları */}
       {statCards.length > 0 && (

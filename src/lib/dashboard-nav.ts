@@ -19,6 +19,7 @@ import {
   FileStack,
   Wallet,
   Receipt,
+  TrendingUp,
 } from "lucide-react";
 import type { Profile, UserRole } from "@/lib/types";
 
@@ -40,6 +41,8 @@ export type DashboardNavItem = {
   announcementsMenu?: boolean;
   /** Alt mobil menüde öncelikli göster */
   bottomNavPriority?: number;
+  /** Döviz kurları — tüm giriş yapmış kullanıcılar (Profilim altında) */
+  exchangeRatesMenu?: boolean;
   /**
    * Kâr/maliyet gibi hassas finansal sayfalar. Müşteri yanında ekranda
    * görünmemesi için ana menüde değil, varsayılan kapalı "Profilim"
@@ -54,7 +57,14 @@ export const DASHBOARD_NAV: DashboardNavItem[] = [
   { name: "Yeni Bilet", href: "/vouchers/new", icon: PlusCircle, bottomNavPriority: 3 },
   { name: "Raporlar", href: "/reports", icon: BarChart3, adminOnly: true },
   { name: "Acente Cari", agencyLabel: "Cari Hesabım", href: "/cari", icon: Receipt, cariMenu: true },
-  { name: "Kazançlar", href: "/earnings", icon: Wallet, profileMenu: true },
+  { name: "Kazançlar", href: "/earnings", icon: Wallet, profileMenu: true, adminOnly: true },
+  {
+    name: "Döviz Kurları",
+    href: "/exchange-rates",
+    icon: TrendingUp,
+    profileMenu: true,
+    exchangeRatesMenu: true,
+  },
   { name: "Turlar", href: "/tours", icon: MapPin, toursMenu: true, bottomNavPriority: 4 },
   { name: "Tur Kataloğu", href: "/tours/catalog", icon: BookOpen, toursMenu: true },
   { name: "Duyurular", href: "/announcements", icon: Megaphone, announcementsMenu: true, bottomNavPriority: 5 },
@@ -111,6 +121,7 @@ function passesRoleFilter(
   if (item.costsMenu) return canViewCostsMenu(profile);
   if (item.cariMenu) return canViewCariMenu(profile);
   if (item.announcementsMenu) return !!profile;
+  if (item.exchangeRatesMenu) return !!profile;
   if (item.adminOnly) return isAdminRole(profile?.role);
   return true;
 }

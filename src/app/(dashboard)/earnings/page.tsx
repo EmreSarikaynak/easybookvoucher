@@ -1,5 +1,7 @@
+import { redirect } from "next/navigation";
 import { fetchEarningsReport } from "@/app/actions/earnings";
 import { EarningsClient } from "./earnings-client";
+import { getCurrentUser, isAdmin } from "@/lib/auth-helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +19,13 @@ function defaultEnd(): string {
 }
 
 export default async function EarningsPage({ searchParams }: PageProps) {
+  const profile = await getCurrentUser();
+  if (!profile) redirect("/");
+
+  if (!isAdmin(profile)) {
+    redirect("/cari");
+  }
+
   const sp = await searchParams;
   const startDate = sp.start || defaultStart();
   const endDate = sp.end || defaultEnd();

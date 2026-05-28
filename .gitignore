@@ -38,3 +38,15 @@ next-env.d.ts
 
 # tur kataloğu lokal test çıktıları
 /tmp-catalog-output/
+
+# Editor / IDE
+/.cursor/
+/.idea/
+/.vscode/
+
+# Local debug scripts (may contain service-role keys)
+/test-db*.js
+/Untitled
+
+# Supabase CLI temp state
+/supabase/.temp/

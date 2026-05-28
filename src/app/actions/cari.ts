@@ -9,6 +9,12 @@ import {
   resolvePerPaxCost,
   round2,
 } from "@/lib/pricing";
+import {
+  loadExchangeRatePairsForCalculation,
+  resolveAgencyAmountInCurrency,
+  resolveTourBaseInCurrency,
+  type RatePair,
+} from "@/lib/exchange-rates";
 import { resolveCatalogDisplayPrice } from "@/lib/tour-catalog-data";
 import type { CurrencyType } from "@/lib/types";
 
@@ -157,7 +163,8 @@ interface PaymentRow {
 function computeRow(
   v: VoucherRowFromDb,
   priceMap: Map<string, PriceRow>,
-  baseMap: Map<string, BaseRow>
+  baseMap: Map<string, BaseRow>,
+  ratePairs: RatePair[]
 ): CariVoucherRow {
   const currency = (v.currency || "EUR").toUpperCase();
   const cur: Cur = isSupportedCurrency(currency) ? currency : "EUR";
@@ -167,24 +174,48 @@ function computeRow(
   const paxChild = v.pax_child ?? 0;
 
   const prices = priceMap.get(`${agencyId}__${tourId}__${cur}`);
+  const pricesEur = priceMap.get(`${agencyId}__${tourId}__EUR`);
   const base = baseMap.get(tourId);
 
-  const baseAdult =
-    cur === "EUR" ? base?.base_price_adult_eur : cur === "TRY" ? base?.base_price_adult_try : null;
-  const baseChild =
-    cur === "EUR" ? base?.base_price_child_eur : cur === "TRY" ? base?.base_price_child_try : null;
+  const tourBase = resolveTourBaseInCurrency(
+    cur,
+    base?.base_price_adult_eur,
+    base?.base_price_child_eur,
+    base?.base_price_adult_try,
+    base?.base_price_child_try,
+    ratePairs
+  );
 
-  const cost = resolvePerPaxCost(
+  const agencyCost = resolveAgencyAmountInCurrency(
+    cur,
     prices?.cost_adult,
     prices?.cost_child,
-    baseAdult,
-    baseChild
+    pricesEur?.cost_adult,
+    pricesEur?.cost_child,
+    ratePairs
   );
-  const list = resolveCatalogDisplayPrice(
+
+  const cost = resolvePerPaxCost(
+    agencyCost.adult,
+    agencyCost.child,
+    tourBase.adult,
+    tourBase.child
+  );
+
+  const agencyList = resolveAgencyAmountInCurrency(
+    cur,
     prices?.price_adult,
     prices?.price_child,
-    baseAdult,
-    baseChild
+    pricesEur?.price_adult,
+    pricesEur?.price_child,
+    ratePairs
+  );
+
+  const list = resolveCatalogDisplayPrice(
+    agencyList.adult,
+    agencyList.child,
+    tourBase.adult,
+    tourBase.child
   );
 
   const earnings = computeVoucherEarnings({
@@ -308,7 +339,10 @@ export async function fetchCariOverview(): Promise<{
     new Set((vouchers ?? []).map((v) => v.agency_id).filter(Boolean))
   ) as string[];
 
-  const { priceMap, baseMap } = await loadPricingMaps(supabase, tourIds, agencyIds);
+  const [{ priceMap, baseMap }, { pairs: ratePairs }] = await Promise.all([
+    loadPricingMaps(supabase, tourIds, agencyIds),
+    loadExchangeRatePairsForCalculation(),
+  ]);
 
   const cardsMap = new Map<string, CariAgencyCardData>();
   for (const a of agencies ?? []) {
@@ -357,7 +391,7 @@ export async function fetchCariOverview(): Promise<{
       card.last_activity = isoCreatedAt;
     }
 
-    const row = computeRow(v, priceMap, baseMap);
+    const row = computeRow(v, priceMap, baseMap, ratePairs);
     const line = lineFor(agencyId, row.currency);
     line.voucher_count += 1;
     if (row.missing_cost) {
@@ -459,7 +493,10 @@ export async function fetchAgencyCari(
     new Set((vouchers ?? []).map((v) => v.tour_id).filter(Boolean))
   ) as string[];
 
-  const { priceMap, baseMap } = await loadPricingMaps(supabase, tourIds, [agencyId]);
+  const [{ priceMap, baseMap }, { pairs: ratePairs }] = await Promise.all([
+    loadPricingMaps(supabase, tourIds, [agencyId]),
+    loadExchangeRatePairsForCalculation(),
+  ]);
 
   const lineSub = new Map<Cur, CariCurrencyLine>();
   const lineFor = (c: Cur): CariCurrencyLine => {
@@ -475,7 +512,7 @@ export async function fetchAgencyCari(
   const cancelled: CariVoucherRow[] = [];
 
   for (const v of (vouchers as VoucherRowFromDb[]) ?? []) {
-    const row = computeRow(v, priceMap, baseMap);
+    const row = computeRow(v, priceMap, baseMap, ratePairs);
     if (v.status === "cancelled") {
       cancelled.push(row);
       continue;

@@ -25,6 +25,10 @@ export async function AnnouncementMarquee({
   // Tekrarlama: kayan animasyon kesintisiz olsun diye 2 kez duplike ediyoruz
   const trackItems = [...items, ...items];
 
+  const totalLen = items.join("").length;
+  const durationSec = Math.min(26, Math.max(10, Math.round(totalLen * 0.022)));
+  const durationMobileSec = Math.max(6, Math.round(durationSec * 0.55));
+
   return (
     <Link
       href="/announcements"
@@ -40,7 +44,15 @@ export async function AnnouncementMarquee({
         </div>
 
         <div className="relative flex-1 overflow-hidden">
-          <div className="flex animate-marquee whitespace-nowrap py-2.5">
+          <div
+            className="flex animate-marquee whitespace-nowrap py-2.5"
+            style={
+              {
+                "--marquee-d": `${durationSec}s`,
+                "--marquee-d-mobile": `${durationMobileSec}s`,
+              } as React.CSSProperties
+            }
+          >
             {trackItems.map((text, i) => (
               <span
                 key={i}

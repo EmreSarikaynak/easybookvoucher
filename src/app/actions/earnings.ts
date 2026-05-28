@@ -4,10 +4,16 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getCurrentUser, isAdmin } from "@/lib/auth-helpers";
 import { resolveCatalogDisplayPrice } from "@/lib/tour-catalog-data";
 import {
+  loadExchangeRatePairsForCalculation,
+  resolveAgencyAmountInCurrency,
+  resolveTourBaseInCurrency,
+} from "@/lib/exchange-rates";
+import {
   computeVoucherEarnings,
   resolvePerPaxCost,
   round2,
 } from "@/lib/pricing";
+import type { CurrencyType } from "@/lib/types";
 
 export interface VoucherEarningRow {
   voucher_id: string;
@@ -161,12 +167,15 @@ export async function fetchEarningsReport(
   });
 
   // EasyBook taban maliyetleri (override yoksa fallback) — currency duyarlı.
-  const { data: tourRows } = await supabase
-    .from("tours")
-    .select(
-      "id, base_price_adult_eur, base_price_child_eur, base_price_adult_try, base_price_child_try"
-    )
-    .in("id", safeTourIds);
+  const [{ data: tourRows }, { pairs: ratePairs }] = await Promise.all([
+    supabase
+      .from("tours")
+      .select(
+        "id, base_price_adult_eur, base_price_child_eur, base_price_adult_try, base_price_child_try"
+      )
+      .in("id", safeTourIds),
+    loadExchangeRatePairsForCalculation(),
+  ]);
 
   const baseMap = new Map<
     string,
@@ -198,36 +207,50 @@ export async function fetchEarningsReport(
     const totalPrice = v.total_price ?? 0;
     const deposit = v.deposit_paid ?? 0;
 
+    const cur = currency as CurrencyType;
     const prices = priceMap.get(`${agencyId}__${tourId}__${currency}`);
+    const pricesEur = priceMap.get(`${agencyId}__${tourId}__EUR`);
     const base = baseMap.get(tourId);
 
-    // Currency duyarlı taban fiyat: EUR/TRY var, USD/GBP için yok (=> maliyet bilinmiyor).
-    const baseAdult =
-      currency === "EUR"
-        ? base?.adult_eur
-        : currency === "TRY"
-          ? base?.adult_try
-          : null;
-    const baseChild =
-      currency === "EUR"
-        ? base?.child_eur
-        : currency === "TRY"
-          ? base?.child_try
-          : null;
-
-    const cost = resolvePerPaxCost(
-      prices?.cost_adult,
-      prices?.cost_child,
-      baseAdult,
-      baseChild
+    const tourBase = resolveTourBaseInCurrency(
+      cur,
+      base?.adult_eur,
+      base?.child_eur,
+      base?.adult_try,
+      base?.child_try,
+      ratePairs
     );
 
-    // Liste satış fiyatı: acentenin kayıtlı fiyatı, yoksa tabana düş.
-    const list = resolveCatalogDisplayPrice(
+    const agencyCost = resolveAgencyAmountInCurrency(
+      cur,
+      prices?.cost_adult,
+      prices?.cost_child,
+      pricesEur?.cost_adult,
+      pricesEur?.cost_child,
+      ratePairs
+    );
+
+    const cost = resolvePerPaxCost(
+      agencyCost.adult,
+      agencyCost.child,
+      tourBase.adult,
+      tourBase.child
+    );
+
+    const agencyList = resolveAgencyAmountInCurrency(
+      cur,
       prices?.price_adult,
       prices?.price_child,
-      baseAdult,
-      baseChild
+      pricesEur?.price_adult,
+      pricesEur?.price_child,
+      ratePairs
+    );
+
+    const list = resolveCatalogDisplayPrice(
+      agencyList.adult,
+      agencyList.child,
+      tourBase.adult,
+      tourBase.child
     );
 
     const earnings = computeVoucherEarnings({

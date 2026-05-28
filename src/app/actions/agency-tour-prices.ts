@@ -7,6 +7,11 @@ import {
 } from "@/lib/supabase-server";
 import { getCurrentUser, isAgencyUser } from "@/lib/auth-helpers";
 import { formatDbError } from "@/lib/error-messages";
+import {
+  loadExchangeRatePairsForCalculation,
+  resolveAgencyAmountInCurrency,
+  resolveTourBaseInCurrency,
+} from "@/lib/exchange-rates";
 import { resolvePerPaxCost } from "@/lib/pricing";
 import type { CurrencyType } from "@/lib/types";
 
@@ -116,38 +121,58 @@ export async function getAgencyTourPrice(
 
   const supabase = await createServerSupabaseClient();
 
-  const { data: priceRow } = await supabase
-    .from("agency_tour_prices")
-    .select("price_adult, price_child")
-    .eq("agency_id", agencyId)
-    .eq("tour_id", tourId)
-    .eq("currency", currency)
-    .maybeSingle();
+  const [{ pairs }, priceRes, priceEurRes] = await Promise.all([
+    loadExchangeRatePairsForCalculation(),
+    supabase
+      .from("agency_tour_prices")
+      .select("price_adult, price_child")
+      .eq("agency_id", agencyId)
+      .eq("tour_id", tourId)
+      .eq("currency", currency)
+      .maybeSingle(),
+    currency !== "EUR"
+      ? supabase
+          .from("agency_tour_prices")
+          .select("price_adult, price_child")
+          .eq("agency_id", agencyId)
+          .eq("tour_id", tourId)
+          .eq("currency", "EUR")
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
 
-  if (priceRow && (priceRow.price_adult ?? 0) > 0) {
+  const resolved = resolveAgencyAmountInCurrency(
+    currency,
+    priceRes.data?.price_adult,
+    priceRes.data?.price_child,
+    priceEurRes.data?.price_adult,
+    priceEurRes.data?.price_child,
+    pairs
+  );
+
+  if (resolved.adult != null || resolved.child != null) {
+    const hasDirectRow =
+      (priceRes.data?.price_adult ?? 0) > 0 || (priceRes.data?.price_child ?? 0) > 0;
     return {
-      price_adult: Number(priceRow.price_adult) || 0,
-      price_child: Number(priceRow.price_child) || 0,
+      price_adult: resolved.adult ?? 0,
+      price_child: resolved.child ?? 0,
       source: "agency",
     };
   }
 
-  // Acente fiyatı kaydetmemiş — fiyat yoktur, admin fiyatına fallback yapma
   return null;
 }
 
 export interface AgencyTourCostLookup {
   cost_adult: number;
   cost_child: number;
-  /** Maliyet kaynağı yok (taban fiyat girilmemiş / USD-GBP) — uyarı gösterilmemeli. */
+  /** Maliyet kaynağı yok (EUR taban fiyat girilmemiş). */
   missing: boolean;
 }
 
 /**
  * Voucher formu için EasyBook maliyet lookup'ı.
- * Önce acente bazlı cost override'ı (agency_tour_prices.cost_*), yoksa
- * turun currency'e duyarlı taban fiyatına (tours.base_price_*) düşer.
- * EUR/TRY dışında taban fiyat olmadığı için USD/GBP'de missing=true döner.
+ * EUR taban maliyet + güncel kurlarla hedef para birimine çevrilir.
  */
 export async function getAgencyTourCost(
   agencyId: string,
@@ -159,40 +184,56 @@ export async function getAgencyTourCost(
 
   const supabase = await createServerSupabaseClient();
 
-  const { data: costRow } = await supabase
-    .from("agency_tour_prices")
-    .select("cost_adult, cost_child")
-    .eq("agency_id", agencyId)
-    .eq("tour_id", tourId)
-    .eq("currency", currency)
-    .maybeSingle();
+  const [{ pairs }, costRes, costEurRes, tourRes] = await Promise.all([
+    loadExchangeRatePairsForCalculation(),
+    supabase
+      .from("agency_tour_prices")
+      .select("cost_adult, cost_child")
+      .eq("agency_id", agencyId)
+      .eq("tour_id", tourId)
+      .eq("currency", currency)
+      .maybeSingle(),
+    currency !== "EUR"
+      ? supabase
+          .from("agency_tour_prices")
+          .select("cost_adult, cost_child")
+          .eq("agency_id", agencyId)
+          .eq("tour_id", tourId)
+          .eq("currency", "EUR")
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from("tours")
+      .select(
+        "base_price_adult_eur, base_price_child_eur, base_price_adult_try, base_price_child_try"
+      )
+      .eq("id", tourId)
+      .maybeSingle(),
+  ]);
 
-  const { data: tour } = await supabase
-    .from("tours")
-    .select(
-      "base_price_adult_eur, base_price_child_eur, base_price_adult_try, base_price_child_try"
-    )
-    .eq("id", tourId)
-    .maybeSingle();
+  const agencyAmounts = resolveAgencyAmountInCurrency(
+    currency,
+    costRes.data?.cost_adult,
+    costRes.data?.cost_child,
+    costEurRes.data?.cost_adult,
+    costEurRes.data?.cost_child,
+    pairs
+  );
 
-  const baseAdult =
-    currency === "EUR"
-      ? tour?.base_price_adult_eur
-      : currency === "TRY"
-        ? tour?.base_price_adult_try
-        : null;
-  const baseChild =
-    currency === "EUR"
-      ? tour?.base_price_child_eur
-      : currency === "TRY"
-        ? tour?.base_price_child_try
-        : null;
+  const base = resolveTourBaseInCurrency(
+    currency,
+    tourRes.data?.base_price_adult_eur,
+    tourRes.data?.base_price_child_eur,
+    tourRes.data?.base_price_adult_try,
+    tourRes.data?.base_price_child_try,
+    pairs
+  );
 
   const cost = resolvePerPaxCost(
-    costRow?.cost_adult,
-    costRow?.cost_child,
-    baseAdult,
-    baseChild
+    agencyAmounts.adult,
+    agencyAmounts.child,
+    base.adult,
+    base.child
   );
 
   return {
