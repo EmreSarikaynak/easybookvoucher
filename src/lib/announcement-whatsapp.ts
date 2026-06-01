@@ -10,6 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendWhatsAppViaFetch } from "@/lib/twilio-core";
 import { parseWhatsappPhonesSetting } from "@/lib/settings-utils";
+import { normalizeStoredPhone } from "@/lib/phone";
 import { toWhatsAppFormat } from "@/lib/whatsapp-markdown";
 
 export type AnnouncementTargetRole =
@@ -66,9 +67,13 @@ export async function resolveAnnouncementRecipients(
     .in("role", rolesToFetch)
     .not("phone", "is", null);
 
+  // profiles.phone tarihsel olarak "0532..." veya boşluklu kaydedilebiliyor.
+  // Twilio E.164 beklediği için ham eklersek (özellikle sales hedefinde) tüm
+  // gönderimler hata kodu ile düşer. normalizeStoredPhone → "+90..." garantisi.
   for (const p of profiles ?? []) {
-    const phone = (p as { phone?: string | null }).phone?.trim();
-    if (phone) phones.add(phone);
+    const raw = (p as { phone?: string | null }).phone;
+    const normalized = normalizeStoredPhone(raw);
+    if (normalized) phones.add(normalized);
   }
 
   return Array.from(phones);

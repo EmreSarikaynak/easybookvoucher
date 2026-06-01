@@ -210,10 +210,13 @@ const styles = StyleSheet.create({
 
   // -- A4 arkaplan: sayfa pozisyonu bazlı (admin tarafından global olarak yüklenir).
   //    Image doğrudan absolute pozisyonda; A4 oranında olmayan resimlerde cover ile crop.
+  // @react-pdf v4: absolute pozisyon parent'ın padding-box'ına göre. Page'in
+  // padding'ini negatif offset ile telafi et; aksi halde görsel padding içinde
+  // başlar + sağdan/alttan taşar → react-pdf yeni sayfaya iter.
   pageBackgroundImg: {
     position: "absolute",
-    top: 0,
-    left: 0,
+    top: -PAGE_PADDING_V,
+    left: -PAGE_PADDING_H,
     width: PAGE_W,
     height: PAGE_H,
     objectFit: "cover",
