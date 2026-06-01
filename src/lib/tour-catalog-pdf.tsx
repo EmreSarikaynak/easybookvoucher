@@ -149,15 +149,25 @@ function clipText(s: string, max: number): string {
 }
 
 const styles = StyleSheet.create({
+  // Page padding'i sıfır: arkaplan görseli tam edge-to-edge oturabilsin.
+  // @react-pdf v4'te <Image position:absolute> Page padding'i ile flow'a
+  // karışıp content'i yeni sayfaya itiyordu. Padding artık iç wrapper
+  // View'larda (coverInner/tocInner) uygulanıyor; tur sayfalarındaki slot'lar
+  // zaten absolute koordinatlarla çalıştığı için onları etkilemiyor.
   page: {
     fontFamily: "NotoSans",
     fontSize: 9,
     color: TEXT_DARK,
     backgroundColor: BG_PAGE,
+    padding: 0,
+    position: "relative",
+  },
+  // Cover/TOC gibi flow-layout sayfalar için iç padding wrapper'ı
+  contentInner: {
+    flex: 1,
     paddingTop: PAGE_PADDING_V,
     paddingBottom: PAGE_PADDING_V,
     paddingHorizontal: PAGE_PADDING_H,
-    position: "relative",
   },
 
   // -- Tur sayfası absolute slot'ları (her zaman tam yarım, asla taşmaz) --
@@ -208,17 +218,19 @@ const styles = StyleSheet.create({
   },
   footerText: { color: "#FFFFFF", fontSize: 8.5, fontWeight: 700 },
 
-  // -- A4 arkaplan: sayfa pozisyonu bazlı (admin tarafından global olarak yüklenir).
-  //    Image doğrudan absolute pozisyonda; A4 oranında olmayan resimlerde cover ile crop.
-  // @react-pdf v4: absolute pozisyon parent'ın padding-box'ına göre. Page'in
-  // padding'ini negatif offset ile telafi et; aksi halde görsel padding içinde
-  // başlar + sağdan/alttan taşar → react-pdf yeni sayfaya iter.
-  pageBackgroundImg: {
+  // -- A4 arkaplan: tam sayfa, kenardan kenara.
+  //    Page padding'i 0 olduğu için absolute View doğrudan sayfa edge'ine oturuyor.
+  //    Image, View'ın içinde %100/%100 ile cover modunda — A4 dışı oranlarda kırpılır.
+  pageBackgroundWrap: {
     position: "absolute",
-    top: -PAGE_PADDING_V,
-    left: -PAGE_PADDING_H,
+    top: 0,
+    left: 0,
     width: PAGE_W,
     height: PAGE_H,
+  },
+  pageBackgroundImg: {
+    width: "100%",
+    height: "100%",
     objectFit: "cover",
   },
 
@@ -874,7 +886,13 @@ function TourCard({ lang, tour, imgs, price, currency }: TourCardProps) {
 
 function PageBackground({ src }: { src?: string | null }) {
   if (!src) return null;
-  return <Image style={styles.pageBackgroundImg} src={src} />;
+  // Image'i absolute View içine sarıyoruz: @react-pdf v4'te doğrudan absolute
+  // Image flow'a karışıp content'i yeni sayfaya itebiliyor; View daha güvenilir.
+  return (
+    <View style={styles.pageBackgroundWrap}>
+      <Image style={styles.pageBackgroundImg} src={src} />
+    </View>
+  );
 }
 
 interface TourPageProps extends HFProps {
@@ -920,13 +938,15 @@ function CoverPage({
   return (
     <Page size="A4" style={styles.page}>
       <PageBackground src={pageBg} />
-      <View style={styles.coverWrap}>
-        {logoDataUrl ? <Image style={styles.coverLogo} src={logoDataUrl} /> : null}
-        <Text style={styles.coverBrand}>Easy Book Tours</Text>
-        <Text style={styles.coverTagline}>{tagline}</Text>
-        <Text style={styles.coverTitle}>{ui.catalogTitle}</Text>
-        <Text style={styles.coverSub}>{ui.toursCountSuffix(tourCount)}  ·  {priceSubLabel}</Text>
-        <Text style={styles.coverDate}>{today}</Text>
+      <View style={styles.contentInner}>
+        <View style={styles.coverWrap}>
+          {logoDataUrl ? <Image style={styles.coverLogo} src={logoDataUrl} /> : null}
+          <Text style={styles.coverBrand}>Easy Book Tours</Text>
+          <Text style={styles.coverTagline}>{tagline}</Text>
+          <Text style={styles.coverTitle}>{ui.catalogTitle}</Text>
+          <Text style={styles.coverSub}>{ui.toursCountSuffix(tourCount)}  ·  {priceSubLabel}</Text>
+          <Text style={styles.coverDate}>{today}</Text>
+        </View>
       </View>
     </Page>
   );
@@ -941,14 +961,16 @@ function TocPage({
   return (
     <Page size="A4" style={styles.page}>
       <PageBackground src={pageBg} />
-      <Text style={styles.tocTitle}>{ui.tableOfContents}</Text>
-      {entries.map((e, i) => (
-        <View key={i} style={styles.tocRow}>
-          <Text style={styles.tocIndex}>{String(i + 1).padStart(2, "0")}</Text>
-          <Text style={styles.tocName}>{e.name}</Text>
-          <Text style={styles.tocPage}>{e.page}</Text>
-        </View>
-      ))}
+      <View style={styles.contentInner}>
+        <Text style={styles.tocTitle}>{ui.tableOfContents}</Text>
+        {entries.map((e, i) => (
+          <View key={i} style={styles.tocRow}>
+            <Text style={styles.tocIndex}>{String(i + 1).padStart(2, "0")}</Text>
+            <Text style={styles.tocName}>{e.name}</Text>
+            <Text style={styles.tocPage}>{e.page}</Text>
+          </View>
+        ))}
+      </View>
     </Page>
   );
 }
