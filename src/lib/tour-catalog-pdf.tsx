@@ -407,30 +407,6 @@ const styles = StyleSheet.create({
   coverSub: { fontSize: 13, color: TEXT_MUTED, marginTop: 16 },
   coverDate: { fontSize: 11, color: TEXT_MUTED, marginTop: 6 },
 
-  // -- TOC --
-  tocTitle: {
-    fontFamily: "Display",
-    fontWeight: 700,
-    fontSize: 26,
-    color: NAVY_DEEP,
-    marginBottom: 16,
-  },
-  tocRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    paddingVertical: 5,
-    borderBottomWidth: 0.4,
-    borderBottomColor: BORDER,
-  },
-  tocIndex: {
-    width: 28,
-    fontSize: 10,
-    color: TEAL,
-    fontWeight: 700,
-  },
-  tocName: { flex: 1, fontSize: 11, color: TEXT_DARK },
-  tocPage: { fontSize: 10, color: TEXT_MUTED, marginLeft: 6 },
-
   // -- CONTACT --
   contactTitle: {
     fontFamily: "Display",
@@ -975,30 +951,6 @@ function CoverPage({
   );
 }
 
-function TocPage({
-  lang,
-  entries,
-  pageBg,
-}: HFProps & { entries: { name: string; page: number }[]; pageBg?: string | null }) {
-  const ui = getCatalogPageUi(lang);
-  return (
-    <Page size="A4" style={styles.page}>
-      <PageBackground src={pageBg} />
-      <View style={styles.contentInner}>
-        <Text style={styles.tocTitle}>{ui.tableOfContents}</Text>
-        {entries.map((e, i) => (
-          <View key={i} style={styles.tocRow}>
-            <Text style={styles.tocIndex}>{String(i + 1).padStart(2, "0")}</Text>
-            <Text style={styles.tocName}>{e.name}</Text>
-            <Text style={styles.tocPage}>{e.page}</Text>
-          </View>
-        ))}
-      </View>
-    </Page>
-  );
-}
-
-
 // --- Public API ---
 
 export type CatalogPdfCurrency = "EUR" | "TRY";
@@ -1062,11 +1014,8 @@ async function buildCatalogDocument(opts: GenerateCatalogOpts) {
 
   const pairs = chunkPairs(cards);
 
-  const tocEntries = tours.map((t, i) => {
-    const c = getTourContentForLang(t.translations, lang, t.name, t.description);
-    return { name: c.name, page: 3 + Math.floor(i / 2) };
-  });
-
+  // Sayfa düzeni: 1 = Kapak, 2..N = Tur sayfaları (her sayfa 2 tur).
+  // İçindekiler sayfası kaldırıldı — turist direkt turlardan göz gezdirir.
   return (
     <Document>
       <CoverPage
@@ -1076,14 +1025,13 @@ async function buildCatalogDocument(opts: GenerateCatalogOpts) {
         currency={currency}
         pageBg={resolveBg(1)}
       />
-      <TocPage lang={lang} logoDataUrl={logoDataUrl} entries={tocEntries} pageBg={resolveBg(2)} />
       {pairs.map((pair, i) => (
         <ToursPage
           key={i}
           lang={lang}
           logoDataUrl={logoDataUrl}
           pair={pair}
-          pageBg={resolveBg(3 + i)}
+          pageBg={resolveBg(2 + i)}
           currency={currency}
         />
       ))}

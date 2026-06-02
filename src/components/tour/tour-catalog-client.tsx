@@ -312,21 +312,20 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
   }, [initialData.tours, sortedTours, tourLayout]);
 
   // Sayfa pozisyonu bazlı tur eşlemesi (her sayfa = 2 tur).
-  // 1: Kapak, 2: İçindekiler, 3..N: Tur sayfaları (3 -> ilk 2 tur, 4 -> sonraki 2 tur, …)
+  // 1: Kapak, 2..N: Tur sayfaları (2 -> ilk 2 tur, 3 -> sonraki 2 tur, …)
   const pageLayout = useMemo(() => {
     const tourPagesCount = Math.ceil(orderedTours.length / 2);
     const items: { pageNumber: number; label: string; subLabel?: string }[] = [
       { pageNumber: 1, label: "Sayfa 1 — Kapak" },
-      { pageNumber: 2, label: "Sayfa 2 — İçindekiler" },
     ];
     for (let i = 0; i < tourPagesCount; i++) {
       const a = orderedTours[i * 2];
       const b = orderedTours[i * 2 + 1];
       const aName = a ? getTourContentForLang(a.translations, previewLang, a.name, a.description).name : "";
       const bName = b ? getTourContentForLang(b.translations, previewLang, b.name, b.description).name : "";
-      const label = `Sayfa ${3 + i}`;
+      const label = `Sayfa ${2 + i}`;
       const subLabel = b ? `${aName} + ${bName}` : aName;
-      items.push({ pageNumber: 3 + i, label, subLabel });
+      items.push({ pageNumber: 2 + i, label, subLabel });
     }
     return items;
   }, [orderedTours, previewLang]);
