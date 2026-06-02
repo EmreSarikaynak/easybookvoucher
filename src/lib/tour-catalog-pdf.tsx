@@ -255,35 +255,16 @@ const styles = StyleSheet.create({
     color: NAVY_DEEP,
     lineHeight: 1.0,
   },
-  cardSubtitle: {
-    fontFamily: "NotoSans",
-    fontSize: 10,
-    color: TEAL,
-    marginTop: 2,
+  // -- 2x2 görsel grid (sol kolonu doldurur) --
+  imageGrid: {
+    marginTop: 4,
+    flexDirection: "column",
   },
-
-  durationBadge: {
-    backgroundColor: TEAL,
+  imageGridRow: {
     flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 20,
+    flex: 1,
   },
-  durationBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 9,
-    fontWeight: 700,
-    marginLeft: 4,
-  },
-
-  // -- görsel strip (daha kompakt) --
-  imageStrip: {
-    flexDirection: "row",
-    marginVertical: 4,
-    height: 60,
-  },
-  imageCell: { padding: 1.5 },
+  imageCell: { padding: 1.5, flex: 1 },
   imageBox: {
     width: "100%",
     height: "100%",
@@ -297,11 +278,11 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
 
-  // -- alt bilgi grid (kalan tüm alanı doldurur, taşma overflow:hidden ile clip) --
+  // -- ana iki kolon: sol görsel+açıklama, sağ tüm meta+fiyat --
   infoGrid: {
     flex: 1,
     flexDirection: "row",
-    marginTop: 3,
+    marginTop: 4,
     overflow: "hidden",
   },
   leftCol: { flex: 1.5, paddingRight: 8, overflow: "hidden" },
@@ -309,7 +290,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: CYAN_SOFT,
     borderRadius: 6,
-    padding: 6,
+    padding: 8,
     borderWidth: 0.5,
     borderColor: TEAL_LIGHT,
     overflow: "hidden",
@@ -320,38 +301,51 @@ const styles = StyleSheet.create({
     color: TEXT_DARK,
     lineHeight: 1.35,
     textAlign: "justify",
+    marginTop: 4,
   },
 
   sectionHeader: {
     fontSize: 8.5,
     fontWeight: 700,
     color: NAVY,
-    marginBottom: 2,
+    marginBottom: 3,
     letterSpacing: 0.3,
   },
 
-  pillRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: 3,
-  },
-  infoPill: {
+  // -- Sağ kolon süre/günler/saat/meeting bilgi satırları --
+  rightInfoRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    marginRight: 4,
     marginBottom: 3,
-    borderWidth: 0.5,
-    borderColor: BORDER,
   },
-  infoPillText: {
-    fontSize: 8,
+  rightInfoIconBox: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: TEAL,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 6,
+  },
+  rightInfoText: {
+    fontSize: 8.5,
     color: NAVY,
     fontWeight: 700,
-    marginLeft: 3,
+    flex: 1,
+  },
+  rightInfoLabel: {
+    fontSize: 7.5,
+    color: TEXT_MUTED,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    marginRight: 4,
+  },
+
+  // İki bölüm arası ince ayraç çizgi
+  divider: {
+    height: 0.5,
+    backgroundColor: TEAL_LIGHT,
+    marginVertical: 5,
   },
 
   iconListItem: {
@@ -722,23 +716,31 @@ interface TourCardProps {
   currency: CatalogPdfCurrency;
 }
 
-function ImageStrip({ images }: { images: (string | null)[] }) {
-  // En fazla 4 görsel — tek sıra, 4 hücre
+function ImageGrid({ images }: { images: (string | null)[] }) {
+  // 2x2 kare grid — sol kolonu doldurur (büyük görseller, mobil okunaklı)
   const list = images.slice(0, 4);
   while (list.length < 4) list.push(null);
 
-  const cellWidth = `${100 / 4}%`;
+  const cell = (src: string | null, key: number) => (
+    <View key={key} style={styles.imageCell}>
+      {src ? (
+        <Image style={styles.imageBox} src={src} />
+      ) : (
+        <View style={styles.imagePlaceholder} />
+      )}
+    </View>
+  );
+
   return (
-    <View style={styles.imageStrip}>
-      {list.map((src, i) => (
-        <View key={i} style={[styles.imageCell, { width: cellWidth, height: "100%" }]}>
-          {src ? (
-            <Image style={styles.imageBox} src={src} />
-          ) : (
-            <View style={styles.imagePlaceholder} />
-          )}
-        </View>
-      ))}
+    <View style={[styles.imageGrid, { flex: 1 }]}>
+      <View style={styles.imageGridRow}>
+        {cell(list[0], 0)}
+        {cell(list[1], 1)}
+      </View>
+      <View style={styles.imageGridRow}>
+        {cell(list[2], 2)}
+        {cell(list[3], 3)}
+      </View>
     </View>
   );
 }
@@ -792,80 +794,85 @@ function TourCard({ lang, tour, imgs, price, currency }: TourCardProps) {
   // wrap={false} kaldırıldı: artık içerik sertçe sınırlı, overflow:hidden ile
   // taşma clip olur. Bu sayede kart asla yeni sayfaya kaymaz, "boş sayfa"
   // oluşmaz. Slot zaten absolute positioning ile sabit yükseklikte.
+  // Radikal layout: SOL = başlık + 2x2 görsel + açıklama; SAĞ (mavi) = TÜM
+  // meta (süre/günler/saat/meeting) + Dahil Olanlar + Dahil Olmayanlar + fiyat.
   return (
     <View style={styles.card}>
       <View style={styles.cardTopRow}>
         <View style={styles.cardTitleBlock}>
           <Text style={styles.cardTitle}>{content.name}</Text>
         </View>
-        {duration ? (
-          <View style={styles.durationBadge}>
-            <DecoIcon iconKey="clock" size={11} color="#FFFFFF" />
-            <Text style={styles.durationBadgeText}>
-              {ui.duration}: {duration}
-            </Text>
-          </View>
-        ) : null}
       </View>
 
-      <ImageStrip images={imgs} />
-
       <View style={styles.infoGrid}>
+        {/* SOL: 2x2 görsel grid + altta açıklama */}
         <View style={styles.leftCol}>
+          <ImageGrid images={imgs} />
           {desc ? <Text style={styles.description}>{desc}</Text> : null}
-
-          {/* Departure/meeting pill row */}
-          {(days || depTime || meeting) ? (
-            <View style={styles.pillRow}>
-              {days ? (
-                <View style={styles.infoPill}>
-                  <DecoIcon iconKey="calendar" size={9} color={NAVY} />
-                  <Text style={styles.infoPillText}>{days}</Text>
-                </View>
-              ) : null}
-              {depTime ? (
-                <View style={styles.infoPill}>
-                  <DecoIcon iconKey="clock" size={9} color={NAVY} />
-                  <Text style={styles.infoPillText}>{depTime}</Text>
-                </View>
-              ) : null}
-              {meeting ? (
-                <View style={styles.infoPill}>
-                  <DecoIcon iconKey="mapPin" size={9} color={NAVY} />
-                  <Text style={styles.infoPillText}>{meeting}</Text>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-
-          {/* Excluded — sola alıyoruz çünkü Dahil Olanlar info kartında olacak */}
-          {excluded.length > 0 ? (
-            <View style={{ marginTop: 4 }}>
-              <Text style={styles.sectionHeader}>{ui.excluded}</Text>
-              {excluded.map((item, i) => (
-                <IconListLine
-                  key={i}
-                  icon="x"
-                  text={item}
-                  color="#FFFFFF"
-                  bg="#E5564E"
-                />
-              ))}
-            </View>
-          ) : null}
         </View>
 
+        {/* SAĞ: tüm meta + listeler + fiyat */}
         <View style={styles.rightCol}>
+          {duration ? (
+            <View style={styles.rightInfoRow}>
+              <View style={styles.rightInfoIconBox}>
+                <DecoIcon iconKey="clock" size={10} color="#FFFFFF" />
+              </View>
+              <Text style={styles.rightInfoText}>{duration}</Text>
+            </View>
+          ) : null}
+          {days ? (
+            <View style={styles.rightInfoRow}>
+              <View style={styles.rightInfoIconBox}>
+                <DecoIcon iconKey="calendar" size={10} color="#FFFFFF" />
+              </View>
+              <Text style={styles.rightInfoText}>{days}</Text>
+            </View>
+          ) : null}
+          {depTime ? (
+            <View style={styles.rightInfoRow}>
+              <View style={styles.rightInfoIconBox}>
+                <DecoIcon iconKey="clock" size={10} color="#FFFFFF" />
+              </View>
+              <Text style={styles.rightInfoText}>{depTime}</Text>
+            </View>
+          ) : null}
+          {meeting ? (
+            <View style={styles.rightInfoRow}>
+              <View style={styles.rightInfoIconBox}>
+                <DecoIcon iconKey="mapPin" size={10} color="#FFFFFF" />
+              </View>
+              <Text style={styles.rightInfoText}>{meeting}</Text>
+            </View>
+          ) : null}
+
           {included.length > 0 ? (
             <>
+              <View style={styles.divider} />
               <Text style={styles.sectionHeader}>{ui.included}</Text>
               {included.map((item, i) => (
                 <IconListLine
-                  key={i}
+                  key={`in-${i}`}
                   icon={pickIconForText(item, "check")}
                   text={item}
                   color="#FFFFFF"
                   bg={TEAL}
+                />
+              ))}
+            </>
+          ) : null}
+
+          {excluded.length > 0 ? (
+            <>
+              <View style={styles.divider} />
+              <Text style={styles.sectionHeader}>{ui.excluded}</Text>
+              {excluded.map((item, i) => (
+                <IconListLine
+                  key={`ex-${i}`}
+                  icon="x"
+                  text={item}
+                  color="#FFFFFF"
+                  bg="#E5564E"
                 />
               ))}
             </>
