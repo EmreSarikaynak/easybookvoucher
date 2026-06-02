@@ -179,12 +179,63 @@ export const ICONS: Record<string, IconShape> = {
     ],
     shapes: [{ kind: "circle", cx: 12, cy: 12, r: 10 }],
   },
+  // Kaptan / yacht crew → çıpa
+  anchor: {
+    paths: ["M12 22V8", "M5 12H2a10 10 0 0 0 20 0h-3"],
+    shapes: [{ kind: "circle", cx: 12, cy: 5, r: 3 }],
+  },
+  // Aşçı / şef → şef şapkası
+  chefHat: {
+    paths: [
+      "M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589 5 5 0 0 0-9.186 0 4 4 0 0 0-2.134 7.588c.411.198.727.585.727 1.041V20a1 1 0 0 0 1 1Z",
+      "M6 17h12",
+    ],
+  },
+  // Yakıt / fuel → pompa
+  fuel: {
+    paths: [
+      "M3 22h12",
+      "M5 22V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v18",
+      "M9 13h2",
+      "M15 9h2a2 2 0 0 1 2 2v6.5a1.5 1.5 0 0 1-3 0V14h-1",
+    ],
+  },
+  // Can yeleği / can simidi → life buoy
+  lifeBuoy: {
+    paths: [
+      "m4.93 4.93 4.24 4.24",
+      "m14.83 9.17 4.24-4.24",
+      "m14.83 14.83 4.24 4.24",
+      "m9.17 14.83-4.24 4.24",
+    ],
+    shapes: [
+      { kind: "circle", cx: 12, cy: 12, r: 10 },
+      { kind: "circle", cx: 12, cy: 12, r: 4 },
+    ],
+  },
+  // Müzik → nota
+  music: {
+    paths: ["M9 18V5l12-2v13"],
+    shapes: [
+      { kind: "circle", cx: 6, cy: 18, r: 3 },
+      { kind: "circle", cx: 18, cy: 16, r: 3 },
+    ],
+  },
+  // Çay / kahve → fincan
+  coffee: {
+    paths: [
+      "M10 2v2",
+      "M14 2v2",
+      "M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1",
+    ],
+  },
 };
 
 export type IconKey =
   | "check" | "x" | "bus" | "ticket" | "utensils" | "cupSoda" | "lock" | "user"
   | "hotel" | "waves" | "umbrella" | "ship" | "camera" | "shieldCheck" | "wifi"
-  | "map" | "sunMedium" | "clock" | "mapPin" | "calendar" | "phone" | "globe";
+  | "map" | "sunMedium" | "clock" | "mapPin" | "calendar" | "phone" | "globe"
+  | "anchor" | "chefHat" | "fuel" | "lifeBuoy" | "music" | "coffee";
 
 interface KeywordRule {
   icon: IconKey;
@@ -193,6 +244,54 @@ interface KeywordRule {
 }
 
 const RULES: KeywordRule[] = [
+  {
+    // Kaptan TR / captain EN / капитан RU — utensils'in "öğle" gibi yaygın
+    // partial match'i ile çakışmaması için RULES'un en başında.
+    icon: "anchor",
+    words: [
+      "kaptan", "captain", "skipper", "denizci", "капитан", "шкипер",
+    ],
+  },
+  {
+    icon: "chefHat",
+    words: [
+      "aşçı", "asci", "ahçı", "ahci", "şef", "sef",
+      "chef", "cook", "cooking",
+      "повар", "шеф",
+    ],
+  },
+  {
+    icon: "fuel",
+    words: [
+      "yakıt", "yakit", "mazot", "benzin",
+      "fuel", "petrol", "gas", "gasoline", "diesel",
+      "топливо", "бензин", "дизель",
+    ],
+  },
+  {
+    icon: "lifeBuoy",
+    words: [
+      "can yeleği", "can yelegi", "can simidi", "kurtarma",
+      "life jacket", "life vest", "life buoy", "lifejacket", "lifebuoy", "lifesaver",
+      "спасательн",
+    ],
+  },
+  {
+    icon: "music",
+    words: [
+      "müzik", "muzik", "şarkı", "sarki", "ses sistemi",
+      "music", "audio", "sound system", "dj",
+      "музык",
+    ],
+  },
+  {
+    icon: "coffee",
+    words: [
+      "çay", "cay", "kahve", "türk kahvesi", "turk kahvesi",
+      "coffee", "tea", "espresso",
+      "чай", "кофе",
+    ],
+  },
   {
     icon: "bus",
     words: [

@@ -360,15 +360,14 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   iconCircle: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: "#FFFFFF",
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 5,
   },
-  iconListText: { fontSize: 8, color: TEXT_DARK, flex: 1, lineHeight: 1.25 },
+  iconListText: { fontSize: 8.5, color: TEXT_DARK, flex: 1, lineHeight: 1.3 },
 
   priceBox: {
     marginTop: 5,
@@ -744,11 +743,21 @@ function ImageStrip({ images }: { images: (string | null)[] }) {
   );
 }
 
-function IconListLine({ icon, text, color }: { icon: IconKey; text: string; color: string }) {
+function IconListLine({
+  icon,
+  text,
+  color,
+  bg,
+}: {
+  icon: IconKey;
+  text: string;
+  color: string;
+  bg: string;
+}) {
   return (
     <View style={styles.iconListItem}>
-      <View style={[styles.iconCircle, { borderWidth: 0.5, borderColor: TEAL_LIGHT }]}>
-        <DecoIcon iconKey={icon} size={11} color={color} />
+      <View style={[styles.iconCircle, { backgroundColor: bg }]}>
+        <DecoIcon iconKey={icon} size={12} color={color} />
       </View>
       <Text style={styles.iconListText}>{text}</Text>
     </View>
@@ -834,7 +843,13 @@ function TourCard({ lang, tour, imgs, price, currency }: TourCardProps) {
             <View style={{ marginTop: 4 }}>
               <Text style={styles.sectionHeader}>{ui.excluded}</Text>
               {excluded.map((item, i) => (
-                <IconListLine key={i} icon="x" text={item} color="#C8362E" />
+                <IconListLine
+                  key={i}
+                  icon="x"
+                  text={item}
+                  color="#FFFFFF"
+                  bg="#E5564E"
+                />
               ))}
             </View>
           ) : null}
@@ -849,7 +864,8 @@ function TourCard({ lang, tour, imgs, price, currency }: TourCardProps) {
                   key={i}
                   icon={pickIconForText(item, "check")}
                   text={item}
-                  color={NAVY}
+                  color="#FFFFFF"
+                  bg={TEAL}
                 />
               ))}
             </>

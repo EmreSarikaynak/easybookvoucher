@@ -4,11 +4,9 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
-  Save,
   Loader2,
   Download,
   BookOpen,
-  Euro,
   MessageCircle,
   Languages,
   Image as ImageIcon,
@@ -17,7 +15,6 @@ import {
 } from "lucide-react";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -33,15 +30,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  saveCatalogPrices,
   uploadCatalogPageBackground,
   deleteCatalogPageBackground,
   type CatalogCurrency,
@@ -62,19 +50,12 @@ import type {
 } from "@/lib/tour-catalog-pdf";
 import { CatalogTourLayoutPanel } from "@/components/tour/catalog-tour-layout-panel";
 
-interface PriceDraft {
-  price_adult: number;
-  price_child: number;
-  dirty: boolean;
-}
-
 interface TourCatalogClientProps {
   initialData: CatalogPageData;
 }
 
 export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
   const router = useRouter();
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewLang, setPreviewLang] = useState<CatalogLang>("tr");
   const [whatsappLang, setWhatsappLang] = useState<CatalogLang>("tr");
@@ -154,21 +135,8 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
     }
   }, [router]);
 
-  const [drafts, setDrafts] = useState<Record<string, PriceDraft>>(() => {
-    const init: Record<string, PriceDraft> = {};
-    initialData.prices.forEach((p) => {
-      init[p.tour_id] = {
-        price_adult: p.price_adult,
-        price_child: p.price_child,
-        dirty: false,
-      };
-    });
-    return init;
-  });
-
   const selectedAgencyId = initialData.selectedAgencyId;
   const currency = initialData.currency;
-  const currencySymbol = currency === "TRY" ? "₺" : "€";
 
   const buildHref = (params: { agencyId?: string | null; currency?: CatalogCurrency }) => {
     const next = new URLSearchParams();
@@ -188,55 +156,6 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
     router.push(buildHref({ currency: next }));
   };
 
-  const updateField = (
-    tourId: string,
-    field: "price_adult" | "price_child",
-    raw: string
-  ) => {
-    const num = parseInt(raw, 10);
-    setDrafts((prev) => ({
-      ...prev,
-      [tourId]: {
-        ...prev[tourId],
-        [field]: Number.isNaN(num) ? 0 : num,
-        dirty: true,
-      },
-    }));
-  };
-
-  const dirtyCount = Object.values(drafts).filter((d) => d.dirty).length;
-
-  const handleSave = async () => {
-    if (!selectedAgencyId) {
-      setError("Kayıt için acente seçin");
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      const rows = initialData.tours.map((t) => ({
-        tour_id: t.id,
-        price_adult: drafts[t.id]?.price_adult ?? 0,
-        price_child: drafts[t.id]?.price_child ?? 0,
-      }));
-      const result = await saveCatalogPrices(selectedAgencyId, rows, currency);
-      if (result.error) {
-        setError(result.error);
-      } else {
-        setDrafts((prev) => {
-          const next = { ...prev };
-          for (const id of Object.keys(next)) {
-            next[id] = { ...next[id], dirty: false };
-          }
-          return next;
-        });
-        router.refresh();
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleSendWhatsApp = async () => {
     if (!selectedAgencyId) {
       setWaMessage({ type: "error", text: "Acente seçin" });
@@ -244,13 +163,6 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
     }
     if (!customerPhone.trim()) {
       setWaMessage({ type: "error", text: "Müşteri telefonu girin" });
-      return;
-    }
-    if (dirtyCount > 0) {
-      setWaMessage({
-        type: "error",
-        text: "Kaydedilmemiş fiyatlar var. Önce Kaydet'e basın.",
-      });
       return;
     }
 
@@ -325,10 +237,6 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
   const handleDownload = async (lang: CatalogLang) => {
     if (!selectedAgencyId) {
       setError("PDF için acente seçin");
-      return;
-    }
-    if (dirtyCount > 0) {
-      setError("Kaydedilmemiş fiyatlar var. Önce Kaydet'e basın.");
       return;
     }
     setDownloading(lang);
@@ -716,21 +624,13 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
             </div>
           </div>
 
-          {dirtyCount > 0 && (
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-              Göndermeden önce fiyat değişikliklerini kaydedin ({dirtyCount}{" "}
-              tur bekliyor).
-            </p>
-          )}
-
           <div className="flex flex-wrap items-center gap-3">
             <Button
               className="bg-green-600 hover:bg-green-700 text-white"
               disabled={
                 sendingWa ||
                 !selectedAgencyId ||
-                !customerPhone.trim() ||
-                dirtyCount > 0
+                !customerPhone.trim()
               }
               onClick={handleSendWhatsApp}
             >
@@ -756,79 +656,6 @@ export function TourCatalogClient({ initialData }: TourCatalogClientProps) {
           )}
         </CardContent>
       </Card>
-
-      {initialData.isAdmin && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4 pb-3">
-            <div>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Euro className="h-4 w-4" />
-                Satış Fiyatları ({currency})
-              </CardTitle>
-              {initialData.selectedAgencyName && (
-                <CardDescription>{initialData.selectedAgencyName}</CardDescription>
-              )}
-            </div>
-            <Button
-              onClick={handleSave}
-              disabled={saving || !selectedAgencyId || dirtyCount === 0}
-              size="sm"
-            >
-              {saving ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="mr-2 h-4 w-4" />
-              )}
-              Kaydet
-              {dirtyCount > 0 ? ` (${dirtyCount})` : ""}
-            </Button>
-          </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[180px]">Tur</TableHead>
-                  <TableHead className="text-right w-28">Yetişkin {currencySymbol}</TableHead>
-                  <TableHead className="text-right w-28">Çocuk {currencySymbol}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedTours.map((tour) => (
-                  <TableRow key={tour.id}>
-                    <TableCell className="font-medium">{tour.name}</TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        min={0}
-                        step={1}
-                        className="text-right h-9"
-                        value={drafts[tour.id]?.price_adult ?? 0}
-                        onChange={(e) =>
-                          updateField(tour.id, "price_adult", e.target.value)
-                        }
-                        disabled={!selectedAgencyId}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        min={0}
-                        step={1}
-                        className="text-right h-9"
-                        value={drafts[tour.id]?.price_child ?? 0}
-                        onChange={(e) =>
-                          updateField(tour.id, "price_child", e.target.value)
-                        }
-                        disabled={!selectedAgencyId}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
 
       {initialData.isAdmin && (
         <CatalogTourLayoutPanel
