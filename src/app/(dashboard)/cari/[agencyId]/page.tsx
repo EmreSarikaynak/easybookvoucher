@@ -137,85 +137,85 @@ export default async function AgencyCariPage({ params }: PageProps) {
               : ""
         }
       >
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Wallet className="h-4 w-4" /> Net Bakiye (EUR)
-            </CardTitle>
-            <span
-              className={`inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-1 ${
-                status === "debt"
-                  ? "bg-amber-50 text-amber-800"
-                  : status === "credit"
-                    ? "bg-emerald-50 text-emerald-800"
-                    : "bg-slate-50 text-slate-700"
+        {/* Hero: net durum — tek bakışta */}
+        <div
+          className={`rounded-t-xl px-6 py-5 ${
+            status === "debt"
+              ? "bg-amber-50 border-b border-amber-200"
+              : status === "credit"
+                ? "bg-emerald-50 border-b border-emerald-200"
+                : "bg-slate-50 border-b border-slate-200"
+          }`}
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              {status === "debt" ? (
+                <AlertTriangle className="h-7 w-7 text-amber-600 shrink-0" />
+              ) : status === "credit" ? (
+                <Wallet className="h-7 w-7 text-emerald-600 shrink-0" />
+              ) : (
+                <CheckCircle2 className="h-7 w-7 text-slate-500 shrink-0" />
+              )}
+              <div>
+                <p className={`text-sm font-semibold ${
+                  status === "debt" ? "text-amber-800" : status === "credit" ? "text-emerald-800" : "text-slate-700"
+                }`}>
+                  {status === "debt"
+                    ? "Acente EasyBook'a borçlu"
+                    : status === "credit"
+                      ? "EasyBook acenteye borçlu"
+                      : "Hesap eşit"}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">EUR cinsinden konsolide bakiye</p>
+              </div>
+            </div>
+            <p
+              className={`text-4xl font-extrabold tabular-nums ${
+                status === "settled"
+                  ? "text-slate-600"
+                  : status === "debt"
+                    ? "text-amber-700"
+                    : "text-emerald-700"
               }`}
             >
-              {status === "debt" ? (
-                <>
-                  <AlertTriangle className="h-3 w-3" /> Acente borçlu
-                </>
-              ) : status === "credit" ? (
-                <>
-                  <Wallet className="h-3 w-3" /> EasyBook borçlu
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-3 w-3" /> Hesap eşit
-                </>
-              )}
-            </span>
+              {status === "settled"
+                ? fmtEur(0)
+                : `${status === "debt" ? "+" : "−"}${fmtEur(eur.net_debt_eur)}`}
+            </p>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid gap-2 sm:grid-cols-3">
+        </div>
+
+        <CardContent className="space-y-3 pt-4">
+          {/* 4 metrik */}
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
             <div>
               <p className="text-xs text-muted-foreground">EasyBook Alacak</p>
-              <p className="text-xl font-bold text-amber-700 tabular-nums">
+              <p className="text-lg font-bold text-amber-700 tabular-nums">
                 {fmtEur(eur.cost_total_eur)}
               </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Acentenin Ödediği</p>
-              <p className="text-xl font-bold text-emerald-700 tabular-nums">
+              <p className="text-lg font-bold text-emerald-700 tabular-nums">
                 {fmtEur(eur.payments_total_eur)}
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Net Bakiye</p>
-              <p
-                className={`text-2xl font-bold tabular-nums ${
-                  status === "settled"
-                    ? "text-slate-600"
-                    : status === "debt"
-                      ? "text-amber-700"
-                      : "text-emerald-700"
-                }`}
-              >
-                {status === "settled"
-                  ? fmtEur(0)
-                  : `${status === "debt" ? "+" : "−"}${fmtEur(eur.net_debt_eur)}`}
-              </p>
-            </div>
-          </div>
-
-          {/* Satış & Kar özeti */}
-          <div className="grid gap-2 sm:grid-cols-2 pt-2 border-t">
-            <div>
-              <p className="text-xs text-muted-foreground">Toplam Satış (Müşteri Fiyatı)</p>
-              <p className="text-lg font-semibold text-slate-700 tabular-nums">
+              <p className="text-xs text-muted-foreground">Toplam Satış</p>
+              <p className="text-lg font-bold text-slate-700 tabular-nums">
                 {fmtEur(eur.sales_total_eur)}
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Acentenin Tahmini Karı</p>
-              <p className={`text-lg font-semibold tabular-nums ${eur.agency_profit_eur >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+              <p className="text-xs text-muted-foreground">Acente Karı</p>
+              <p className={`text-lg font-bold tabular-nums ${eur.agency_profit_eur >= 0 ? "text-blue-700" : "text-red-700"}`}>
                 {eur.agency_profit_eur >= 0 ? "+" : "−"}{fmtEur(eur.agency_profit_eur)}
               </p>
-              <p className="text-[11px] text-muted-foreground">Satış − EasyBook maliyeti</p>
+              <p className="text-[10px] text-muted-foreground">Satış − maliyet</p>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">
+
+          <p className="text-xs text-muted-foreground border-t pt-3">
             Bilet ve ödemeler kayıt anındaki TCMB kuru ile EUR&apos;ya
             kilitlenir. Bilet kendi para biriminde verilmeye devam eder; cari
             hesap her zaman EUR cinsinden gösterilir.
