@@ -421,7 +421,7 @@ export async function sendWhatsAppViaFetch(params: {
   }
 }
 
-async function sendWhatsAppTemplateViaFetch(
+export async function sendWhatsAppTemplateViaFetch(
   params: TemplateSendParams
 ): Promise<FetchSendResult> {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -906,13 +906,37 @@ export async function sendVoucherCancellationNotificationsFetch(opts: {
   let failed = 0;
   let lastError = "";
 
+  const cancellationInternalTemplateSid = process.env.TWILIO_PDF_INTERNAL_TEMPLATE_SID;
+  const dateTrCancel = formatTourDate(opts.voucher.tourDate, tr);
+
   for (const target of targets) {
-    const result = await sendWhatsAppViaFetch({
-      to: target.to,
-      body: target.body,
-      voucherNo: opts.voucher.voucherNo,
-      includeMedia: false,
-    });
+    // İptal bildirimleri için onaylı internal template'i dene (24h penceresi sorunu yaşamamak için).
+    // Template 5 değişken: 1=ad, 2=biletNo, 3=tur, 4=tarih, 5=pdf(iptal için boş)
+    let result: FetchSendResult = { success: false };
+    if (cancellationInternalTemplateSid) {
+      result = await sendWhatsAppTemplateViaFetch({
+        to: target.to,
+        contentSid: cancellationInternalTemplateSid,
+        variables: {
+          "1": String(opts.voucher.customerName || "—"),
+          "2": String(opts.voucher.voucherNo || "—"),
+          "3": String(opts.voucher.tourName || "—"),
+          "4": String(dateTrCancel || "—"),
+          "5": "İptal edildi",
+        },
+        bodyForLog: target.body,
+        voucherNo: opts.voucher.voucherNo,
+      });
+    }
+    // Template yoksa veya başarısız olduysa freeform dene
+    if (!result.success) {
+      result = await sendWhatsAppViaFetch({
+        to: target.to,
+        body: target.body,
+        voucherNo: opts.voucher.voucherNo,
+        includeMedia: false,
+      });
+    }
     if (result.success) {
       sent++;
     } else {

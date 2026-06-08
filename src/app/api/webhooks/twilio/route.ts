@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase-server";
 import { normalizePhoneDigits } from "@/lib/phone";
 import twilio from "twilio";
+import { sendWhatsAppViaFetch } from "@/lib/twilio-core";
 
 const HARDCODED_ADMIN = "+905366029397";
 
@@ -251,48 +252,31 @@ export async function POST(req: Request) {
         adminPhoneFromSettings = parseWhatsappPhoneSetting(settingRow?.value);
       } catch { /* ignore */ }
 
-      const accountSid = process.env.TWILIO_ACCOUNT_SID;
-      const authToken  = process.env.TWILIO_AUTH_TOKEN;
-      const twilioFrom = process.env.TWILIO_WHATSAPP_NUMBER;
-
-      if (accountSid && authToken && twilioFrom) {
-        const client = twilio(accountSid, authToken);
-
-        const formatTo = (phone: string) => {
-          let d = phone.replace(/[^0-9]/g, "");
-          if (!phone.startsWith("+") && !phone.startsWith("00") && d.length <= 11) {
-            d = d.startsWith("0") ? "90" + d.slice(1) : "90" + d;
-          }
-          return `whatsapp:+${d}`;
-        };
-
-        const targets = new Set<string>();
-        targets.add(formatTo(HARDCODED_ADMIN));
-        if (adminPhoneFromSettings) {
-          targets.add(formatTo(adminPhoneFromSettings));
+      const formatToE164 = (phone: string): string => {
+        let d = phone.replace(/[^0-9]/g, "");
+        if (!phone.startsWith("+") && !phone.startsWith("00") && d.length <= 11) {
+          d = d.startsWith("0") ? "90" + d.slice(1) : "90" + d;
         }
-        const senderFormatted = formatTo(rawPhone);
-        targets.delete(senderFormatted);
+        return `+${d}`;
+      };
 
-        for (const to of targets) {
-          try {
-            const msg = await client.messages.create({
-              from: twilioFrom,
-              to,
-              body: forwardMsg,
-            } as Parameters<typeof client.messages.create>[0]);
+      const forwardTargets = new Set<string>();
+      forwardTargets.add(formatToE164(HARDCODED_ADMIN));
+      if (adminPhoneFromSettings) {
+        forwardTargets.add(formatToE164(adminPhoneFromSettings));
+      }
+      forwardTargets.delete(formatToE164(rawPhone));
 
-            await supabase.from("whatsapp_logs").insert({
-              message_sid: msg.sid,
-              phone_number: to.replace("whatsapp:", ""),
-              direction: "outbound",
-              body: forwardMsg,
-              status: msg.status || "queued",
-              voucher_no: null,
-            });
-          } catch (fwdErr) {
-            console.error("Inbound forward error:", fwdErr);
-          }
+      for (const to of forwardTargets) {
+        try {
+          await sendWhatsAppViaFetch({
+            to,
+            body: forwardMsg,
+            voucherNo: "INBOUND",
+            includeMedia: false,
+          });
+        } catch (fwdErr) {
+          console.error("Inbound forward error:", fwdErr);
         }
       }
 

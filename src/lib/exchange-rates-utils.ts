@@ -148,14 +148,16 @@ export function resolveAgencyAmountInCurrency(
   eurChild: number | null | undefined,
   rates: RatePair[]
 ): ResolvedAgencyAmounts {
-  if ((directAdult ?? 0) > 0 || (directChild ?? 0) > 0) {
+  // Hedef currency'de doğrudan satır varsa (null değilse) onu kullan.
+  // 0 da geçerli bir override (admin "ücretsiz" yazmış olabilir) — > 0 kontrolü yapma.
+  if (directAdult != null || directChild != null) {
     return { adult: directAdult ?? null, child: directChild ?? null };
   }
   if (target === "EUR") {
     return { adult: eurAdult ?? null, child: eurChild ?? null };
   }
   const conv = (n: number | null | undefined): number | null => {
-    if (n == null || n === 0) return null;
+    if (n == null) return null;
     return round2(convertPrice(n, "EUR", target, rates));
   };
   return { adult: conv(eurAdult), child: conv(eurChild) };
