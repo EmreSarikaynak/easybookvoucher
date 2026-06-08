@@ -226,13 +226,13 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
               <div style={{ flex: 1, paddingRight: "4px", minWidth: 0 }}>
                 <h2 style={tourTitleStyle}>{tourName}</h2>
               </div>
-              <div style={{ flexShrink: 0, backgroundColor: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "4px", padding: "4px 6px", maxWidth: "120px" }}>
-                <div style={{ fontSize: "8.5px", fontWeight: 700, textTransform: "uppercase", display: "flex", alignItems: "center", gap: "3px", whiteSpace: "nowrap" }}>
-                  <span style={{ color: "#9ca3af" }}>{t.ticket}:</span>
-                  <span style={{ color: "#374151" }}>#{voucher.voucher_no}</span>
+              <div style={{ flexShrink: 0, backgroundColor: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "4px", padding: "4px 6px", maxWidth: "140px" }}>
+                <div style={{ fontSize: "8.5px", fontWeight: 700, textTransform: "uppercase", display: "flex", alignItems: "center", gap: "3px", flexWrap: "wrap" }}>
+                  <span style={{ color: "#9ca3af", whiteSpace: "nowrap" }}>{t.ticket}:</span>
+                  <span style={{ color: "#374151", whiteSpace: "nowrap" }}>#{voucher.voucher_no}</span>
                 </div>
                 {(voucher.agency?.agency_code || voucher.sales_person?.agency?.agency_code) && (
-                  <div style={{ fontSize: "8px", color: "#6b7280", fontWeight: 600, textTransform: "uppercase", marginTop: "3px", textAlign: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <div style={{ fontSize: "8px", color: "#6b7280", fontWeight: 600, textTransform: "uppercase", marginTop: "3px", textAlign: "center", wordBreak: "break-all" }}>
                     {t.agency}: {voucher.agency?.agency_code || voucher.sales_person?.agency?.agency_code}
                   </div>
                 )}
@@ -390,28 +390,29 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
               <div style={{
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "space-between",
+                flexWrap: "wrap",
                 backgroundColor: "#f9fafb",
                 border: "1px solid #f3f4f6",
                 borderRadius: "4px",
-                padding: "6px 8px",
-                gap: "8px"
+                padding: "5px 8px",
+                gap: "6px 12px"
               }}>
-                <a href="#" style={{ display: "flex", alignItems: "center", gap: "6px", color: "#1f2937", fontWeight: 700, fontSize: "9.5px", textDecoration: "none", flexShrink: 0 }}>
-                  <Globe style={{ width: "15px", height: "15px", color: "#2563eb", flexShrink: 0 }} strokeWidth={2.5} />
+                <a href="#" style={{ display: "flex", alignItems: "center", gap: "4px", color: "#1f2937", fontWeight: 700, fontSize: "9px", textDecoration: "none", flexShrink: 0 }}>
+                  <Globe style={{ width: "13px", height: "13px", color: "#2563eb", flexShrink: 0 }} strokeWidth={2.5} />
                   <span style={{ lineHeight: 1.2 }}>easybooktours.com.tr</span>
                 </a>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
-                  <a href="#" style={{ display: "flex", alignItems: "center", gap: "4px", color: "#1e40af", fontWeight: 600, fontSize: "9px", textDecoration: "none" }}>
-                    <Facebook style={{ width: "14px", height: "14px", flexShrink: 0 }} strokeWidth={2.5} /> <span style={{ lineHeight: 1.2 }}>/easybooktours</span>
-                  </a>
-                  <a href="#" style={{ display: "flex", alignItems: "center", gap: "4px", color: "#db2777", fontWeight: 600, fontSize: "9px", textDecoration: "none" }}>
-                    <Instagram style={{ width: "14px", height: "14px", flexShrink: 0 }} strokeWidth={2.5} /> <span style={{ lineHeight: 1.2 }}>/easybooktours</span>
-                  </a>
-                  <a href="#" style={{ display: "flex", alignItems: "center", gap: "4px", color: "#dc2626", fontWeight: 600, fontSize: "9px", textDecoration: "none" }}>
-                    <Youtube style={{ width: "14px", height: "14px", flexShrink: 0 }} strokeWidth={2.5} /> <span style={{ lineHeight: 1.2 }}>/easybooktours</span>
-                  </a>
-                </div>
+                <a href="#" style={{ display: "flex", alignItems: "center", gap: "4px", color: "#1e40af", fontWeight: 600, fontSize: "9px", textDecoration: "none", flexShrink: 0 }}>
+                  <Facebook style={{ width: "13px", height: "13px", flexShrink: 0 }} strokeWidth={2.5} />
+                  <span style={{ lineHeight: 1.2 }}>/easybooktours</span>
+                </a>
+                <a href="#" style={{ display: "flex", alignItems: "center", gap: "4px", color: "#db2777", fontWeight: 600, fontSize: "9px", textDecoration: "none", flexShrink: 0 }}>
+                  <Instagram style={{ width: "13px", height: "13px", flexShrink: 0 }} strokeWidth={2.5} />
+                  <span style={{ lineHeight: 1.2 }}>/easybooktours</span>
+                </a>
+                <a href="#" style={{ display: "flex", alignItems: "center", gap: "4px", color: "#dc2626", fontWeight: 600, fontSize: "9px", textDecoration: "none", flexShrink: 0 }}>
+                  <Youtube style={{ width: "13px", height: "13px", flexShrink: 0 }} strokeWidth={2.5} />
+                  <span style={{ lineHeight: 1.2 }}>/easybooktours</span>
+                </a>
               </div>
             </div>
           </div>
