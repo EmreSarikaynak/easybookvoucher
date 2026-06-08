@@ -13,6 +13,7 @@ import {
   ArrowRight,
   Building2,
   CheckCircle2,
+  TrendingUp,
   Wallet,
 } from "lucide-react";
 
@@ -54,10 +55,14 @@ export default async function CariLandingPage() {
   // Konsolide EUR toplamı — tüm acentelerin EUR net bakiyesi.
   let totalDebtEur = 0;
   let totalCreditEur = 0;
+  let totalSalesEur = 0;
+  let totalAgencyProfitEur = 0;
   let missingEurCount = 0;
   for (const c of cards) {
     if (c.eur.net_debt_eur > 0) totalDebtEur += c.eur.net_debt_eur;
     else if (c.eur.net_debt_eur < 0) totalCreditEur += -c.eur.net_debt_eur;
+    totalSalesEur += c.eur.sales_total_eur;
+    totalAgencyProfitEur += c.eur.agency_profit_eur;
     missingEurCount +=
       c.eur.voucher_count_missing_eur + c.eur.payment_count_missing_eur;
   }
@@ -76,7 +81,7 @@ export default async function CariLandingPage() {
       </div>
 
       {/* Genel toplam — konsolide EUR */}
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
@@ -119,6 +124,22 @@ export default async function CariLandingPage() {
           <CardContent>
             <p className="text-2xl font-bold text-emerald-700">{fmtEur(totalCreditEur)}</p>
             <p className="text-xs text-muted-foreground">Acente → EasyBook (fazla ödeme)</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+              <TrendingUp className="h-3.5 w-3.5" /> Toplam Satış
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-slate-700">{fmtEur(totalSalesEur)}</p>
+            <p className="text-xs text-muted-foreground">
+              Acente karı:{" "}
+              <span className={totalAgencyProfitEur >= 0 ? "text-blue-700 font-medium" : "text-red-700 font-medium"}>
+                {totalAgencyProfitEur >= 0 ? "+" : "−"}{fmtEur(totalAgencyProfitEur)}
+              </span>
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -247,6 +268,18 @@ export default async function CariLandingPage() {
                         <span>Tahsil:</span>
                         <span className="font-medium text-emerald-700">
                           {fmtEur(c.eur.payments_total_eur)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Toplam Satış:</span>
+                        <span className="font-medium text-slate-700">
+                          {fmtEur(c.eur.sales_total_eur)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Acente Karı:</span>
+                        <span className={`font-medium ${c.eur.agency_profit_eur >= 0 ? "text-blue-700" : "text-red-700"}`}>
+                          {c.eur.agency_profit_eur >= 0 ? "+" : "−"}{fmtEur(c.eur.agency_profit_eur)}
                         </span>
                       </div>
                     </div>

@@ -198,6 +198,23 @@ export default async function AgencyCariPage({ params }: PageProps) {
               </p>
             </div>
           </div>
+
+          {/* Satış & Kar özeti */}
+          <div className="grid gap-2 sm:grid-cols-2 pt-2 border-t">
+            <div>
+              <p className="text-xs text-muted-foreground">Toplam Satış (Müşteri Fiyatı)</p>
+              <p className="text-lg font-semibold text-slate-700 tabular-nums">
+                {fmtEur(eur.sales_total_eur)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Acentenin Tahmini Karı</p>
+              <p className={`text-lg font-semibold tabular-nums ${eur.agency_profit_eur >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                {eur.agency_profit_eur >= 0 ? "+" : "−"}{fmtEur(eur.agency_profit_eur)}
+              </p>
+              <p className="text-[11px] text-muted-foreground">Satış − EasyBook maliyeti</p>
+            </div>
+          </div>
           <p className="text-xs text-muted-foreground">
             Bilet ve ödemeler kayıt anındaki TCMB kuru ile EUR&apos;ya
             kilitlenir. Bilet kendi para biriminde verilmeye devam eder; cari
@@ -241,14 +258,20 @@ export default async function AgencyCariPage({ params }: PageProps) {
                   <tr>
                     <th className="py-2 pr-3 font-medium">Para</th>
                     <th className="py-2 pr-3 font-medium">Bilet</th>
+                    <th className="py-2 pr-3 font-medium text-right text-slate-600">
+                      Toplam Satış
+                    </th>
                     <th className="py-2 pr-3 font-medium text-right text-amber-700">
                       EasyBook Alacak
                     </th>
                     <th className="py-2 pr-3 font-medium text-right text-emerald-700">
-                      Acentenin Ödediği
+                      Acente Ödediği
+                    </th>
+                    <th className="py-2 pr-3 font-medium text-right text-blue-700">
+                      Acente Karı
                     </th>
                     <th className="py-2 pr-3 font-medium text-right">
-                      Net (Bilet kuru)
+                      Net Borç
                     </th>
                   </tr>
                 </thead>
@@ -256,6 +279,7 @@ export default async function AgencyCariPage({ params }: PageProps) {
                   {data.lines.map((l) => {
                     const positive = l.net_debt > 0;
                     const zero = l.net_debt === 0;
+                    const profitPositive = l.agency_profit >= 0;
                     return (
                       <tr key={l.currency}>
                         <td className="py-2 pr-3 font-medium">{l.currency}</td>
@@ -267,11 +291,17 @@ export default async function AgencyCariPage({ params }: PageProps) {
                             </span>
                           )}
                         </td>
+                        <td className="py-2 pr-3 text-right text-slate-700 tabular-nums">
+                          {fmt(l.currency, l.sales_total)}
+                        </td>
                         <td className="py-2 pr-3 text-right text-amber-700 tabular-nums">
                           {fmt(l.currency, l.cost_total)}
                         </td>
                         <td className="py-2 pr-3 text-right text-emerald-700 tabular-nums">
                           {fmt(l.currency, l.payments_total)}
+                        </td>
+                        <td className={`py-2 pr-3 text-right font-semibold tabular-nums ${profitPositive ? "text-blue-700" : "text-red-700"}`}>
+                          {profitPositive ? "+" : "−"}{fmt(l.currency, l.agency_profit)}
                         </td>
                         <td
                           className={`py-2 pr-3 text-right font-semibold tabular-nums ${
@@ -425,6 +455,9 @@ function VoucherList({ rows, cancelled }: VoucherListProps) {
             <th className="py-2 pr-3 font-medium">Bilet</th>
             <th className="py-2 pr-3 font-medium">Müşteri / Tur</th>
             <th className="py-2 pr-3 font-medium">PAX</th>
+            <th className="py-2 pr-3 font-medium text-right text-slate-600">
+              Satış Fiyatı
+            </th>
             <th className="py-2 pr-3 font-medium text-right text-amber-700">
               EasyBook Alacak
             </th>
@@ -463,6 +496,12 @@ function VoucherList({ rows, cancelled }: VoucherListProps) {
                 {r.pax_adult}Y
                 {r.pax_child > 0 ? ` + ${r.pax_child}Ç` : ""}
                 {r.pax_infant > 0 ? ` + ${r.pax_infant}B` : ""}
+              </td>
+              <td className="py-2 pr-3 text-right text-slate-700 font-semibold tabular-nums">
+                {fmt(r.currency, r.total_price)}{" "}
+                <span className="text-[11px] text-muted-foreground font-normal">
+                  {r.currency}
+                </span>
               </td>
               <td className="py-2 pr-3 text-right text-amber-700 font-semibold tabular-nums">
                 {r.missing_cost ? (

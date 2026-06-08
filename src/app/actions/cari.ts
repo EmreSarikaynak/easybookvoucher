@@ -37,8 +37,10 @@ type Cur = (typeof SUPPORTED_CURRENCIES)[number];
 export interface CariCurrencyLine {
   currency: Cur;
   cost_total: number;      // aktif biletlerin EasyBook maliyet toplamı (alacak)
+  sales_total: number;     // aktif biletlerin toplam satış tutarı (müşteriye kesilen)
   payments_total: number;  // acentenin EasyBook'a yaptığı ödemeler
   net_debt: number;        // cost − payments
+  agency_profit: number;   // sales_total − cost_total (acentenin karı)
   voucher_count: number;
   missing_cost_count: number;
 }
@@ -53,8 +55,10 @@ export interface CariCurrencyLine {
  */
 export interface CariEurSummary {
   cost_total_eur: number;        // Σ easybook_cost_eur (aktif biletler)
+  sales_total_eur: number;       // Σ total_price_eur (aktif biletlerin satış toplamı)
   payments_total_eur: number;    // Σ payment_amount_eur
   net_debt_eur: number;          // cost − payments
+  agency_profit_eur: number;     // sales_total_eur − cost_total_eur (acentenin karı)
   voucher_count: number;         // EUR snapshot'lı aktif voucher sayısı
   voucher_count_missing_eur: number; // EUR snapshot yoksa veya cost null
   payment_count_missing_eur: number;
@@ -89,6 +93,10 @@ export interface CariVoucherRow {
   easybook_cost: number;
   /** Aynı maliyetin EUR snapshot karşılığı. NULL = snapshot yok (eski voucher). */
   easybook_cost_eur: number | null;
+  /** Acentenin müşteriye kesen satış fiyatı (voucher currency cinsinden). */
+  total_price: number;
+  /** Satış fiyatının EUR snapshot karşılığı. */
+  total_price_eur: number | null;
   /** Voucher EUR kur snapshot'ı (1 birim currency = X EUR). */
   eur_rate_snapshot: number | null;
   eur_rate_date: string | null;
@@ -128,8 +136,10 @@ export interface CariAgencyDetail {
 function emptyEurSummary(): CariEurSummary {
   return {
     cost_total_eur: 0,
+    sales_total_eur: 0,
     payments_total_eur: 0,
     net_debt_eur: 0,
+    agency_profit_eur: 0,
     voucher_count: 0,
     voucher_count_missing_eur: 0,
     payment_count_missing_eur: 0,
@@ -144,8 +154,10 @@ function emptyLine(c: Cur): CariCurrencyLine {
   return {
     currency: c,
     cost_total: 0,
+    sales_total: 0,
     payments_total: 0,
     net_debt: 0,
+    agency_profit: 0,
     voucher_count: 0,
     missing_cost_count: 0,
   };
@@ -305,6 +317,8 @@ function computeRow(
     currency: cur,
     easybook_cost: earnings.easybook_cost,
     easybook_cost_eur: easybookCostEurFromDb,
+    total_price: v.total_price ?? 0,
+    total_price_eur: v.total_price_eur != null ? Number(v.total_price_eur) : null,
     eur_rate_snapshot: eurRate,
     eur_rate_date: v.eur_rate_date ?? null,
     missing_cost: earnings.missing_cost || !tourId,
@@ -465,6 +479,7 @@ export async function fetchCariOverview(): Promise<{
     const row = computeRow(v, priceMap, baseMap, ratePairs);
     const line = lineFor(agencyId, row.currency);
     line.voucher_count += 1;
+    line.sales_total = round2(line.sales_total + row.total_price);
     if (row.missing_cost) {
       line.missing_cost_count += 1;
     } else {
@@ -474,6 +489,16 @@ export async function fetchCariOverview(): Promise<{
     // EUR aggregation — birincil görünüm
     const eurSummary = eurMap.get(agencyId);
     if (eurSummary) {
+      // Satış EUR toplamı
+      let salesEur: number | null = row.total_price_eur;
+      if (salesEur == null) {
+        const fb = fallbackEurRate(row.currency);
+        if (fb != null) salesEur = round2(row.total_price * fb);
+      }
+      if (salesEur != null) {
+        eurSummary.sales_total_eur = round2(eurSummary.sales_total_eur + salesEur);
+      }
+
       let costEur: number | null = row.easybook_cost_eur;
       if (costEur == null && !row.missing_cost) {
         const fb = fallbackEurRate(row.currency);
@@ -519,6 +544,7 @@ export async function fetchCariOverview(): Promise<{
       .map((l) => ({
         ...l,
         net_debt: round2(l.cost_total - l.payments_total),
+        agency_profit: round2(l.sales_total - l.cost_total),
       }))
       .filter((l) => l.voucher_count > 0 || l.payments_total > 0)
       .sort((a, b) => a.currency.localeCompare(b.currency));
@@ -529,6 +555,9 @@ export async function fetchCariOverview(): Promise<{
     if (!card) continue;
     summary.net_debt_eur = round2(
       summary.cost_total_eur - summary.payments_total_eur
+    );
+    summary.agency_profit_eur = round2(
+      summary.sales_total_eur - summary.cost_total_eur
     );
     card.eur = summary;
   }
@@ -639,10 +668,21 @@ export async function fetchAgencyCari(
     active.push(row);
     const line = lineFor(row.currency);
     line.voucher_count += 1;
+    line.sales_total = round2(line.sales_total + row.total_price);
     if (row.missing_cost) {
       line.missing_cost_count += 1;
     } else {
       line.cost_total = round2(line.cost_total + row.easybook_cost);
+    }
+
+    // Satış EUR toplamı
+    let salesEur: number | null = row.total_price_eur;
+    if (salesEur == null) {
+      const fb = fallbackEurRate(row.currency);
+      if (fb != null) salesEur = round2(row.total_price * fb);
+    }
+    if (salesEur != null) {
+      eurSummary.sales_total_eur = round2(eurSummary.sales_total_eur + salesEur);
     }
 
     let costEur: number | null = row.easybook_cost_eur;
@@ -701,11 +741,15 @@ export async function fetchAgencyCari(
     .map((l) => ({
       ...l,
       net_debt: round2(l.cost_total - l.payments_total),
+      agency_profit: round2(l.sales_total - l.cost_total),
     }))
     .sort((a, b) => a.currency.localeCompare(b.currency));
 
   eurSummary.net_debt_eur = round2(
     eurSummary.cost_total_eur - eurSummary.payments_total_eur
+  );
+  eurSummary.agency_profit_eur = round2(
+    eurSummary.sales_total_eur - eurSummary.cost_total_eur
   );
 
   return {
