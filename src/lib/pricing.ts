@@ -83,6 +83,11 @@ export interface ComputeVoucherEarningsInput {
   /** Liste satış fiyatı (pax başına). */
   listAdult: number;
   listChild: number;
+  /**
+   * TRUE ise fiyat rezervasyon başıdır (ör. ATV Double).
+   * Hem maliyet hem liste fiyatı pax ile çarpılmaz, 1× uygulanır.
+   */
+  pricePerBooking?: boolean;
 }
 
 /**
@@ -94,12 +99,14 @@ export interface ComputeVoucherEarningsInput {
 export function computeVoucherEarnings(
   input: ComputeVoucherEarningsInput
 ): VoucherEarnings {
-  const { paxAdult, paxChild, totalPrice, cost, listAdult, listChild } = input;
+  const { paxAdult, paxChild, totalPrice, cost, listAdult, listChild, pricePerBooking } = input;
 
-  const easybook_cost = round2(
-    cost.cost_adult * paxAdult + cost.cost_child * paxChild
-  );
-  const list_price = round2(listAdult * paxAdult + listChild * paxChild);
+  const easybook_cost = pricePerBooking
+    ? round2(cost.cost_adult)
+    : round2(cost.cost_adult * paxAdult + cost.cost_child * paxChild);
+  const list_price = pricePerBooking
+    ? round2(listAdult)
+    : round2(listAdult * paxAdult + listChild * paxChild);
   const standard_margin = round2(list_price - easybook_cost);
   const extra_markup = round2(totalPrice - list_price);
   const total_profit = round2(totalPrice - easybook_cost);

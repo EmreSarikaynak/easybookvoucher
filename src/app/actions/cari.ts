@@ -195,6 +195,7 @@ interface BaseRow {
   base_price_child_eur: number | null;
   base_price_adult_try: number | null;
   base_price_child_try: number | null;
+  price_per_booking: boolean | null;
 }
 
 interface PaymentRow {
@@ -277,6 +278,7 @@ function computeRow(
     cost,
     listAdult: list.price_adult,
     listChild: list.price_child,
+    pricePerBooking: base?.price_per_booking ?? false,
   });
 
   const tourRow = (v.tour && !Array.isArray(v.tour) ? v.tour : null) as
@@ -329,7 +331,7 @@ async function loadPricingMaps(
     supabase
       .from("tours")
       .select(
-        "id, base_price_adult_eur, base_price_child_eur, base_price_adult_try, base_price_child_try"
+        "id, base_price_adult_eur, base_price_child_eur, base_price_adult_try, base_price_child_try, price_per_booking"
       )
       .in("id", safeTourIds),
   ]);

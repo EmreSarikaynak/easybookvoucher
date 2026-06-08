@@ -98,8 +98,16 @@ async function resolveEasybookCostForVoucher(args: {
   const { agencyId, tourId, currency, paxAdult, paxChild } = args;
   if (!agencyId || !tourId) return null;
   try {
-    const lookup = await getAgencyTourCost(agencyId, tourId, currency);
+    const supabase = await import("@/lib/supabase-server").then(m => m.createServerSupabaseClient());
+    const [lookup, tourRes] = await Promise.all([
+      getAgencyTourCost(agencyId, tourId, currency),
+      supabase.from("tours").select("price_per_booking").eq("id", tourId).maybeSingle(),
+    ]);
     if (!lookup || lookup.missing) return null;
+    const pricePerBooking = tourRes.data?.price_per_booking ?? false;
+    if (pricePerBooking) {
+      return round2(lookup.cost_adult);
+    }
     return round2(
       lookup.cost_adult * (paxAdult || 0) + lookup.cost_child * (paxChild || 0)
     );

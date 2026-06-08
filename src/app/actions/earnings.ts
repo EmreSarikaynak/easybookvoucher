@@ -204,7 +204,7 @@ export async function fetchEarningsReport(
     supabase
       .from("tours")
       .select(
-        "id, base_price_adult_eur, base_price_child_eur, base_price_adult_try, base_price_child_try"
+        "id, base_price_adult_eur, base_price_child_eur, base_price_adult_try, base_price_child_try, price_per_booking"
       )
       .in("id", safeTourIds),
     loadExchangeRatePairsForCalculation(),
@@ -217,6 +217,7 @@ export async function fetchEarningsReport(
       child_eur: number | null;
       adult_try: number | null;
       child_try: number | null;
+      price_per_booking: boolean;
     }
   >();
   (tourRows ?? []).forEach((t) => {
@@ -225,6 +226,7 @@ export async function fetchEarningsReport(
       child_eur: t.base_price_child_eur ?? null,
       adult_try: t.base_price_adult_try ?? null,
       child_try: t.base_price_child_try ?? null,
+      price_per_booking: t.price_per_booking ?? false,
     });
   });
 
@@ -301,6 +303,7 @@ export async function fetchEarningsReport(
       cost,
       listAdult: list.price_adult,
       listChild: list.price_child,
+      pricePerBooking: base?.price_per_booking ?? false,
     });
 
     // Tur yoksa maliyet de bilinemez.
