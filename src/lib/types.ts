@@ -68,6 +68,8 @@ export interface Tour {
   base_price_child_eur?: number;
   base_price_adult_try?: number;
   base_price_child_try?: number;
+  /** TRUE ise fiyat kişi başı değil rezervasyon başıdır (ör. ATV Double). */
+  price_per_booking?: boolean;
 }
 
 export interface AgencyTourPrice {

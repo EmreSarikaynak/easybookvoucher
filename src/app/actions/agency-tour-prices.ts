@@ -102,6 +102,8 @@ export interface AgencyTourPriceLookup {
   price_adult: number;
   price_child: number;
   source: "agency" | "fallback";
+  /** TRUE ise fiyat kişi başı değil rezervasyon başıdır (ör. ATV Double). */
+  price_per_booking: boolean;
 }
 
 /**
@@ -121,7 +123,7 @@ export async function getAgencyTourPrice(
 
   const supabase = await createServerSupabaseClient();
 
-  const [{ pairs }, priceRes, priceEurRes] = await Promise.all([
+  const [{ pairs }, priceRes, priceEurRes, tourRes] = await Promise.all([
     loadExchangeRatePairsForCalculation(),
     supabase
       .from("agency_tour_prices")
@@ -139,6 +141,11 @@ export async function getAgencyTourPrice(
           .eq("currency", "EUR")
           .maybeSingle()
       : Promise.resolve({ data: null }),
+    supabase
+      .from("tours")
+      .select("price_per_booking")
+      .eq("id", tourId)
+      .maybeSingle(),
   ]);
 
   const resolved = resolveAgencyAmountInCurrency(
@@ -151,12 +158,11 @@ export async function getAgencyTourPrice(
   );
 
   if (resolved.adult != null || resolved.child != null) {
-    const hasDirectRow =
-      (priceRes.data?.price_adult ?? 0) > 0 || (priceRes.data?.price_child ?? 0) > 0;
     return {
       price_adult: resolved.adult ?? 0,
       price_child: resolved.child ?? 0,
       source: "agency",
+      price_per_booking: tourRes.data?.price_per_booking ?? false,
     };
   }
 

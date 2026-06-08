@@ -106,7 +106,10 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
         formData.currency
       );
       if (cancelled || !result) return;
-      const total = adult * result.price_adult + child * result.price_child;
+      // price_per_booking: fiyat kişi başı değil rezervasyon başı (ör. ATV Double)
+      const total = result.price_per_booking
+        ? result.price_adult
+        : adult * result.price_adult + child * result.price_child;
       setFormData((prev) => ({ ...prev, total_price: Math.round(total) }));
       setAutoPriceSource(result.source);
     })();
