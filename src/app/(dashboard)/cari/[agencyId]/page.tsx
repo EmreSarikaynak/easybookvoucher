@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser, isAdmin } from "@/lib/auth-helpers";
-import { fetchAgencyCari, type CariVoucherRow } from "@/app/actions/cari";
+import { fetchAgencyCari } from "@/app/actions/cari";
+import { TimelineList } from "./timeline-list";
 import {
   Card,
   CardContent,
@@ -17,10 +18,7 @@ import {
   ReceiptText,
   Wallet,
 } from "lucide-react";
-import {
-  CariPaymentRecorder,
-  CariPaymentDeleteButton,
-} from "./cari-payment-form";
+import { CariPaymentRecorder } from "./cari-payment-form";
 import type { CurrencyType } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -324,22 +322,29 @@ export default async function AgencyCariPage({ params }: PageProps) {
             </div>
             <p className="mt-3 text-[11px] text-muted-foreground">
               Bu tablo bilet para birimi cinsinden ham toplamları gösterir.
-              Bakiye hesabı yukarıdaki EUR konsolide görünümden yapılır.
+              Net Borç sütunu her para biriminin kendi bakiyesini yansıtır —
+              ödeme hangi para biriminde yapıldıysa o satırda görünür.
+              Genel netleşme için yukarıdaki EUR konsolide özeti kullanın.
             </p>
           </CardContent>
         </Card>
       )}
 
-      {/* Aktif biletler */}
+      {/* Aktif biletler + ödemeler zaman çizelgesi */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <ReceiptText className="h-4 w-4" /> Aktif Biletler (
-            {data.active_vouchers.length})
+            <ReceiptText className="h-4 w-4" /> Biletler &amp; Ödemeler (
+            {data.active_vouchers.length + data.payments.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <VoucherList rows={data.active_vouchers} />
+          <TimelineList
+            vouchers={data.active_vouchers}
+            payments={adminView ? data.payments : []}
+            adminView={adminView}
+            agencyId={data.agency_id}
+          />
         </CardContent>
       </Card>
 
@@ -353,199 +358,16 @@ export default async function AgencyCariPage({ params }: PageProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <VoucherList rows={data.cancelled_vouchers} cancelled />
+            <TimelineList
+              vouchers={data.cancelled_vouchers}
+              payments={[]}
+              adminView={false}
+              agencyId={data.agency_id}
+            />
           </CardContent>
         </Card>
       )}
 
-      {/* Ödemeler */}
-      {adminView && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Wallet className="h-4 w-4" /> Acentenin Yaptığı Ödemeler (
-              {data.payments.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data.payments.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">
-                Henüz ödeme kaydı yok.
-              </p>
-            ) : (
-              <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead className="border-b text-left text-muted-foreground sticky top-0 bg-background">
-                    <tr>
-                      <th className="py-2 pr-3 font-medium">Tarih</th>
-                      <th className="py-2 pr-3 font-medium text-right">
-                        Tutar
-                      </th>
-                      <th className="py-2 pr-3 font-medium text-right">
-                        EUR Karşılığı
-                      </th>
-                      <th className="py-2 pr-3 font-medium">İlgili Bilet</th>
-                      <th className="py-2 pr-3 font-medium">Not</th>
-                      <th className="py-2 pr-3 font-medium w-10" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {data.payments.map((p) => (
-                      <tr key={p.id} className="hover:bg-muted/30">
-                        <td className="py-2 pr-3 text-xs">
-                          {fmtDate(p.payment_date)}
-                        </td>
-                        <td className="py-2 pr-3 text-right text-emerald-700 font-semibold tabular-nums">
-                          {fmt(p.currency, p.amount)}{" "}
-                          <span className="text-[11px] text-muted-foreground font-normal">
-                            {p.currency}
-                          </span>
-                        </td>
-                        <td className="py-2 pr-3 text-right tabular-nums">
-                          {p.amount_eur != null ? (
-                            <span className="text-emerald-700 font-medium">
-                              {fmtEur(p.amount_eur)}
-                            </span>
-                          ) : (
-                            <span className="text-amber-700 text-[11px]">
-                              kur eksik
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-2 pr-3 font-mono text-xs">
-                          {p.related_voucher_no ?? "—"}
-                        </td>
-                        <td className="py-2 pr-3 text-xs">{p.notes ?? "—"}</td>
-                        <td className="py-2 pr-3 text-right">
-                          <CariPaymentDeleteButton
-                            paymentId={p.id}
-                            agencyId={data.agency_id}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-}
-
-interface VoucherListProps {
-  rows: CariVoucherRow[];
-  cancelled?: boolean;
-}
-
-function VoucherList({ rows, cancelled }: VoucherListProps) {
-  if (rows.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground py-2">Kayıt yok.</p>
-    );
-  }
-  return (
-    <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
-      <table className="w-full text-sm">
-        <thead className="border-b text-left text-muted-foreground sticky top-0 bg-background z-10">
-          <tr>
-            <th className="py-2 pr-3 font-medium">Tarih</th>
-            <th className="py-2 pr-3 font-medium">Bilet</th>
-            <th className="py-2 pr-3 font-medium">Müşteri / Tur</th>
-            <th className="py-2 pr-3 font-medium">PAX</th>
-            <th className="py-2 pr-3 font-medium text-right text-slate-600">
-              Satış Fiyatı
-            </th>
-            <th className="py-2 pr-3 font-medium text-right text-amber-700">
-              EasyBook Alacak
-            </th>
-            <th className="py-2 pr-3 font-medium text-right">
-              EUR Karşılığı
-            </th>
-            <th className="py-2 pr-3 font-medium" />
-          </tr>
-        </thead>
-        <tbody className="divide-y">
-          {rows.map((r) => (
-            <tr
-              key={r.voucher_id}
-              className={`hover:bg-muted/30 ${cancelled ? "opacity-60" : ""}`}
-            >
-              <td className="py-2 pr-3 text-xs whitespace-nowrap">
-                {fmtDate(r.tour_date)}
-              </td>
-              <td className="py-2 pr-3 font-mono text-xs">
-                <Link
-                  href={`/vouchers/${r.voucher_id}`}
-                  className="text-blue-600 hover:underline"
-                >
-                  {r.voucher_no}
-                </Link>
-              </td>
-              <td className="py-2 pr-3">
-                <div className="text-sm truncate max-w-[200px]">
-                  {r.customer_name}
-                </div>
-                <div className="text-xs text-muted-foreground truncate max-w-[200px]">
-                  {r.tour_name}
-                </div>
-              </td>
-              <td className="py-2 pr-3 text-xs whitespace-nowrap">
-                {r.pax_adult}Y
-                {r.pax_child > 0 ? ` + ${r.pax_child}Ç` : ""}
-                {r.pax_infant > 0 ? ` + ${r.pax_infant}B` : ""}
-              </td>
-              <td className="py-2 pr-3 text-right text-slate-700 font-semibold tabular-nums">
-                {fmt(r.currency, r.total_price)}{" "}
-                <span className="text-[11px] text-muted-foreground font-normal">
-                  {r.currency}
-                </span>
-              </td>
-              <td className="py-2 pr-3 text-right text-amber-700 font-semibold tabular-nums">
-                {r.missing_cost ? (
-                  <span className="inline-flex items-center gap-1 text-[11px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
-                    <AlertTriangle className="h-3 w-3" /> maliyet eksik
-                  </span>
-                ) : (
-                  <>
-                    {fmt(r.currency, r.easybook_cost)}{" "}
-                    <span className="text-[11px] text-muted-foreground font-normal">
-                      {r.currency}
-                    </span>
-                  </>
-                )}
-              </td>
-              <td className="py-2 pr-3 text-right tabular-nums">
-                {r.missing_cost ? (
-                  <span className="text-muted-foreground text-[11px]">—</span>
-                ) : r.easybook_cost_eur != null ? (
-                  <span
-                    className="text-amber-700 font-medium"
-                    title={
-                      r.eur_rate_snapshot
-                        ? `1 ${r.currency} = ${Number(r.eur_rate_snapshot).toFixed(4)} EUR (${r.eur_rate_date ?? "—"})`
-                        : undefined
-                    }
-                  >
-                    {fmtEur(r.easybook_cost_eur)}
-                  </span>
-                ) : (
-                  <span className="text-amber-700 text-[11px]">kur eksik</span>
-                )}
-              </td>
-              <td className="py-2 pr-3">
-                {r.source === "public_qr" && (
-                  <span className="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[11px]">
-                    QR
-                  </span>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }
