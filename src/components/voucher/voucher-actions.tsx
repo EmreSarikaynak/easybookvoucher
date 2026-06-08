@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Download, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Download, Loader2, CheckCircle2, XCircle, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VoucherTicket } from "./voucher-ticket";
 import { downloadPDF, generatePDF, generateTicketJpegBlob } from "@/lib/pdf";
@@ -27,6 +27,52 @@ export function VoucherActions({ voucher, autoSend, isRevised, onPdfUploaded }: 
   const [autoSendStatus, setAutoSendStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [autoSendMessage, setAutoSendMessage] = useState<string>('');
   const autoSentRef = useRef(false);
+
+  // Manuel WhatsApp gönderim
+  const [manualSending, setManualSending] = useState(false);
+
+  const handleManualSend = async () => {
+    const ticketEl = await waitForTicketElement();
+    if (!ticketEl) return;
+    setManualSending(true);
+    try {
+      await document.fonts.ready;
+      await new Promise(r => setTimeout(r, 800));
+
+      const [pdf, jpegBlob] = await Promise.all([
+        generatePDF(ticketEl, `ticket-${voucher.voucher_no}`),
+        generateTicketJpegBlob(ticketEl),
+      ]);
+      const pdfBlob = pdf.output("blob");
+
+      const uploadForm = new FormData();
+      uploadForm.append("voucherId", voucher.id);
+      uploadForm.append("file", pdfBlob, `${voucher.id}.pdf`);
+      uploadForm.append("image", jpegBlob, `${voucher.id}.jpg`);
+
+      const uploadRes = await fetch("/api/vouchers/upload-pdf", {
+        method: "POST",
+        body: uploadForm,
+      });
+      const uploadResult = (await uploadRes.json()) as { url?: string; imageUrl?: string | null; error?: string };
+      if (!uploadRes.ok || !uploadResult.url) throw new Error(uploadResult.error || "PDF yüklenemedi");
+
+      const waRes = await fetch("/api/vouchers/send-pdf-whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voucherId: voucher.id, pdfUrl: uploadResult.url, imageUrl: uploadResult.imageUrl ?? undefined }),
+      });
+      const sendResult = (await waRes.json()) as { success?: boolean; error?: string };
+      if (!waRes.ok || !sendResult.success) throw new Error(sendResult.error || "WhatsApp gönderilemedi");
+
+      if (onPdfUploaded && uploadResult.url) onPdfUploaded(uploadResult.url);
+      alert("✅ WhatsApp bildirimleri gönderildi!");
+    } catch (err: any) {
+      alert(`❌ ${err?.message || "Gönderilemedi"}`);
+    } finally {
+      setManualSending(false);
+    }
+  };
 
   /** Bilet önizlemesi DOM'a bağlanana kadar bekler (ref bazen ilk tick'te hazır değil). */
   const waitForTicketElement = async (maxMs = 8000): Promise<HTMLElement | null> => {
@@ -262,6 +308,21 @@ export function VoucherActions({ voucher, autoSend, isRevised, onPdfUploaded }: 
           )}
           <span className="mr-2">🇹🇷</span>
           TR PDF
+        </Button>
+
+        {/* WhatsApp Gönder */}
+        <Button
+          onClick={handleManualSend}
+          disabled={manualSending || isGeneratingPDF}
+          variant="outline"
+          className="flex-1 sm:flex-none border-green-600 text-green-700 hover:bg-green-50"
+        >
+          {manualSending ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="mr-2 h-4 w-4" />
+          )}
+          WhatsApp Gönder
         </Button>
       </div>
 
