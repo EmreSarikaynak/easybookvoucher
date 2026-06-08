@@ -12,11 +12,24 @@ interface PageProps {
     search?: string;
     status?: string;
     date?: string;
+    sort?: string;
   }>;
 }
 
-async function getVouchers(searchParams: { search?: string; status?: string; date?: string }, currentUser: any): Promise<Voucher[]> {
+async function getVouchers(searchParams: { search?: string; status?: string; date?: string; sort?: string }, currentUser: any): Promise<Voucher[]> {
   const supabase = await createServerSupabaseClient();
+
+  const sortMap: Record<string, { col: string; asc: boolean }> = {
+    date_desc:     { col: "tour_date",     asc: false },
+    date_asc:      { col: "tour_date",     asc: true  },
+    created_desc:  { col: "created_at",    asc: false },
+    created_asc:   { col: "created_at",    asc: true  },
+    customer_asc:  { col: "customer_name", asc: true  },
+    customer_desc: { col: "customer_name", asc: false },
+    price_desc:    { col: "total_price",   asc: false },
+    price_asc:     { col: "total_price",   asc: true  },
+  };
+  const { col, asc } = sortMap[searchParams.sort ?? ""] ?? { col: "created_at", asc: false };
 
   let query = supabase
     .from("vouchers")
@@ -26,7 +39,7 @@ async function getVouchers(searchParams: { search?: string; status?: string; dat
       sales_person:profiles!vouchers_sales_person_id_fkey(*),
       agency:agencies(*)
     `)
-    .order("created_at", { ascending: false });
+    .order(col, { ascending: asc });
 
   if (currentUser?.role !== "super_admin" && currentUser?.role !== "admin") {
     if (currentUser?.agency_id) {
@@ -89,9 +102,9 @@ export default async function VouchersPage({ searchParams }: PageProps) {
       </Suspense>
 
       {isAdmin ? (
-        <VouchersByAgency vouchers={vouchers} />
+        <VouchersByAgency vouchers={vouchers} searchTerm={resolvedSearchParams.search} />
       ) : (
-        <VoucherList vouchers={vouchers} loading={false} userRole={currentUser?.role} />
+        <VoucherList vouchers={vouchers} loading={false} userRole={currentUser?.role} searchTerm={resolvedSearchParams.search} />
       )}
     </div>
   );

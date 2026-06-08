@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 interface VouchersByAgencyProps {
   vouchers: Voucher[];
+  searchTerm?: string;
 }
 
 interface AgencyGroup {
@@ -22,11 +23,22 @@ interface AgencyGroup {
 
 const UNASSIGNED_KEY = "__unassigned__";
 
-export function VouchersByAgency({ vouchers }: VouchersByAgencyProps) {
+export function VouchersByAgency({ vouchers, searchTerm }: VouchersByAgencyProps) {
+  const filtered = searchTerm
+    ? vouchers.filter((v) => {
+        const q = searchTerm.toLowerCase();
+        return (
+          v.customer_name?.toLowerCase().includes(q) ||
+          v.voucher_no?.toLowerCase().includes(q) ||
+          v.tour?.name?.toLowerCase().includes(q)
+        );
+      })
+    : vouchers;
+
   const groups = useMemo<AgencyGroup[]>(() => {
     const map = new Map<string, AgencyGroup>();
 
-    for (const v of vouchers) {
+    for (const v of filtered) {
       const key = v.agency?.id ?? UNASSIGNED_KEY;
       let group = map.get(key);
       if (!group) {
@@ -52,7 +64,7 @@ export function VouchersByAgency({ vouchers }: VouchersByAgencyProps) {
       if (b.id === UNASSIGNED_KEY) return -1;
       return b.vouchers.length - a.vouchers.length;
     });
-  }, [vouchers]);
+  }, [filtered]);
 
   const [openId, setOpenId] = useState<string | null>(
     groups.length === 1 ? groups[0].id : null

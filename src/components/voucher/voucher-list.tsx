@@ -8,9 +8,22 @@ interface VoucherListProps {
   vouchers: Voucher[];
   loading?: boolean;
   userRole?: UserRole;
+  searchTerm?: string;
 }
 
-export function VoucherList({ vouchers, loading, userRole }: VoucherListProps) {
+export function VoucherList({ vouchers, loading, userRole, searchTerm }: VoucherListProps) {
+  // Server müşteri adı + bilet no'yu filtreledi; tur adını client-side ekliyoruz.
+  // searchTerm varsa üç alandan birinde eşleşen göster.
+  const displayed = searchTerm
+    ? vouchers.filter((v) => {
+        const q = searchTerm.toLowerCase();
+        return (
+          v.customer_name?.toLowerCase().includes(q) ||
+          v.voucher_no?.toLowerCase().includes(q) ||
+          v.tour?.name?.toLowerCase().includes(q)
+        );
+      })
+    : vouchers;
   if (loading) {
     return (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -24,11 +37,13 @@ export function VoucherList({ vouchers, loading, userRole }: VoucherListProps) {
     );
   }
 
-  if (vouchers.length === 0) {
+  if (displayed.length === 0) {
     const isAdmin = userRole === "super_admin" || userRole === "admin";
-    const emptyMessage = isAdmin
-      ? "Henüz hiç bilet eklenmemiş."
-      : "Henüz bilet eklenmemiş veya acentanıza ait bilet bulunmuyor.";
+    const emptyMessage = searchTerm
+      ? `"${searchTerm}" için sonuç bulunamadı.`
+      : isAdmin
+        ? "Henüz hiç bilet eklenmemiş."
+        : "Henüz bilet eklenmemiş veya acentanıza ait bilet bulunmuyor.";
 
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center px-4">
@@ -45,7 +60,7 @@ export function VoucherList({ vouchers, loading, userRole }: VoucherListProps) {
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {vouchers.map((voucher) => (
+      {displayed.map((voucher) => (
         <VoucherCard key={voucher.id} voucher={voucher} />
       ))}
     </div>

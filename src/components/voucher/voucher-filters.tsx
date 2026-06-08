@@ -37,10 +37,9 @@ export function VoucherFilters() {
   const handleSearchChange = useCallback(
     (value: string) => {
       setSearch(value);
-      // Debounce için basit timeout
       const timeoutId = setTimeout(() => {
         updateFilters("search", value);
-      }, 500);
+      }, 400);
       return () => clearTimeout(timeoutId);
     },
     [updateFilters]
@@ -48,40 +47,61 @@ export function VoucherFilters() {
 
   return (
     <div className="space-y-3">
-      {/* Arama - Her zaman tam genişlik */}
+      {/* Arama */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Misafir adı veya bilet no ile ara..."
+          placeholder="Misafir adı, bilet no veya tur adı ile ara..."
           value={search}
           onChange={(e) => handleSearchChange(e.target.value)}
           className="pl-9 h-11"
           disabled={isPending}
         />
       </div>
-      
-      {/* Filtreler - Mobilde yan yana, dar ekranda küçük */}
-      <div className="flex gap-2">
+
+      {/* Filtreler */}
+      <div className="flex flex-wrap gap-2">
         <Select
           value={searchParams.get("status") ?? "all"}
           onValueChange={(val) => updateFilters("status", val)}
           disabled={isPending}
         >
-          <SelectTrigger className="flex-1 h-10">
+          <SelectTrigger className="h-10 w-36">
             <SelectValue placeholder="Durum" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tümü</SelectItem>
+            <SelectItem value="all">Tüm Durumlar</SelectItem>
             <SelectItem value="active">Aktif</SelectItem>
             <SelectItem value="cancelled">İptal</SelectItem>
             <SelectItem value="completed">Tamamlandı</SelectItem>
           </SelectContent>
         </Select>
+
+        <Select
+          value={searchParams.get("sort") ?? "created_desc"}
+          onValueChange={(val) => updateFilters("sort", val)}
+          disabled={isPending}
+        >
+          <SelectTrigger className="h-10 w-44">
+            <SelectValue placeholder="Sıralama" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="created_desc">Eklenme ↓ (Yeni)</SelectItem>
+            <SelectItem value="created_asc">Eklenme ↑ (Eski)</SelectItem>
+            <SelectItem value="date_desc">Tur Tarihi ↓</SelectItem>
+            <SelectItem value="date_asc">Tur Tarihi ↑</SelectItem>
+            <SelectItem value="customer_asc">Müşteri A→Z</SelectItem>
+            <SelectItem value="customer_desc">Müşteri Z→A</SelectItem>
+            <SelectItem value="price_desc">Fiyat ↓</SelectItem>
+            <SelectItem value="price_asc">Fiyat ↑</SelectItem>
+          </SelectContent>
+        </Select>
+
         <Input
           type="date"
           value={searchParams.get("date") ?? ""}
           onChange={(e) => updateFilters("date", e.target.value)}
-          className="flex-1 h-10"
+          className="h-10 w-40"
           disabled={isPending}
         />
       </div>
