@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import type { Tour } from "@/lib/types";
 
 async function getTours(): Promise<Tour[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("tours")

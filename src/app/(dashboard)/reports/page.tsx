@@ -11,7 +11,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MapPin, Building2, Users, LayoutDashboard } from "lucide-react";
 import { CurrencySummaryCards, type CurrencySummary } from "@/components/reports/CurrencySummaryCards";
 import { SellerReportTable, type SellerReportItem } from "@/components/reports/SellerReportTable";
-import { AgencyAccounting } from "@/components/agency/agency-accounting";
 
 // Gelişmiş Tur Raporu (Döviz Kırılımlı, Bilet ve Kişi Sayısı Dahil)
 function TourReportTable({ vouchers, loading }: { vouchers: any[]; loading: boolean }) {
@@ -140,11 +139,9 @@ export default function ReportsPage() {
           currency,
           deposit_paid,
           rest_to_pay,
-          agency_payment_status,
           pax_adult,
           pax_child,
           pax_infant,
-          agent_owes_easybook_eur,
           tour:tours(name),
           agency:agencies(name),
           sales_person:profiles(full_name)
@@ -191,22 +188,13 @@ export default function ReportsPage() {
       const ag = map.get(agName)!;
       const c = v.currency || "EUR";
       if (!ag.currencyTotals[c]) {
-        ag.currencyTotals[c] = { totalSales: 0, totalDeposit: 0, restToPay: 0, pendingCount: 0, paidCount: 0, vouchers: [], agentOwesEur: 0 };
+        ag.currencyTotals[c] = { totalSales: 0, totalDeposit: 0, restToPay: 0 };
       }
-      
+
       const stats = ag.currencyTotals[c];
       stats.totalSales += (v.total_price || 0);
       stats.totalDeposit += (v.deposit_paid || 0);
       stats.restToPay += (v.rest_to_pay || 0);
-      /* Acentenin EasyBook platformuna olan borcunu sadece EUR üzerinden veya v.currency'e ekleyelim */
-      /* Bizim sistemde agent_owes_easybook_eur HER ZAMAN EUR'dur, ama rapor kolaylığı için kendi dövizine ekleyebiliriz (c === "EUR" ise). */
-      if (c === "EUR") {
-        stats.agentOwesEur! += (v.agent_owes_easybook_eur || 0);
-      }
-      
-      if (v.agency_payment_status === "paid") stats.paidCount++;
-      else stats.pendingCount++;
-      stats.vouchers.push(v);
 
       // Tur Kırılımı (tourBreakdown)
       const tName = v.tour?.name || "Bilinmeyen Tur";
@@ -226,28 +214,16 @@ export default function ReportsPage() {
     return <div className="animate-pulse h-32 bg-muted rounded-md" />;
   }
 
-  // Acente görünümü (Sadece kendi muhasebesi)
+  // Acente / satış kullanıcısı görünümü
   if (profile && profile.role !== "super_admin" && profile.role !== "admin") {
-    if (!profile.agencies) {
-      return (
-        <div className="p-8 text-center text-muted-foreground border rounded-lg bg-white mt-10">
-          Kayıtlı bir acenteniz bulunmamaktadır.
-        </div>
-      );
-    }
-    
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">Raporlar & İç Muhasebe</h1>
-          <p className="text-muted-foreground">Güncel bakiye durumunuz ve ödeme ekstreniz</p>
+          <h1 className="text-2xl font-bold">Raporlar</h1>
         </div>
-        <AgencyAccounting 
-          agency={profile.agencies} 
-          open={true} 
-          inline={true} 
-          isAdmin={false} 
-        />
+        <div className="p-8 text-center text-muted-foreground border rounded-lg bg-white">
+          Bu sayfa şu anda yalnızca yöneticiler içindir.
+        </div>
       </div>
     );
   }
@@ -256,8 +232,8 @@ export default function ReportsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Raporlar & İç Muhasebe</h1>
-        <p className="text-muted-foreground">Geçmiş satışlar, kaporalar ve acente hesaplaşmaları</p>
+        <h1 className="text-2xl font-bold">Raporlar</h1>
+        <p className="text-muted-foreground">Geçmiş satışlar ve tur bazlı dökümler</p>
       </div>
 
       <Card>
@@ -291,7 +267,7 @@ export default function ReportsPage() {
         </TabsContent>
 
         <TabsContent value="agencies" className="space-y-4 outline-none">
-          <SellerReportTable title="Acente Tahsilat & Borç Durumu" items={agencyItems} loading={loading} />
+          <SellerReportTable title="Acente Satış Özeti" items={agencyItems} loading={loading} />
         </TabsContent>
 
         <TabsContent value="tours" className="space-y-4 outline-none">

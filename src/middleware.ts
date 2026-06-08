@@ -44,7 +44,25 @@ export async function middleware(request: NextRequest) {
   }
 
   // Korumalı sayfalara giriş yapmamış kullanıcı gelirse login'e yönlendir
-  const protectedPaths = ["/dashboard", "/vouchers", "/agencies", "/reports", "/settings", "/users", "/tours"];
+  const protectedPaths = [
+    "/dashboard",
+    "/vouchers",
+    "/agencies",
+    "/reports",
+    "/earnings",
+    "/cari",
+    "/settings",
+    "/users",
+    "/tours",
+    "/announcements",
+    "/tour-costs",
+    "/exchange-rates",
+    "/support",
+    "/fleet",
+    "/operations",
+    "/bookings",
+    "/help-pages",
+  ];
   const isProtectedPath = protectedPaths.some(path => request.nextUrl.pathname.startsWith(path));
   
   if (!user && isProtectedPath) {
@@ -60,9 +78,19 @@ export const config = {
     "/dashboard/:path*",
     "/agencies/:path*",
     "/reports/:path*",
+    "/earnings/:path*",
+    "/cari/:path*",
     "/settings/:path*",
     "/users/:path*",
     "/vouchers/:path*",
     "/tours/:path*",
+    "/announcements/:path*",
+    "/tour-costs/:path*",
+    "/exchange-rates/:path*",
+    "/support/:path*",
+    "/fleet/:path*",
+    "/operations/:path*",
+    "/bookings/:path*",
+    "/help-pages/:path*",
   ],
 };

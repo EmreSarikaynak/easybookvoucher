@@ -10,6 +10,9 @@
 /.next/
 /out/
 
+# cloudflare / opennext build output (never commit — may inline secrets)
+/.open-next/
+
 # production
 /build
 
@@ -31,3 +34,19 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.env
+
+# tur kataloğu lokal test çıktıları
+/tmp-catalog-output/
+
+# Editor / IDE
+/.cursor/
+/.idea/
+/.vscode/
+
+# Local debug scripts (may contain service-role keys)
+/test-db*.js
+/Untitled
+
+# Supabase CLI temp state
+/supabase/.temp/

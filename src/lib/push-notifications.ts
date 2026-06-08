@@ -38,6 +38,13 @@ export async function subscribeToPushNotifications(): Promise<PushSubscription |
         throw new Error("Push notification desteklenmiyor");
     }
 
+    if (!VAPID_PUBLIC_KEY || VAPID_PUBLIC_KEY.length < 80) {
+        console.error(
+            "VAPID_PUBLIC_KEY tanımsız veya geçersiz. NEXT_PUBLIC_VAPID_PUBLIC_KEY environment variable build sırasında ayarlanmalı."
+        );
+        return null;
+    }
+
     try {
         const registration = await navigator.serviceWorker.ready;
 

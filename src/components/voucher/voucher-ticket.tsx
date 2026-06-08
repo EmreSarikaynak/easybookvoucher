@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useState, useEffect } from "react";
+import { forwardRef, useState, useEffect, type CSSProperties } from "react";
 import type { Voucher } from "@/lib/types";
 import { CURRENCY_SYMBOLS } from "@/lib/types";
 import { format } from "date-fns";
@@ -29,14 +29,24 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
       });
     }, []);
 
-    // Generate QR code - use tour URL if available, fallback to default YouTube URL
+    // QR önceliği: acente katalog URL'si > tur URL > default
+    // Müşteri biletindeki QR'ı tarayarak acentenin tüm turlarını
+    // anonim olarak görüp tekrar rezervasyon yapabilsin.
     useEffect(() => {
-      const tourUrl = voucher.tour?.tour_url?.trim() || DEFAULT_TOUR_URL;
-      // Always generate QR code (either with tour URL or fallback URL)
-      generateQRCodeDataURL(tourUrl)
+      const agencyCode =
+        voucher.agency?.agency_code || voucher.sales_person?.agency?.agency_code;
+      const siteOrigin =
+        typeof window !== "undefined"
+          ? window.location.origin
+          : "https://bodrumdayiz.com.tr";
+      const catalogUrl = agencyCode
+        ? `${siteOrigin}/c/${encodeURIComponent(agencyCode)}`
+        : null;
+      const target = catalogUrl || voucher.tour?.tour_url?.trim() || DEFAULT_TOUR_URL;
+      generateQRCodeDataURL(target)
         .then(dataUrl => setQrCodeUrl(dataUrl))
         .catch(err => console.error("QR generation failed:", err));
-    }, [voucher.tour?.tour_url]);
+    }, [voucher.agency?.agency_code, voucher.sales_person?.agency?.agency_code, voucher.tour?.tour_url]);
 
     const formatPrice = (price: number, currency: string) => {
       return formatCurrencyByLanguage(price, currency, lang);
@@ -57,6 +67,40 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
 
     const restToPay = voucher.total_price - voucher.deposit_paid;
     const isPaidAll = restToPay <= 0;
+    const tourName = voucher.tour?.name || "TUR ADI";
+    const tourNameLen = tourName.length;
+    // Font eşiklerini agresif küçülttük + lineHeight ve maxHeight'i biraz açtık
+    // ki uzun isimlerde 2. satır yarıdan kesilmesin (html2canvas line-clamp clip
+    // sorununu önler).
+    const titleFontSize =
+      tourNameLen > 75
+        ? 9.5
+        : tourNameLen > 60
+          ? 10.5
+          : tourNameLen > 48
+            ? 11.5
+            : tourNameLen > 36
+              ? 13
+              : tourNameLen > 26
+                ? 15
+                : 16;
+    const tourTitleStyle: CSSProperties = {
+      fontWeight: 800,
+      color: "#111827",
+      margin: 0,
+      paddingTop: 0,
+      lineHeight: 1.2,
+      wordBreak: "break-word",
+      overflowWrap: "anywhere",
+      whiteSpace: "normal",
+      display: "-webkit-box",
+      WebkitBoxOrient: "vertical",
+      WebkitLineClamp: 2,
+      overflow: "hidden",
+      fontSize: `${titleFontSize}px`,
+      minHeight: "32px",
+      maxHeight: `${Math.ceil(titleFontSize * 1.2 * 2) + 2}px`,
+    };
 
     return (
       <div
@@ -174,30 +218,21 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
               justifyContent: "space-between",
               alignItems: "flex-start",
               borderBottom: "1px solid #e5e7eb",
-              paddingBottom: "10px",
-              marginBottom: "6px"
+              minHeight: "54px",
+              paddingBottom: "6px",
+              marginBottom: "4px",
+              gap: "8px"
             }}>
-              <div style={{ flex: 1, paddingRight: "10px" }}>
-                <h2 style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#111827",
-                  margin: 0,
-                  paddingTop: "2px",
-                  whiteSpace: "nowrap",
-                  lineHeight: "1.4"
-                }}>
-                  {voucher.tour?.name || "TUR ADI"}
-                </h2>
-                <div style={{ fontSize: "10px", color: "#ec4899", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: "4px", lineHeight: "1.4" }}>BODRUM</div>
+              <div style={{ flex: 1, paddingRight: "4px", minWidth: 0 }}>
+                <h2 style={tourTitleStyle}>{tourName}</h2>
               </div>
-              <div style={{ flexShrink: 0, backgroundColor: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "4px", padding: "5px 8px" }}>
-                <div style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span style={{ color: "#9ca3af" }}>{t.ticket}:</span>
-                  <span style={{ color: "#374151" }}>#{voucher.voucher_no}</span>
+              <div style={{ flexShrink: 0, backgroundColor: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "4px", padding: "4px 6px", maxWidth: "140px" }}>
+                <div style={{ fontSize: "8.5px", fontWeight: 700, textTransform: "uppercase", display: "flex", alignItems: "center", gap: "3px", flexWrap: "wrap" }}>
+                  <span style={{ color: "#9ca3af", whiteSpace: "nowrap" }}>{t.ticket}:</span>
+                  <span style={{ color: "#374151", whiteSpace: "nowrap" }}>#{voucher.voucher_no}</span>
                 </div>
                 {(voucher.agency?.agency_code || voucher.sales_person?.agency?.agency_code) && (
-                  <div style={{ fontSize: "8px", color: "#6b7280", fontWeight: 600, textTransform: "uppercase", marginTop: "3px", textAlign: "center" }}>
+                  <div style={{ fontSize: "8px", color: "#6b7280", fontWeight: 600, textTransform: "uppercase", marginTop: "3px", textAlign: "center", wordBreak: "break-all" }}>
                     {t.agency}: {voucher.agency?.agency_code || voucher.sales_person?.agency?.agency_code}
                   </div>
                 )}
@@ -217,9 +252,9 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
               {/* Misafir */}
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#9ca3af", fontWeight: 700, fontSize: "9px", textTransform: "uppercase", marginBottom: "4px", lineHeight: "1.4" }}>
-                  <User style={{ width: "12px", height: "12px" }} /> {t.guest}
+                  <User style={{ width: "13px", height: "13px" }} strokeWidth={2.5} /> {t.guest}
                 </div>
-                <div style={{ fontSize: "15px", fontWeight: 800, color: "#1f2937", whiteSpace: "nowrap", lineHeight: "1.4", paddingTop: "2px" }}>
+                <div style={{ fontSize: "12px", fontWeight: 600, color: "#1f2937", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.2", paddingTop: "2px" }}>
                   {voucher.customer_name}
                 </div>
               </div>
@@ -227,9 +262,9 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
               {/* Otel/Oda */}
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#9ca3af", fontWeight: 700, fontSize: "9px", textTransform: "uppercase", marginBottom: "4px", lineHeight: "1.4" }}>
-                  <Home style={{ width: "12px", height: "12px" }} /> {t.hotel} / {t.room}
+                  <Home style={{ width: "13px", height: "13px" }} strokeWidth={2.5} /> {t.hotel} / {t.room}
                 </div>
-                <div style={{ fontSize: "14px", fontWeight: 700, color: "#374151", whiteSpace: "nowrap", lineHeight: "1.4", paddingTop: "2px" }}>
+                <div style={{ fontSize: "12px", fontWeight: 500, color: "#374151", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.2", paddingTop: "2px" }}>
                   {voucher.hotel || "-"} <span style={{ color: "#374151", fontWeight: 700 }}>/ {voucher.room_no || "-"}</span>
                 </div>
               </div>
@@ -237,9 +272,9 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
               {/* Tarih */}
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#9ca3af", fontWeight: 700, fontSize: "9px", textTransform: "uppercase", marginBottom: "4px", lineHeight: "1.4" }}>
-                  <Calendar style={{ width: "12px", height: "12px" }} /> {t.date}
+                  <Calendar style={{ width: "13px", height: "13px" }} strokeWidth={2.5} /> {t.date}
                 </div>
-                <div style={{ fontSize: "15px", fontWeight: 800, color: "#374151", lineHeight: "1.4", paddingTop: "2px" }}>
+                <div style={{ fontSize: "13px", fontWeight: 700, color: "#374151", lineHeight: "1.2", paddingTop: "2px" }}>
                   {formatDate(voucher.tour_date)}
                 </div>
               </div>
@@ -247,36 +282,49 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
               {/* Alınış / Hareket Saati & PAX */}
               {(() => {
                 const { isSelf, location } = parseSelfPickup(voucher.pickup_place);
+                
+                // Format time helper function
+                const formatTimeStr = (timeStr?: string | null) => {
+                  if (!timeStr) return "10:00";
+                  const parts = timeStr.split(':');
+                  if (parts.length >= 2) return `${parts[0]}:${parts[1]}`;
+                  return timeStr;
+                };
+                
                 return (
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px",
+                      <div style={{
+                        display: "flex", alignItems: "center", gap: "4px",
                         color: isSelf ? "#16a34a" : "#ef4444",
-                        fontWeight: 700, fontSize: "9px", textTransform: "uppercase", marginBottom: "4px", lineHeight: "1.4" }}>
-                        <Clock style={{ width: "12px", height: "12px" }} />
+                        fontWeight: 700, fontSize: "9px", textTransform: "uppercase", marginBottom: "4px", lineHeight: "1.4"
+                      }}>
+                        <Clock style={{ width: "13px", height: "13px" }} strokeWidth={2.5} />
                         {isSelf ? t.departure : t.pickup}
                       </div>
                       {isSelf ? (
                         <>
-                          <div style={{ fontSize: "10px", fontWeight: 700, color: "#16a34a", lineHeight: "1.4", paddingTop: "2px",
-                            background: "#dcfce7", borderRadius: "4px", padding: "2px 6px", display: "inline-block", marginBottom: "2px" }}>
+                          <div style={{
+                            fontSize: "10px", fontWeight: 700, color: "#16a34a", lineHeight: "1.4", paddingTop: "2px",
+                            background: "#dcfce7", borderRadius: "4px", padding: "2px 6px", display: "inline-block", marginBottom: "2px"
+                          }}>
                             {location ? location : "Kendi Geliyorlar"}
                           </div>
                           {voucher.pickup_time && (
                             <div style={{ fontSize: "15px", fontWeight: 800, color: "#16a34a", lineHeight: "1.4", paddingTop: "2px" }}>
-                              {voucher.pickup_time}
+                              {formatTimeStr(voucher.pickup_time)}
                             </div>
                           )}
                         </>
                       ) : (
                         <>
                           {voucher.pickup_place && (
-                            <div style={{ fontSize: "10px", fontWeight: 600, color: "#374151", lineHeight: "1.4", paddingTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "130px" }}>
+                            <div style={{ fontSize: "10px", fontWeight: 600, color: "#374151", lineHeight: "1.3", paddingTop: "2px", whiteSpace: "normal", wordBreak: "break-word", maxWidth: "130px" }}>
                               {voucher.pickup_place}
                             </div>
                           )}
                           <div style={{ fontSize: "15px", fontWeight: 800, color: "#dc2626", lineHeight: "1.4", paddingTop: "2px" }}>
-                            {voucher.pickup_time || "10:00"}
+                            {formatTimeStr(voucher.pickup_time)}
                           </div>
                         </>
                       )}
@@ -293,6 +341,24 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
 
             </div>
 
+            {/* Notes */}
+            {voucher.notes && (
+              <div style={{
+                backgroundColor: "#fefce8",
+                border: "1px solid #fde68a",
+                borderRadius: "4px",
+                padding: "5px 8px",
+                marginBottom: "6px"
+              }}>
+                <div style={{ fontSize: "8px", fontWeight: 700, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "2px" }}>
+                  ⚠️ {t.notes}
+                </div>
+                <div style={{ fontSize: "10px", fontWeight: 500, color: "#78350f", lineHeight: "1.3", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                  {voucher.notes}
+                </div>
+              </div>
+            )}
+
             {/* Footer */}
             <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "8px", marginTop: "auto" }}>
               {/* Contact */}
@@ -300,20 +366,20 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", flex: 1 }}>
                   {voucher.tour?.tour_managers && voucher.tour.tour_managers.length > 0 ? (
                     voucher.tour.tour_managers.map((manager, idx) => (
-                      <span key={idx} style={{ display: "flex", alignItems: "center", gap: "4px", fontWeight: 700, color: "#374151", fontSize: "9px" }}>
-                        <Phone style={{ width: "11px", height: "11px", color: "#2563eb" }} />
+                      <span key={idx} style={{ display: "flex", alignItems: "center", gap: "5px", fontWeight: 700, color: "#374151", fontSize: "10px" }}>
+                        <Phone style={{ width: "14px", height: "14px", color: "#2563eb", flexShrink: 0 }} strokeWidth={2.75} />
                         <span style={{ color: "#6b7280", fontWeight: 600 }}>{t.tourManager}:</span>
                         {manager.name ? `${manager.name} ${manager.phone}` : manager.phone}
                       </span>
                     ))
                   ) : (
-                    <span style={{ display: "flex", alignItems: "center", gap: "4px", fontWeight: 700, color: "#374151", fontSize: "9px" }}>
-                      <Phone style={{ width: "11px", height: "11px", color: "#2563eb" }} />
+                    <span style={{ display: "flex", alignItems: "center", gap: "5px", fontWeight: 700, color: "#374151", fontSize: "10px" }}>
+                      <Phone style={{ width: "14px", height: "14px", color: "#2563eb", flexShrink: 0 }} strokeWidth={2.75} />
                       <span style={{ color: "#6b7280", fontWeight: 600 }}>{t.tourManager}:</span>
                       +90 536 602 93 97
                     </span>
                   )}
-                  <MessageCircle style={{ width: "12px", height: "12px", color: "#16a34a" }} />
+                  <MessageCircle style={{ width: "14px", height: "14px", color: "#16a34a", flexShrink: 0 }} strokeWidth={2.5} />
                 </div>
                 <div style={{ fontSize: "7px", color: "#9ca3af", fontWeight: 500, fontStyle: "italic", textAlign: "right", flexShrink: 0, paddingLeft: "8px" }}>
                   {t.since}
@@ -324,27 +390,30 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
               <div style={{
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "space-between",
+                flexWrap: "nowrap",
                 backgroundColor: "#f9fafb",
                 border: "1px solid #f3f4f6",
                 borderRadius: "4px",
-                padding: "6px 8px"
+                padding: "5px 8px",
+                gap: "10px",
+                overflow: "hidden"
               }}>
-                <a href="#" style={{ display: "flex", alignItems: "center", gap: "5px", color: "#1f2937", fontWeight: 700, fontSize: "8px", textDecoration: "none" }}>
-                  <Globe style={{ width: "13px", height: "13px", color: "#2563eb", flexShrink: 0 }} />
+                <a href="#" style={{ display: "flex", alignItems: "center", gap: "3px", color: "#1f2937", fontWeight: 700, fontSize: "8.5px", textDecoration: "none", flexShrink: 0 }}>
+                  <Globe style={{ width: "12px", height: "12px", color: "#2563eb", flexShrink: 0 }} strokeWidth={2.5} />
                   <span style={{ lineHeight: 1.2 }}>easybooktours.com.tr</span>
                 </a>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <a href="#" style={{ display: "flex", alignItems: "center", gap: "4px", color: "#1e40af", fontWeight: 600, fontSize: "7.5px", textDecoration: "none" }}>
-                    <Facebook style={{ width: "12px", height: "12px", flexShrink: 0 }} /> <span style={{ lineHeight: 1.2 }}>/easybooktours</span>
-                  </a>
-                  <a href="#" style={{ display: "flex", alignItems: "center", gap: "4px", color: "#db2777", fontWeight: 600, fontSize: "7.5px", textDecoration: "none" }}>
-                    <Instagram style={{ width: "12px", height: "12px", flexShrink: 0 }} /> <span style={{ lineHeight: 1.2 }}>/easybooktours</span>
-                  </a>
-                  <a href="#" style={{ display: "flex", alignItems: "center", gap: "4px", color: "#dc2626", fontWeight: 600, fontSize: "7.5px", textDecoration: "none" }}>
-                    <Youtube style={{ width: "12px", height: "12px", flexShrink: 0 }} /> <span style={{ lineHeight: 1.2 }}>/easybooktours</span>
-                  </a>
-                </div>
+                <a href="#" style={{ display: "flex", alignItems: "center", gap: "3px", color: "#1e40af", fontWeight: 600, fontSize: "8.5px", textDecoration: "none", flexShrink: 0 }}>
+                  <Facebook style={{ width: "12px", height: "12px", flexShrink: 0 }} strokeWidth={2.5} />
+                  <span style={{ lineHeight: 1.2 }}>easybooktours</span>
+                </a>
+                <a href="#" style={{ display: "flex", alignItems: "center", gap: "3px", color: "#db2777", fontWeight: 600, fontSize: "8.5px", textDecoration: "none", flexShrink: 0 }}>
+                  <Instagram style={{ width: "12px", height: "12px", flexShrink: 0 }} strokeWidth={2.5} />
+                  <span style={{ lineHeight: 1.2 }}>easybooktours</span>
+                </a>
+                <a href="#" style={{ display: "flex", alignItems: "center", gap: "3px", color: "#dc2626", fontWeight: 600, fontSize: "8.5px", textDecoration: "none", flexShrink: 0 }}>
+                  <Youtube style={{ width: "12px", height: "12px", flexShrink: 0 }} strokeWidth={2.5} />
+                  <span style={{ lineHeight: 1.2 }}>easybooktours</span>
+                </a>
               </div>
             </div>
           </div>
@@ -366,7 +435,7 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
             <div>
               {/* Payment Header */}
               <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "#6b7280", marginBottom: "8px" }}>
-                <Wallet style={{ width: "14px", height: "14px" }} />
+                <Wallet style={{ width: "15px", height: "15px" }} strokeWidth={2.5} />
                 <span style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>{t.payment}</span>
               </div>
 

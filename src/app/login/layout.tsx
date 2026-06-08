@@ -12,8 +12,10 @@ export default function LoginLayout({
     children: React.ReactNode;
 }) {
     return (
-        <div className="min-h-screen gradient-bg-login flex items-center justify-center p-4">
-            {children}
+        <div className="min-h-screen gradient-bg-login flex flex-col">
+            <div className="flex-1 flex items-center justify-center p-4">
+                {children}
+            </div>
         </div>
     );
 }

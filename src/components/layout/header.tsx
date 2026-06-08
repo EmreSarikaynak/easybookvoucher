@@ -6,8 +6,10 @@ import { Menu, LogOut, User, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ROLE_LABELS } from "@/lib/types";
 import { signOutAction } from "@/app/actions/auth";
+import { createClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 import { Logo } from "./logo";
+import Link from "next/link";
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -19,27 +21,63 @@ export function Header({ onMenuClick, profile }: HeaderProps) {
   const [signingOut, setSigningOut] = useState(false);
 
   const handleSignOut = async () => {
+    if (signingOut) return;
     setSigningOut(true);
+
+    // 1) Client-side signOut: tarayıcının local Supabase state'i ve cookie'leri
+    //    temizlenir, onAuthStateChange listener'lar tetiklenir.
     try {
-      const result = await signOutAction();
-      if (result.success) {
-        router.push("/");
-        router.refresh();
-      } else {
-        console.error("Çıkış hatası:", result.error);
-        setSigningOut(false);
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("Client signOut hatası:", err);
+    }
+
+    // 2) Server-side signOut: SSR cookie'lerini ve server-side session'ı sil.
+    //    Hata olsa bile client zaten temizlendi, akışı bloklamayalım.
+    try {
+      await signOutAction();
+    } catch (err) {
+      console.error("Server signOut hatası:", err);
+    }
+
+    // 3) PWA cache'lerini sıfırla — eski kullanıcının verisi başka birinde
+    //    görünmesin (paylaşılan cihaz senaryosu).
+    if (typeof window !== "undefined" && "caches" in window) {
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      } catch (err) {
+        console.error("Cache temizleme hatası:", err);
       }
-    } catch (error) {
-      console.error("Çıkış hatası:", error);
-      setSigningOut(false);
+    }
+
+    // 4) Tam sayfa yenileme ile login'e dön. router.push + refresh bazen
+    //    middleware ile yarış koşulu yaratıyor; window.location en sağlamı.
+    if (typeof window !== "undefined") {
+      window.location.replace("/");
+    } else {
+      router.replace("/");
+      router.refresh();
     }
   };
 
   return (
     <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b bg-white px-4 shadow-sm lg:h-16 lg:px-8">
-      {/* Sol: Logo (mobil) / Boş (masaüstü) */}
-      <div className="flex items-center gap-3">
-        <Logo className="h-8 w-auto lg:hidden" />
+      {/* Sol: Hamburger + Logo (mobil) */}
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onMenuClick}
+          className="h-9 w-9 lg:hidden"
+          aria-label="Menüyü aç"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+        <Link href="/dashboard" className="lg:hidden">
+          <Logo className="h-8 w-auto" />
+        </Link>
       </div>
 
       {/* Sağ: Kullanıcı bilgisi ve çıkış */}

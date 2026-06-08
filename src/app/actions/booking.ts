@@ -10,7 +10,7 @@ export async function getBookings(filters?: {
     endDate?: string;
     status?: string;
 }): Promise<{ data: BoatBooking[] | null; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         let query = supabase
@@ -51,7 +51,7 @@ export async function getBookings(filters?: {
 export async function getBookingById(
     id: string
 ): Promise<{ data: BoatBooking | null; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         const { data, error } = await supabase
@@ -76,7 +76,7 @@ export async function checkAvailability(
     boatId: string,
     date: string
 ): Promise<{ available: boolean; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         const { data, error } = await supabase
@@ -101,7 +101,7 @@ export async function checkAvailability(
 export async function createBooking(
     booking: Omit<BoatBooking, "id" | "created_at" | "updated_at">
 ): Promise<{ data: BoatBooking | null; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         // Check availability first
@@ -165,7 +165,7 @@ export async function updateBooking(
     id: string,
     updates: Partial<Omit<BoatBooking, "id" | "created_at" | "updated_at">>
 ): Promise<{ data: BoatBooking | null; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         const { data, error } = await supabase
@@ -205,7 +205,7 @@ export async function updateBooking(
 export async function cancelBooking(
     id: string
 ): Promise<{ success: boolean; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         // Get booking to find associated calendar entry

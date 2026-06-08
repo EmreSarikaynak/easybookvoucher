@@ -31,7 +31,18 @@ import { createClient } from "@/lib/supabase";
 import { ROLE_LABELS } from "@/lib/types";
 import type { Profile, UserRole, Agency } from "@/lib/types";
 import { useAuth } from "@/hooks/useAuth";
-import { deleteUser } from "@/app/actions/user";
+import { createUser, deleteUser } from "@/app/actions/user";
+
+type DialogMode = "create" | "edit";
+
+const EMPTY_FORM = {
+  full_name: "",
+  email: "",
+  password: "",
+  role: "sales" as UserRole,
+  agency_id: "none",
+  phone: "",
+};
 
 export default function UsersPage() {
   const router = useRouter();
@@ -39,26 +50,40 @@ export default function UsersPage() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [agencies, setAgencies] = useState<Agency[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<DialogMode>("edit");
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
-  const [formData, setFormData] = useState({
-    full_name: "",
-    email: "",
-    role: "sales" as UserRole,
-    agency_id: "",
-    phone: "",
-  });
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formData, setFormData] = useState(EMPTY_FORM);
 
   const supabase = createClient();
 
   const fetchData = async () => {
-    const [profilesRes, agenciesRes] = await Promise.all([
-      supabase.from("profiles").select("*").order("full_name"),
-      supabase.from("agencies").select("*").eq("is_active", true).order("name"),
-    ]);
-    setProfiles(profilesRes.data ?? []);
-    setAgencies(agenciesRes.data ?? []);
-    setLoading(false);
+    setFetchError(null);
+    try {
+      const [profilesRes, agenciesRes] = await Promise.all([
+        supabase.from("profiles").select("*").order("full_name"),
+        supabase
+          .from("agencies")
+          .select("*")
+          .eq("is_active", true)
+          .order("name"),
+      ]);
+
+      if (profilesRes.error) throw profilesRes.error;
+      if (agenciesRes.error) throw agenciesRes.error;
+
+      setProfiles(profilesRes.data ?? []);
+      setAgencies(agenciesRes.data ?? []);
+    } catch (err) {
+      setFetchError(
+        err instanceof Error ? err.message : "Veriler yüklenemedi."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -69,35 +94,86 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const openCreate = () => {
+    setDialogMode("create");
+    setEditingProfile(null);
+    setFormData(EMPTY_FORM);
+    setFormError(null);
+    setDialogOpen(true);
+  };
+
   const openEdit = (profile: Profile) => {
+    setDialogMode("edit");
     setEditingProfile(profile);
     setFormData({
       full_name: profile.full_name,
       email: profile.email,
+      password: "",
       role: profile.role,
       agency_id: profile.agency_id ?? "none",
       phone: profile.phone ?? "",
     });
+    setFormError(null);
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
-    if (!editingProfile) return;
+    setFormError(null);
+    setSubmitting(true);
 
-    await supabase
-      .from("profiles")
-      .update({
-        full_name: formData.full_name,
-        role: formData.role,
-        agency_id: formData.agency_id === "none" ? null : formData.agency_id,
-        phone: formData.phone || null,
-      })
-      .eq("id", editingProfile.id);
+    try {
+      if (dialogMode === "create") {
+        if (!formData.email || !formData.password || !formData.full_name) {
+          setFormError("Ad soyad, e-posta ve şifre zorunludur.");
+          return;
+        }
+        if (formData.password.length < 6) {
+          setFormError("Şifre en az 6 karakter olmalı.");
+          return;
+        }
 
-    setDialogOpen(false);
-    fetchData();
+        const result = await createUser({
+          full_name: formData.full_name,
+          email: formData.email,
+          password: formData.password,
+          role: formData.role,
+          agency_id:
+            formData.agency_id === "none" ? null : formData.agency_id,
+          phone: formData.phone || null,
+        });
+
+        if (result.error) {
+          setFormError(result.error);
+          return;
+        }
+      } else {
+        if (!editingProfile) return;
+
+        const { error } = await supabase
+          .from("profiles")
+          .update({
+            full_name: formData.full_name,
+            role: formData.role,
+            agency_id:
+              formData.agency_id === "none" ? null : formData.agency_id,
+            phone: formData.phone || null,
+          })
+          .eq("id", editingProfile.id);
+
+        if (error) {
+          setFormError(error.message);
+          return;
+        }
+      }
+
+      setDialogOpen(false);
+      await fetchData();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const toggleActive = async (profile: Profile) => {
@@ -114,7 +190,11 @@ export default function UsersPage() {
       return;
     }
 
-    if (!confirm(`${profile.full_name} kullanıcısını tamamen silmek istediğinize emin misiniz?`)) {
+    if (
+      !confirm(
+        `${profile.full_name} kullanıcısını tamamen silmek istediğinize emin misiniz?`
+      )
+    ) {
       return;
     }
 
@@ -133,25 +213,12 @@ export default function UsersPage() {
     sales: "bg-green-100 text-green-800",
   };
 
-  if (authLoading || (loading && profiles.length === 0)) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Kullanıcılar</h1>
-            <p className="text-muted-foreground">Kullanıcı yönetimi</p>
-          </div>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-36 animate-pulse rounded-lg border bg-muted" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  if (!authLoading && !isAdmin) return null;
 
-  if (!isAdmin) return null;
+  const showSkeleton = authLoading || (loading && !fetchError);
+
+  const requiresAgency =
+    formData.role === "agency_admin" || formData.role === "sales";
 
   return (
     <div className="space-y-6">
@@ -160,17 +227,42 @@ export default function UsersPage() {
           <h1 className="text-2xl font-bold">Kullanıcılar</h1>
           <p className="text-muted-foreground">Kullanıcı yönetimi</p>
         </div>
+        <Button onClick={openCreate}>
+          <Plus className="mr-1 h-4 w-4" />
+          Yeni Kullanıcı
+        </Button>
       </div>
 
-      {profiles.length === 0 ? (
+      {fetchError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          Veriler yüklenirken hata oluştu: {fetchError}
+        </div>
+      )}
+
+      {showSkeleton ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-36 animate-pulse rounded-lg border bg-muted"
+            />
+          ))}
+        </div>
+      ) : profiles.length === 0 ? (
         <div className="flex flex-col items-center py-12 text-center">
           <Users className="h-12 w-12 text-muted-foreground" />
           <h3 className="mt-4 text-lg font-semibold">Kullanıcı bulunamadı</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Yukarıdaki butondan ilk kullanıcıyı ekleyebilirsiniz.
+          </p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {profiles.map((profile) => (
-            <Card key={profile.id} className={!profile.is_active ? "opacity-60" : ""}>
+            <Card
+              key={profile.id}
+              className={!profile.is_active ? "opacity-60" : ""}
+            >
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-base">{profile.full_name}</CardTitle>
                 <span
@@ -182,13 +274,19 @@ export default function UsersPage() {
               <CardContent className="space-y-2">
                 <p className="text-sm text-muted-foreground">{profile.email}</p>
                 {profile.phone && (
-                  <p className="text-sm text-muted-foreground">{profile.phone}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {profile.phone}
+                  </p>
                 )}
                 <Badge variant={profile.is_active ? "success" : "secondary"}>
                   {profile.is_active ? "Aktif" : "Pasif"}
                 </Badge>
                 <div className="flex gap-2 pt-2">
-                  <Button size="sm" variant="outline" onClick={() => openEdit(profile)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openEdit(profile)}
+                  >
                     <Edit className="mr-1 h-3 w-3" />
                     Düzenle
                   </Button>
@@ -198,7 +296,7 @@ export default function UsersPage() {
                     onClick={() => toggleActive(profile)}
                   >
                     <Shield className="mr-1 h-3 w-3" />
-                    {profile.is_active ? "Deaktif Et" : "Aktif Et"}
+                    {profile.is_active ? "Deaktif" : "Aktif"}
                   </Button>
                   <Button
                     size="sm"
@@ -215,13 +313,22 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Kullanıcı Düzenle Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Kullanıcı Düzenle</DialogTitle>
+            <DialogTitle>
+              {dialogMode === "create"
+                ? "Yeni Kullanıcı Ekle"
+                : "Kullanıcı Düzenle"}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {formError && (
+              <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+                {formError}
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Ad Soyad</Label>
               <Input
@@ -231,10 +338,33 @@ export default function UsersPage() {
                 }
               />
             </div>
+
             <div className="space-y-2">
               <Label>E-posta</Label>
-              <Input value={formData.email} disabled />
+              <Input
+                type="email"
+                value={formData.email}
+                onChange={(e) =>
+                  setFormData((p) => ({ ...p, email: e.target.value }))
+                }
+                disabled={dialogMode === "edit"}
+              />
             </div>
+
+            {dialogMode === "create" && (
+              <div className="space-y-2">
+                <Label>Şifre</Label>
+                <Input
+                  type="password"
+                  placeholder="En az 6 karakter"
+                  value={formData.password}
+                  onChange={(e) =>
+                    setFormData((p) => ({ ...p, password: e.target.value }))
+                  }
+                />
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Rol</Label>
               <Select
@@ -254,8 +384,11 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-2">
-              <Label>Acente</Label>
+              <Label>
+                Acente {requiresAgency && <span className="text-red-500">*</span>}
+              </Label>
               <Select
                 value={formData.agency_id}
                 onValueChange={(val) =>
@@ -263,7 +396,7 @@ export default function UsersPage() {
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Acente seçin (opsiyonel)" />
+                  <SelectValue placeholder="Acente seçin" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Yok</SelectItem>
@@ -275,6 +408,7 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-2">
               <Label>Telefon</Label>
               <Input
@@ -286,10 +420,20 @@ export default function UsersPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setDialogOpen(false)}
+              disabled={submitting}
+            >
               İptal
             </Button>
-            <Button onClick={handleSave}>Kaydet</Button>
+            <Button onClick={handleSave} disabled={submitting}>
+              {submitting
+                ? "Kaydediliyor..."
+                : dialogMode === "create"
+                  ? "Oluştur"
+                  : "Kaydet"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

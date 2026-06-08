@@ -29,51 +29,28 @@ export function validatePhone(phone: string): boolean {
  * Returns formatted: +90 5XX XXX XX XX
  */
 export function formatPhone(phone: string): string {
-    // Remove all non-digit characters except + at start
-    let cleaned = phone.replace(/[^\d+]/g, '');
+    // Sadece rakamları al
+    const raw = phone.replace(/\D/g, '');
+    if (!raw) return '';
 
-    // Remove + if it's not at the start
-    if (cleaned.indexOf('+') > 0) {
-        cleaned = cleaned.replace(/\+/g, '');
+    // Ülke kodu (90) veya şehiriçi sıfırı (0) atıp 10 haneli yerel numarayı bul
+    let national = raw;
+    if (national.startsWith('90')) {
+        national = national.slice(2);
+    } else if (national.startsWith('0')) {
+        national = national.slice(1);
     }
+    national = national.slice(0, 10);
 
-    // If starts with 0, remove it
-    if (cleaned.startsWith('0')) {
-        cleaned = cleaned.substring(1);
-    }
+    // Kullanıcı sadece 0 / 90 yazdıysa henüz yerel numara yok — +90 önekini hazır göster
+    if (national.length === 0) return '+90 ';
 
-    // If starts with 90, add +
-    if (cleaned.startsWith('90')) {
-        cleaned = '+' + cleaned;
-    }
-
-    // If starts with 5 (no country code), add +90
-    if (cleaned.startsWith('5') && !cleaned.startsWith('+90')) {
-        cleaned = '+90' + cleaned;
-    }
-
-    // Format: +90 5XX XXX XX XX
-    if (cleaned.startsWith('+90')) {
-        const digits = cleaned.substring(3); // Remove +90
-        let formatted = '+90';
-
-        if (digits.length > 0) {
-            formatted += ' ' + digits.substring(0, 3); // 5XX
-        }
-        if (digits.length > 3) {
-            formatted += ' ' + digits.substring(3, 6); // XXX
-        }
-        if (digits.length > 6) {
-            formatted += ' ' + digits.substring(6, 8); // XX
-        }
-        if (digits.length > 8) {
-            formatted += ' ' + digits.substring(8, 10); // XX
-        }
-
-        return formatted;
-    }
-
-    return cleaned;
+    // +90 5XX XXX XX XX biçiminde göster
+    let out = '+90 ' + national.slice(0, 3);
+    if (national.length > 3) out += ' ' + national.slice(3, 6);
+    if (national.length > 6) out += ' ' + national.slice(6, 8);
+    if (national.length > 8) out += ' ' + national.slice(8, 10);
+    return out;
 }
 
 /**

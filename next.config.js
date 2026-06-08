@@ -1,14 +1,24 @@
+const path = require("path");
+
 const withSerwist = require("@serwist/next").default({
   swSrc: "src/app/sw.ts",
   swDest: "public/sw.js",
-  cacheOnNavigation: true,
+  cacheOnNavigation: false,
   reloadOnOnline: true,
   disable: process.env.NODE_ENV === "development", // Dev'de disable
 });
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Üst dizindeki package-lock.json yanlış workspace root seçmesin (Tailwind/CSS kırılmasın)
+  outputFileTracingRoot: path.join(__dirname),
   reactStrictMode: true,
+  experimental: {
+    serverActions: {
+      // PDF base64 server action ile gönderildiğinde 1MB varsayılan limit aşılıyordu
+      bodySizeLimit: "10mb",
+    },
+  },
   eslint: {
     ignoreDuringBuilds: true,
   },

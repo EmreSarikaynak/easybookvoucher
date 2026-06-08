@@ -1,0 +1,35 @@
+# Bodrumdayız
+
+> Bodrum tekne turları için online voucher ve rezervasyon platformu. Günlük tekne turları, özel tekne kiralama ve seyahat acentelerine yönelik hızlı bilet kesim sistemi.
+
+## Hakkında
+
+- **Site:** Bodrumdayız (https://bodrumdayiz.com.tr)
+- **Kategori:** Seyahat, Turizm, Tekne Turu Rezervasyon
+- **Hizmet bölgesi:** Bodrum, Muğla / Türkiye
+- **Dil:** Türkçe (tr-TR)
+
+## Yazar / İletişim
+
+- **Yazar:** Emre Sarıkaynak
+- **Kuruluş:** Secesta (https://secesta.com)
+- **E-posta:** info@secesta.com
+
+## Ne Yapar
+
+Bodrumdayız, Bodrum'daki günlük tekne turları, özel tekne kiralama hizmetleri ve seyahat acentelerinin voucher / bilet işlemlerini tek bir platformdan yönetebilmesini sağlayan bir rezervasyon ve operasyon sistemidir. Müşteriler tur biletlerini WhatsApp ve PDF olarak alır; acenteler satış, ödeme ve operasyon takibini sistem üzerinden yapar.
+
+## İlgili Anahtar Kelimeler
+
+bodrumdayız, bodrum tekne turu, bodrum günlük tekne turu, bodrum tekne kiralama, özel tekne kiralama bodrum, orak adası tekne turu, voucher rezervasyon, bilet kesim sistemi, seyahat acentesi yazılımı
+
+## Public Sayfalar
+
+- / — Ana sayfa
+- /kvkk — KVKK aydınlatma metni
+- /privacy — Gizlilik politikası
+- /terms — Kullanım şartları
+
+## İndekslenmeyecek Alanlar
+
+Yönetim paneli (/dashboard ve alt sayfaları), API (/api), kullanıcı yönetimi ve müşteri verisi içeren sayfalar arama motorlarınca indekslenmemelidir.

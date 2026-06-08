@@ -1,0 +1,665 @@
+"use client";
+
+import { useEffect, useState, useTransition } from "react";
+import {
+  Megaphone,
+  Send,
+  Trash2,
+  Clock,
+  Users,
+  Bell,
+  MessageCircle,
+  Sparkles,
+  FileText,
+  Pencil,
+  RefreshCw,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { WhatsAppEditor } from "@/components/ui/whatsapp-editor";
+import { FormattedWhatsAppText } from "@/components/ui/formatted-whatsapp-text";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  createAnnouncement,
+  updateAnnouncement,
+  publishAnnouncement,
+  deleteAnnouncement,
+  listAllAnnouncements,
+  type Announcement,
+  type AnnouncementMutationResult,
+} from "@/app/actions/announcements";
+
+const DURATION_OPTIONS: Array<{ value: number; label: string }> = [
+  { value: 15, label: "15 dakika" },
+  { value: 60, label: "1 saat" },
+  { value: 60 * 6, label: "6 saat" },
+  { value: 60 * 24, label: "1 gün" },
+  { value: 60 * 24 * 3, label: "3 gün" },
+  { value: 60 * 24 * 7, label: "1 hafta" },
+  { value: 60 * 24 * 30, label: "1 ay" },
+];
+
+function formatRemaining(expiresAt: string): string {
+  const diff = new Date(expiresAt).getTime() - Date.now();
+  if (diff <= 0) return "Süresi doldu";
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 60) return `${minutes} dk kaldı`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} saat kaldı`;
+  const days = Math.floor(hours / 24);
+  return `${days} gün kaldı`;
+}
+
+const ROLE_LABEL: Record<string, string> = {
+  agency_admin: "Acente Yöneticileri",
+  sales: "Satış Temsilcileri",
+  admin: "Adminler",
+  super_admin: "Süper Adminler",
+};
+
+interface FormState {
+  title: string;
+  message: string;
+  targetRole: string; // "all" | role
+  durationMinutes: number;
+  sendPush: boolean;
+  sendWhatsApp: boolean;
+}
+
+const EMPTY_FORM: FormState = {
+  title: "",
+  message: "",
+  targetRole: "all",
+  durationMinutes: 60 * 24,
+  sendPush: true,
+  sendWhatsApp: true,
+};
+
+function formatResult(
+  res: AnnouncementMutationResult,
+  fallback: string
+): string {
+  if (!res.success) return `❌ ${res.error || "Beklenmeyen hata"}`;
+  const parts: string[] = [];
+  if (typeof res.pushSent === "number") parts.push(`${res.pushSent} push`);
+  if (res.whatsapp) {
+    parts.push(
+      `WhatsApp ${res.whatsapp.sent}/${res.whatsapp.attempted}` +
+        (res.whatsapp.failed > 0 ? ` (${res.whatsapp.failed} hata)` : "")
+    );
+  }
+  const detail = parts.length > 0 ? ` (${parts.join(" · ")})` : "";
+  return `✅ ${fallback}${detail}`;
+}
+
+export function AnnouncementsManager() {
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<Announcement | null>(null);
+  const [editForm, setEditForm] = useState<FormState>(EMPTY_FORM);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
+
+  const refresh = async () => {
+    setLoading(true);
+    const data = await listAllAnnouncements();
+    setAnnouncements(data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const submitForm = (asDraft: boolean) => async () => {
+    if (!form.title.trim() || !form.message.trim()) {
+      setResult("❌ Başlık ve mesaj zorunludur.");
+      return;
+    }
+    setSending(true);
+    setResult(null);
+
+    const res = await createAnnouncement(
+      {
+        title: form.title.trim(),
+        message: form.message.trim(),
+        targetRole: form.targetRole === "all" ? null : form.targetRole,
+        durationMinutes: form.durationMinutes,
+        sendPush: form.sendPush,
+        sendWhatsApp: form.sendWhatsApp,
+      },
+      asDraft
+    );
+
+    setResult(
+      formatResult(res, asDraft ? "Taslak kaydedildi" : "Duyuru yayımlandı")
+    );
+    if (res.success) {
+      setForm(EMPTY_FORM);
+      await refresh();
+      setTimeout(() => setResult(null), 6000);
+    }
+    setSending(false);
+  };
+
+  const openEdit = (a: Announcement) => {
+    const minutesLeft = Math.max(
+      15,
+      Math.round((new Date(a.expires_at).getTime() - Date.now()) / 60_000)
+    );
+    setEditing(a);
+    setEditForm({
+      title: a.title,
+      message: a.message,
+      targetRole: a.target_role ?? "all",
+      durationMinutes: minutesLeft,
+      sendPush: a.send_push,
+      sendWhatsApp: a.send_whatsapp,
+    });
+    setEditError(null);
+  };
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    if (!editForm.title.trim() || !editForm.message.trim()) {
+      setEditError("Başlık ve mesaj zorunludur.");
+      return;
+    }
+    setEditSaving(true);
+    setEditError(null);
+    const res = await updateAnnouncement(editing.id, {
+      title: editForm.title.trim(),
+      message: editForm.message.trim(),
+      targetRole: editForm.targetRole === "all" ? null : editForm.targetRole,
+      durationMinutes: editForm.durationMinutes,
+      sendPush: editForm.sendPush,
+      sendWhatsApp: editForm.sendWhatsApp,
+    });
+    setEditSaving(false);
+    if (!res.success) {
+      setEditError(res.error || "Güncellenemedi");
+      return;
+    }
+    setEditing(null);
+    await refresh();
+  };
+
+  const publish = (a: Announcement) => {
+    startTransition(async () => {
+      const res = await publishAnnouncement(a.id);
+      setResult(
+        formatResult(
+          res,
+          a.status === "draft" ? "Duyuru yayımlandı" : "Duyuru yeniden gönderildi"
+        )
+      );
+      if (res.success) await refresh();
+      setTimeout(() => setResult(null), 6000);
+    });
+  };
+
+  const handleDelete = (id: string) => {
+    startTransition(async () => {
+      const res = await deleteAnnouncement(id);
+      if (res.success) {
+        setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+      }
+    });
+  };
+
+  const now = Date.now();
+  const drafts = announcements.filter((a) => a.status === "draft");
+  const activeOnes = announcements.filter(
+    (a) => a.status === "published" && new Date(a.expires_at).getTime() > now
+  );
+  const expiredOnes = announcements.filter(
+    (a) => a.status === "published" && new Date(a.expires_at).getTime() <= now
+  );
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+      <Card className="border-amber-200/60 shadow-sm">
+        <CardHeader className="border-b bg-gradient-to-r from-amber-50/80 via-yellow-50/50 to-transparent pb-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-sm">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Yeni Duyuru</CardTitle>
+              <CardDescription className="mt-1">
+                Hemen yayınla ya da taslak olarak kaydet. Mesajda{" "}
+                <code className="rounded bg-muted px-1 text-[11px]">**kalın**</code>{" "}
+                kullanın; duyuru ve WhatsApp&apos;ta aynı görünür.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5 pt-5">
+          <AnnouncementFormFields
+            value={form}
+            onChange={setForm}
+            idPrefix="announcement"
+          />
+
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Button
+              onClick={submitForm(true)}
+              disabled={sending}
+              size="lg"
+              variant="outline"
+              className="w-full"
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              {sending ? "Kaydediliyor..." : "Taslak Kaydet"}
+            </Button>
+            <Button
+              onClick={submitForm(false)}
+              disabled={sending}
+              size="lg"
+              className="w-full bg-amber-600 hover:bg-amber-700"
+            >
+              <Send className="mr-2 h-4 w-4" />
+              {sending ? "Yayımlanıyor..." : "Duyuru Yayımla"}
+            </Button>
+          </div>
+
+          {result && (
+            <p
+              className={`rounded-lg px-3 py-2 text-sm ${
+                result.startsWith("✅")
+                  ? "bg-emerald-50 text-emerald-800"
+                  : "bg-red-50 text-red-800"
+              }`}
+            >
+              {result}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="space-y-4">
+        {drafts.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <FileText className="h-4 w-4 text-slate-600" />
+                Taslaklar
+                <Badge variant="secondary" className="ml-1">
+                  {drafts.length}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {drafts.map((a) => (
+                <AnnouncementListItem
+                  key={a.id}
+                  announcement={a}
+                  variant="draft"
+                  onEdit={() => openEdit(a)}
+                  onPublish={() => publish(a)}
+                  onDelete={() => handleDelete(a.id)}
+                />
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Megaphone className="h-4 w-4 text-amber-600" />
+              Aktif duyurular
+              {activeOnes.length > 0 && (
+                <Badge variant="secondary" className="ml-1">
+                  {activeOnes.length}
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <p className="text-sm text-muted-foreground">Yükleniyor...</p>
+            ) : activeOnes.length === 0 ? (
+              <div className="rounded-lg border border-dashed py-8 text-center">
+                <Megaphone className="mx-auto h-8 w-8 text-muted-foreground/40" />
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Şu an yayında duyuru yok.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {activeOnes.map((a) => (
+                  <AnnouncementListItem
+                    key={a.id}
+                    announcement={a}
+                    variant="active"
+                    onEdit={() => openEdit(a)}
+                    onPublish={() => publish(a)}
+                    onDelete={() => handleDelete(a.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {expiredOnes.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Geçmiş ({expiredOnes.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1 pt-0">
+              {expiredOnes.slice(0, 8).map((a) => (
+                <div
+                  key={a.id}
+                  className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{a.title}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {a.message.replace(/\*\*/g, "").slice(0, 80)}
+                      {a.message.length > 80 ? "…" : ""}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0 text-destructive"
+                    onClick={() => handleDelete(a.id)}
+                    title="Sil"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Duyuruyu Düzenle</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 py-2">
+            <AnnouncementFormFields
+              value={editForm}
+              onChange={setEditForm}
+              idPrefix="edit-announcement"
+            />
+            {editError && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
+                ❌ {editError}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditing(null)}
+              disabled={editSaving}
+            >
+              İptal
+            </Button>
+            <Button
+              onClick={saveEdit}
+              disabled={editSaving}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              {editSaving ? "Kaydediliyor..." : "Değişiklikleri Kaydet"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function AnnouncementFormFields({
+  value,
+  onChange,
+  idPrefix,
+}: {
+  value: FormState;
+  onChange: (v: FormState) => void;
+  idPrefix: string;
+}) {
+  const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
+    onChange({ ...value, [k]: v });
+
+  return (
+    <>
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-title`}>Başlık</Label>
+        <Input
+          id={`${idPrefix}-title`}
+          value={value.title}
+          onChange={(e) => set("title", e.target.value)}
+          placeholder="Önemli duyuru"
+          className="text-base"
+        />
+        <p className="text-[11px] text-muted-foreground">
+          WhatsApp&apos;ta başlık otomatik kalın gönderilir.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-message`}>Mesaj</Label>
+        <WhatsAppEditor
+          id={`${idPrefix}-message`}
+          value={value.message}
+          onChange={(v) => set("message", v)}
+          placeholder="Acentelerimize özel **kampanya** başladı. Detaylar için panele girin."
+          rows={6}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Hedef kitle</Label>
+          <Select
+            value={value.targetRole}
+            onValueChange={(v) => set("targetRole", v)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Herkes</SelectItem>
+              <SelectItem value="agency_admin">Acente Yöneticileri</SelectItem>
+              <SelectItem value="sales">Satış Temsilcileri</SelectItem>
+              <SelectItem value="admin">Adminler</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Geçerlilik süresi</Label>
+          <Select
+            value={String(value.durationMinutes)}
+            onValueChange={(v) => set("durationMinutes", Number(v))}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DURATION_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={String(opt.value)}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+        <label className="flex cursor-pointer items-center gap-3 text-sm">
+          <input
+            type="checkbox"
+            checked={value.sendPush}
+            onChange={(e) => set("sendPush", e.target.checked)}
+            className="h-4 w-4 rounded border-input accent-amber-600"
+          />
+          <Bell className="h-4 w-4 text-amber-600 shrink-0" />
+          <span>Bildirim olarak da gönder (zil sesli push)</span>
+        </label>
+
+        <label className="flex cursor-pointer items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            checked={value.sendWhatsApp}
+            onChange={(e) => set("sendWhatsApp", e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-input accent-amber-600"
+          />
+          <MessageCircle className="mt-0.5 h-4 w-4 text-emerald-600 shrink-0" />
+          <span>
+            WhatsApp ile de gönder
+            <span className="mt-0.5 block text-[11px] text-muted-foreground">
+              Hedef role bağlı kayıtlı numaralara. 24 saat penceresi dışındaki
+              numaralarda teslim edilemeyebilir.
+            </span>
+          </span>
+        </label>
+      </div>
+    </>
+  );
+}
+
+function AnnouncementListItem({
+  announcement: a,
+  variant,
+  onEdit,
+  onPublish,
+  onDelete,
+}: {
+  announcement: Announcement;
+  variant: "draft" | "active";
+  onEdit: () => void;
+  onPublish: () => void;
+  onDelete: () => void;
+}) {
+  const isDraft = variant === "draft";
+  const lastSent = a.last_sent_at
+    ? new Date(a.last_sent_at).toLocaleString("tr-TR", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+  return (
+    <div className="group rounded-xl border bg-card p-4 shadow-sm transition hover:shadow-md">
+      <div className="flex items-start gap-3">
+        <div
+          className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+            isDraft
+              ? "bg-slate-100 text-slate-600"
+              : "bg-amber-100 text-amber-700"
+          }`}
+        >
+          {isDraft ? (
+            <FileText className="h-4 w-4" />
+          ) : (
+            <Megaphone className="h-4 w-4" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-semibold text-sm">{a.title}</p>
+            {isDraft ? (
+              <Badge variant="secondary" className="text-[10px]">
+                Taslak
+              </Badge>
+            ) : (
+              <Badge className="bg-emerald-600 hover:bg-emerald-600 text-[10px]">
+                Yayında
+              </Badge>
+            )}
+          </div>
+          <FormattedWhatsAppText
+            text={a.message}
+            className="mt-1.5 text-muted-foreground"
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {formatRemaining(a.expires_at)}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Users className="h-3 w-3" />
+              {a.target_role
+                ? ROLE_LABEL[a.target_role] ?? a.target_role
+                : "Herkes"}
+            </span>
+            {lastSent && !isDraft && (
+              <span className="inline-flex items-center gap-1">
+                <Send className="h-3 w-3" />
+                Son gönderim: {lastSent}
+              </span>
+            )}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="outline" onClick={onEdit}>
+              <Pencil className="mr-1.5 h-3.5 w-3.5" />
+              Düzenle
+            </Button>
+            {isDraft ? (
+              <Button
+                size="sm"
+                className="bg-amber-600 hover:bg-amber-700"
+                onClick={onPublish}
+              >
+                <Send className="mr-1.5 h-3.5 w-3.5" />
+                Yayımla
+              </Button>
+            ) : (
+              <Button size="sm" variant="secondary" onClick={onPublish}>
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                Yeniden Gönder
+              </Button>
+            )}
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0 text-destructive opacity-70 group-hover:opacity-100"
+          onClick={onDelete}
+          title="Sil"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}

@@ -6,10 +6,11 @@ import BookingDetailClient from "./booking-detail-client";
 export default async function BookingDetailPage({
     params,
 }: {
-    params: { id: string };
+    params: Promise<{ id: string }>;
 }) {
+    const resolvedParams = await params;
     const { data: booking, error: bookingError } = await getBookingById(
-        params.id
+        resolvedParams.id
     );
 
     if (bookingError || !booking) {

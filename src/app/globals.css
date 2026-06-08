@@ -289,6 +289,18 @@
     }
   }
 
+  @keyframes slide-up {
+    from {
+      transform: translateY(24px);
+      opacity: 0;
+    }
+
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
   .animate-fade-in {
     animation: fade-in 0.3s ease-in-out;
   }
@@ -307,5 +319,33 @@
 
   .animate-pulse-subtle {
     animation: pulse-subtle 2s ease-in-out infinite;
+  }
+
+  .animate-slide-up {
+    animation: slide-up 0.35s ease-out;
+  }
+
+  /* Kayan duyuru yazısı (marquee) */
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  .animate-marquee {
+    animation: marquee var(--marquee-d, 18s) linear infinite;
+  }
+
+  @media (max-width: 639px) {
+    .animate-marquee {
+      animation-duration: var(--marquee-d-mobile, var(--marquee-d, 10s));
+    }
+  }
+
+  .animate-marquee:hover {
+    animation-play-state: paused;
   }
 }
