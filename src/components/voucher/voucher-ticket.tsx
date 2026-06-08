@@ -390,28 +390,29 @@ export const VoucherTicket = forwardRef<HTMLDivElement, VoucherTicketProps>(
               <div style={{
                 display: "flex",
                 alignItems: "center",
-                flexWrap: "wrap",
+                flexWrap: "nowrap",
                 backgroundColor: "#f9fafb",
                 border: "1px solid #f3f4f6",
                 borderRadius: "4px",
                 padding: "5px 8px",
-                gap: "6px 12px"
+                gap: "10px",
+                overflow: "hidden"
               }}>
-                <a href="#" style={{ display: "flex", alignItems: "center", gap: "4px", color: "#1f2937", fontWeight: 700, fontSize: "9px", textDecoration: "none", flexShrink: 0 }}>
-                  <Globe style={{ width: "13px", height: "13px", color: "#2563eb", flexShrink: 0 }} strokeWidth={2.5} />
+                <a href="#" style={{ display: "flex", alignItems: "center", gap: "3px", color: "#1f2937", fontWeight: 700, fontSize: "8.5px", textDecoration: "none", flexShrink: 0 }}>
+                  <Globe style={{ width: "12px", height: "12px", color: "#2563eb", flexShrink: 0 }} strokeWidth={2.5} />
                   <span style={{ lineHeight: 1.2 }}>easybooktours.com.tr</span>
                 </a>
-                <a href="#" style={{ display: "flex", alignItems: "center", gap: "4px", color: "#1e40af", fontWeight: 600, fontSize: "9px", textDecoration: "none", flexShrink: 0 }}>
-                  <Facebook style={{ width: "13px", height: "13px", flexShrink: 0 }} strokeWidth={2.5} />
-                  <span style={{ lineHeight: 1.2 }}>/easybooktours</span>
+                <a href="#" style={{ display: "flex", alignItems: "center", gap: "3px", color: "#1e40af", fontWeight: 600, fontSize: "8.5px", textDecoration: "none", flexShrink: 0 }}>
+                  <Facebook style={{ width: "12px", height: "12px", flexShrink: 0 }} strokeWidth={2.5} />
+                  <span style={{ lineHeight: 1.2 }}>easybooktours</span>
                 </a>
-                <a href="#" style={{ display: "flex", alignItems: "center", gap: "4px", color: "#db2777", fontWeight: 600, fontSize: "9px", textDecoration: "none", flexShrink: 0 }}>
-                  <Instagram style={{ width: "13px", height: "13px", flexShrink: 0 }} strokeWidth={2.5} />
-                  <span style={{ lineHeight: 1.2 }}>/easybooktours</span>
+                <a href="#" style={{ display: "flex", alignItems: "center", gap: "3px", color: "#db2777", fontWeight: 600, fontSize: "8.5px", textDecoration: "none", flexShrink: 0 }}>
+                  <Instagram style={{ width: "12px", height: "12px", flexShrink: 0 }} strokeWidth={2.5} />
+                  <span style={{ lineHeight: 1.2 }}>easybooktours</span>
                 </a>
-                <a href="#" style={{ display: "flex", alignItems: "center", gap: "4px", color: "#dc2626", fontWeight: 600, fontSize: "9px", textDecoration: "none", flexShrink: 0 }}>
-                  <Youtube style={{ width: "13px", height: "13px", flexShrink: 0 }} strokeWidth={2.5} />
-                  <span style={{ lineHeight: 1.2 }}>/easybooktours</span>
+                <a href="#" style={{ display: "flex", alignItems: "center", gap: "3px", color: "#dc2626", fontWeight: 600, fontSize: "8.5px", textDecoration: "none", flexShrink: 0 }}>
+                  <Youtube style={{ width: "12px", height: "12px", flexShrink: 0 }} strokeWidth={2.5} />
+                  <span style={{ lineHeight: 1.2 }}>easybooktours</span>
                 </a>
               </div>
             </div>
