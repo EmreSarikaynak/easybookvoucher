@@ -59,6 +59,10 @@ export function TimelineList({ vouchers, payments, adminView, agencyId }: Timeli
     return 0;
   });
 
+  // İlk ödeme satırının index'ini bul — ondan sonraki biletler "ödenmiş"
+  const firstPaymentIndex = timeline.findIndex((i) => i.kind === "payment");
+  const hasPaidBoundary = firstPaymentIndex !== -1;
+
   const visible = timeline.slice(0, shown);
   const hasMore = shown < timeline.length;
 
@@ -89,6 +93,10 @@ export function TimelineList({ vouchers, payments, adminView, agencyId }: Timeli
         </thead>
         <tbody className="divide-y">
           {visible.map((item, i) => {
+            // Ödeme satırının altında (daha eski tarihli) kalan biletler ödenmiş
+            const isPaid = hasPaidBoundary && i > firstPaymentIndex && item.kind === "voucher";
+            const isUnpaid = hasPaidBoundary && i < firstPaymentIndex && item.kind === "voucher";
+
             if (item.kind === "payment") {
               const p = item.data;
               return (
@@ -136,7 +144,16 @@ export function TimelineList({ vouchers, payments, adminView, agencyId }: Timeli
 
             const r = item.data;
             return (
-              <tr key={`voucher-${r.voucher_id}-${i}`} className="hover:bg-muted/30">
+              <tr
+                key={`voucher-${r.voucher_id}-${i}`}
+                className={
+                  isPaid
+                    ? "bg-emerald-50/50 border-l-4 border-emerald-300 hover:bg-emerald-50"
+                    : isUnpaid
+                      ? "bg-red-50/50 border-l-4 border-red-300 hover:bg-red-50"
+                      : "hover:bg-muted/30"
+                }
+              >
                 <td className="py-2 pr-3 text-xs whitespace-nowrap">
                   {fmtDate(r.tour_date)}
                 </td>
