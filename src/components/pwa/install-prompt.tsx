@@ -248,9 +248,9 @@ export function InstallPrompt() {
                                     <span>
                                         Sağ alt/üstteki menüden{" "}
                                         <span className="font-semibold">
-                                            Safari'de Aç
+                                            Safari&apos;de Aç
                                         </span>{" "}
-                                        seçeneğine dokunun ya da adresi Safari'ye
+                                        seçeneğine dokunun ya da adresi Safari&apos;ye
                                         kopyalayın.
                                     </span>
                                 </li>
@@ -259,7 +259,7 @@ export function InstallPrompt() {
                                         2
                                     </span>
                                     <span className="flex items-center gap-1 flex-wrap">
-                                        Safari'de alttaki
+                                        Safari&apos;de alttaki
                                         <Share className="inline h-4 w-4 text-blue-600" />
                                         <span className="font-semibold">
                                             Paylaş
@@ -282,7 +282,7 @@ export function InstallPrompt() {
                                         1
                                     </span>
                                     <span className="flex items-center gap-1 flex-wrap">
-                                        Safari'de alttaki
+                                        Safari&apos;de alttaki
                                         <Share className="inline h-4 w-4 text-blue-600" />
                                         <span className="font-semibold">
                                             Paylaş
@@ -312,7 +312,7 @@ export function InstallPrompt() {
                                         <span className="font-semibold">
                                             Ekle
                                         </span>
-                                        'ye dokunarak yükleyin.
+                                        &apos;ye dokunarak yükleyin.
                                     </span>
                                 </li>
                             </>
@@ -356,7 +356,7 @@ export function InstallPrompt() {
                                         <span className="font-semibold">
                                             Yükle
                                         </span>
-                                        'ye dokunun.
+                                        &apos;ye dokunun.
                                     </span>
                                 </li>
                             </>
