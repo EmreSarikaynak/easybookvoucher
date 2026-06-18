@@ -35,6 +35,22 @@ function detectPlatform(): Platform {
     return "desktop";
 }
 
+// iOS'ta "Ana Ekrana Ekle" YALNIZCA Safari'de çalışır. Chrome (CriOS), Firefox
+// (FxiOS) veya uygulama içi tarayıcılarda (Instagram, Facebook, WhatsApp...) bu
+// seçenek görünmez. Bu durumda kullanıcıyı Safari'de açmaya yönlendiririz.
+function isRealIOSSafari(): boolean {
+    if (typeof window === "undefined") return false;
+    const ua = window.navigator.userAgent;
+    // Diğer iOS tarayıcıları kendi token'larını taşır
+    if (/CriOS|FxiOS|EdgiOS|OPiOS|mercury/i.test(ua)) return false;
+    // Uygulama içi tarayıcılar (in-app webview)
+    if (/Instagram|FBAN|FBAV|FB_IAB|Line\/|Twitter|WhatsApp|GSA\//i.test(ua))
+        return false;
+    // Gerçek Safari UA'sında "Safari" ve "Version/" birlikte bulunur;
+    // WKWebView (uygulama içi) genelde "Safari" token'ı taşımaz.
+    return /Safari/i.test(ua) && /Version\//i.test(ua);
+}
+
 function isStandalone(): boolean {
     if (typeof window === "undefined") return false;
     const mq = window.matchMedia("(display-mode: standalone)").matches;
@@ -74,11 +90,13 @@ export function InstallPrompt() {
     const [showNativePrompt, setShowNativePrompt] = useState(false);
     const [showManualSheet, setShowManualSheet] = useState(false);
     const [platform, setPlatform] = useState<Platform>("desktop");
+    const [iosNeedsSafari, setIosNeedsSafari] = useState(false);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
         const p = detectPlatform();
         setPlatform(p);
+        if (p === "ios") setIosNeedsSafari(!isRealIOSSafari());
 
         if (isStandalone()) return;
         if (isDismissedRecently()) return;
@@ -205,13 +223,57 @@ export function InstallPrompt() {
                         </div>
                         <div>
                             <p className="font-semibold text-base text-gray-900 leading-tight">
-                                Ana Ekrana Ekle
+                                {isIos && iosNeedsSafari
+                                    ? "Safari'de Açın"
+                                    : "Ana Ekrana Ekle"}
                             </p>
                             <p className="text-xs text-gray-600 mt-0.5">
                                 Bodrumdayız uygulamasını yükleyin
                             </p>
                         </div>
                     </div>
+                    {isIos && iosNeedsSafari ? (
+                        <div className="text-sm text-gray-700 mb-4 space-y-2">
+                            <p>
+                                Uygulamayı yüklemek için bu sayfa{" "}
+                                <span className="font-semibold">Safari</span> ile
+                                açılmalı. Şu an Safari kullanmıyorsunuz (ör. Chrome
+                                veya Instagram/WhatsApp içi tarayıcı).
+                            </p>
+                            <ol className="space-y-2">
+                                <li className="flex items-start gap-2">
+                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-100 text-teal-700 text-xs font-bold flex items-center justify-center mt-0.5">
+                                        1
+                                    </span>
+                                    <span>
+                                        Sağ alt/üstteki menüden{" "}
+                                        <span className="font-semibold">
+                                            Safari'de Aç
+                                        </span>{" "}
+                                        seçeneğine dokunun ya da adresi Safari'ye
+                                        kopyalayın.
+                                    </span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-100 text-teal-700 text-xs font-bold flex items-center justify-center mt-0.5">
+                                        2
+                                    </span>
+                                    <span className="flex items-center gap-1 flex-wrap">
+                                        Safari'de alttaki
+                                        <Share className="inline h-4 w-4 text-blue-600" />
+                                        <span className="font-semibold">
+                                            Paylaş
+                                        </span>{" "}
+                                        →{" "}
+                                        <span className="font-semibold">
+                                            Ana Ekrana Ekle
+                                        </span>{" "}
+                                        yapın.
+                                    </span>
+                                </li>
+                            </ol>
+                        </div>
+                    ) : (
                     <ol className="space-y-2 text-sm text-gray-700 mb-4">
                         {isIos ? (
                             <>
@@ -300,6 +362,7 @@ export function InstallPrompt() {
                             </>
                         )}
                     </ol>
+                    )}
                     <Button
                         onClick={dismissAll}
                         className="w-full bg-teal-600 hover:bg-teal-700"

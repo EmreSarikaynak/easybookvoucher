@@ -25,14 +25,29 @@ function detectPlatform(): Platform {
   return "desktop";
 }
 
+// iOS'ta "Ana Ekrana Ekle" YALNIZCA Safari'de çalışır. Chrome (CriOS), Firefox
+// (FxiOS) veya uygulama içi tarayıcılarda (Instagram, WhatsApp, Facebook...)
+// seçenek görünmez; bu durumda önce "Safari'de açın" uyarısı vermeliyiz.
+function isRealIOSSafari(): boolean {
+  if (typeof window === "undefined") return false;
+  const ua = navigator.userAgent;
+  if (/CriOS|FxiOS|EdgiOS|OPiOS|mercury/i.test(ua)) return false;
+  if (/Instagram|FBAN|FBAV|FB_IAB|Line\/|Twitter|WhatsApp|GSA\//i.test(ua))
+    return false;
+  return /Safari/i.test(ua) && /Version\//i.test(ua);
+}
+
 export function InstallAppCard() {
   const [platform, setPlatform] = useState<Platform>("other");
   const [isInstalled, setIsInstalled] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<Event | null>(null);
   const [installing, setInstalling] = useState(false);
+  const [iosNeedsSafari, setIosNeedsSafari] = useState(false);
 
   useEffect(() => {
-    setPlatform(detectPlatform());
+    const p = detectPlatform();
+    setPlatform(p);
+    if (p === "ios") setIosNeedsSafari(!isRealIOSSafari());
     setIsInstalled(
       window.matchMedia("(display-mode: standalone)").matches ||
         (window.navigator as { standalone?: boolean }).standalone === true
@@ -95,6 +110,17 @@ export function InstallAppCard() {
           </Button>
         ) : platform === "ios" ? (
           <div className="space-y-3 text-sm text-muted-foreground">
+            {iosNeedsSafari && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900">
+                <p className="font-medium">Önce Safari&apos;de açın</p>
+                <p className="mt-1">
+                  Şu an Safari kullanmıyorsunuz (örn. Chrome veya
+                  Instagram/WhatsApp içi tarayıcı). Uygulama yalnızca{" "}
+                  <strong>Safari</strong> ile ana ekrana eklenebilir. Bu sayfayı
+                  Safari&apos;de açıp aşağıdaki adımları izleyin.
+                </p>
+              </div>
+            )}
             <p className="font-medium text-foreground">
               iOS&apos;a Eklemek İçin:
             </p>
