@@ -14,7 +14,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { generateVoucherNo } from "@/lib/utils";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { tr } from "date-fns/locale";
+import { generateVoucherNo, cn } from "@/lib/utils";
+import { isTourOpenOn, getDisabledMatcher, toLocalDateKey } from "@/lib/tour-days";
 import { useAuth } from "@/hooks/useAuth";
 import { getAgencyTourPrice } from "@/app/actions/agency-tour-prices";
 import type { Tour, CurrencyType, Voucher } from "@/lib/types";
@@ -78,6 +84,32 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
   const { profile } = useAuth();
   const agencyId = profile?.agency_id ?? null;
 
+  // Seçili tur — tur günü kısıtlaması için. Tur seçiliyken bilet yalnızca turun
+  // açık olduğu günlere kesilebilir (isTourOpenOn). Tur seçili değilken kısıt yok.
+  const selectedTour = tours.find((t) => t.id === formData.tour_id) ?? null;
+  const [dateWarning, setDateWarning] = useState<string | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
+  // Tur değişince mevcut tarih artık uygun değilse temizle + uyar.
+  const handleTourChange = (tourId: string) => {
+    const tour = tours.find((t) => t.id === tourId) ?? null;
+    setFormData((prev) => {
+      if (tour && prev.tour_date && !isTourOpenOn(tour, prev.tour_date)) {
+        setDateWarning("Bu tur seçilen günde yapılmıyor, lütfen tarih seçin.");
+        return { ...prev, tour_id: tourId, tour_date: "" };
+      }
+      setDateWarning(null);
+      return { ...prev, tour_id: tourId };
+    });
+  };
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+    setDateWarning(null);
+    setFormData((prev) => ({ ...prev, tour_date: toLocalDateKey(date) }));
+    setCalendarOpen(false);
+  };
+
   // Otomatik fiyat hesaplama:
   // - Tüm para birimleri; EUR taban + güncel kurla USD/GBP türetilir.
   // - Kullanıcı total_price'a elle dokunduktan sonra üzerine yazılmaz.
@@ -94,7 +126,8 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
     if (!formData.tour_id) return;
     const adult = formData.pax_adult === "" ? 0 : Number(formData.pax_adult);
     const child = formData.pax_child === "" ? 0 : Number(formData.pax_child);
-    const key = `${formData.tour_id}|${formData.currency}|${adult}|${child}`;
+    const infant = formData.pax_infant === "" ? 0 : Number(formData.pax_infant);
+    const key = `${formData.tour_id}|${formData.currency}|${adult}|${child}|${infant}`;
     if (key === lastAutoKey.current) return;
     lastAutoKey.current = key;
 
@@ -107,9 +140,13 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
       );
       if (cancelled || !result) return;
       // price_per_booking: fiyat kişi başı değil rezervasyon başı (ör. ATV Double)
+      // Bebek yalnızca tur için açıksa toplama eklenir.
+      const infantTotal = result.infant_pricing_enabled
+        ? infant * result.price_infant
+        : 0;
       const total = result.price_per_booking
         ? result.price_adult
-        : adult * result.price_adult + child * result.price_child;
+        : adult * result.price_adult + child * result.price_child + infantTotal;
       setFormData((prev) => ({ ...prev, total_price: Math.round(total) }));
       setAutoPriceSource(result.source);
     })();
@@ -121,6 +158,7 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
     formData.tour_id,
     formData.pax_adult,
     formData.pax_child,
+    formData.pax_infant,
     formData.currency,
     manuallyEditedTotal,
   ]);
@@ -142,6 +180,17 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Tur günü kısıtlaması — boş tarih veya turun yapılmadığı gün engellenir.
+    if (!formData.tour_date) {
+      setError("Lütfen tur tarihi seçin.");
+      return;
+    }
+    if (selectedTour && !isTourOpenOn(selectedTour, formData.tour_date)) {
+      setError("Bu tur seçilen tarihte yapılmıyor. Lütfen uygun bir gün seçin.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -254,7 +303,7 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
             <Label htmlFor="tour_id" className="shrink-0 w-36">Tur</Label>
             <Select
               value={formData.tour_id}
-              onValueChange={(val) => handleChange("tour_id", val)}
+              onValueChange={handleTourChange}
             >
               <SelectTrigger className="flex-1">
                 <SelectValue placeholder="Tur seçin">
@@ -272,17 +321,61 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center gap-3">
-            <Label htmlFor="tour_date" className="shrink-0 w-36">Tur Tarihi</Label>
-            <Input
-              id="tour_date"
-              type="date"
-              value={formData.tour_date}
-              onChange={(e) => handleChange("tour_date", e.target.value)}
-              required
-              min={new Date().toISOString().split("T")[0]}
-              className="flex-1"
-            />
+          <div className="flex items-start gap-3">
+            <Label htmlFor="tour_date" className="shrink-0 w-36 pt-2">Tur Tarihi</Label>
+            <div className="flex-1 space-y-1">
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="tour_date"
+                    type="button"
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !formData.tour_date && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formData.tour_date
+                      ? format(
+                          new Date(`${formData.tour_date}T00:00:00`),
+                          "d MMMM yyyy, EEEE",
+                          { locale: tr }
+                        )
+                      : "Tarih seçin"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={
+                      formData.tour_date
+                        ? new Date(`${formData.tour_date}T00:00:00`)
+                        : undefined
+                    }
+                    onSelect={handleDateSelect}
+                    disabled={
+                      selectedTour
+                        ? getDisabledMatcher(selectedTour, { disablePast: true })
+                        : { before: new Date() }
+                    }
+                    defaultMonth={
+                      formData.tour_date
+                        ? new Date(`${formData.tour_date}T00:00:00`)
+                        : new Date()
+                    }
+                    autoFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              {dateWarning ? (
+                <p className="text-xs text-red-600">{dateWarning}</p>
+              ) : selectedTour && (selectedTour.departure_days?.length || selectedTour.open_dates?.length) ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Sadece turun yapıldığı günler seçilebilir.
+                </p>
+              ) : null}
+            </div>
           </div>
         </CardContent>
       </Card>

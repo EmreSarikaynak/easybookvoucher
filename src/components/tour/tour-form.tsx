@@ -76,6 +76,8 @@ export function TourForm({
     base_price_adult_try: 0,
     base_price_child_try: 0,
     departure_days: [] as string[],
+    closed_dates: [] as string[],
+    open_dates: [] as string[],
     departure_time: "" as string,
     meeting_point: "" as string,
     pickup_zones: [] as { region: string; time: string; meeting_point: string }[],
@@ -106,6 +108,8 @@ export function TourForm({
         base_price_adult_try: tour.base_price_adult_try ?? 0,
         base_price_child_try: tour.base_price_child_try ?? 0,
         departure_days: tour.departure_days ?? [],
+        closed_dates: (tour.closed_dates ?? []).map((d) => d.slice(0, 10)),
+        open_dates: (tour.open_dates ?? []).map((d) => d.slice(0, 10)),
         departure_time: tour.departure_time ?? "",
         meeting_point: tour.meeting_point ?? "",
         pickup_zones: (tour.pickup_zones ?? []).map((z) => ({
@@ -131,6 +135,8 @@ export function TourForm({
         base_price_adult_try: 0,
         base_price_child_try: 0,
         departure_days: [],
+        closed_dates: [],
+        open_dates: [],
         departure_time: "",
         meeting_point: "",
         pickup_zones: [],
@@ -170,6 +176,8 @@ export function TourForm({
         base_price_adult_try: formData.base_price_adult_try,
         base_price_child_try: formData.base_price_child_try,
         departure_days: formData.departure_days,
+        closed_dates: formData.closed_dates,
+        open_dates: formData.open_dates,
         departure_time: formData.departure_time || null,
         meeting_point: formData.meeting_point || null,
         pickup_zones: formData.pickup_zones,
@@ -376,6 +384,29 @@ export function TourForm({
               }
             />
           </div>
+        </div>
+
+        {/* Tarih istisnalari: bilet sadece turun acik oldugu gunlere kesilebilir.
+             closed_dates = haftalik acik ama o gun kapali; open_dates = ekstra acik gun. */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 pt-1">
+          <DateListEditor
+            label="Kapalı Günler"
+            hint="Haftalık günlerden olsa bile bu tarihlerde tur yok"
+            dates={formData.closed_dates}
+            chipClassName="bg-red-100 text-red-700 border-red-200"
+            onChange={(closed_dates) =>
+              setFormData((p) => ({ ...p, closed_dates }))
+            }
+          />
+          <DateListEditor
+            label="Ekstra Açık Günler"
+            hint="Haftalık günlerden olmasa da bu tarihlerde tur var"
+            dates={formData.open_dates}
+            chipClassName="bg-green-100 text-green-700 border-green-200"
+            onChange={(open_dates) =>
+              setFormData((p) => ({ ...p, open_dates }))
+            }
+          />
         </div>
       </div>
 
@@ -601,5 +632,74 @@ export function TourForm({
         <DialogFooter className="hidden" />
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * yyyy-MM-dd tarih listesi düzenleyici: date input + Ekle butonu + chip listesi.
+ * Kalkış günü istisnaları (kapalı / ekstra açık) için kullanılır.
+ */
+function DateListEditor({
+  label,
+  hint,
+  dates,
+  chipClassName,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  dates: string[];
+  chipClassName?: string;
+  onChange: (dates: string[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+
+  const add = () => {
+    const v = draft.slice(0, 10);
+    if (!v || dates.includes(v)) {
+      setDraft("");
+      return;
+    }
+    onChange([...dates, v].sort());
+    setDraft("");
+  };
+
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      {hint ? <p className="text-[11px] text-muted-foreground">{hint}</p> : null}
+      <div className="flex gap-2">
+        <Input
+          type="date"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          className="flex-1"
+        />
+        <Button type="button" variant="outline" size="sm" onClick={add}>
+          Ekle
+        </Button>
+      </div>
+      {dates.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {dates.map((d) => (
+            <span
+              key={d}
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${
+                chipClassName ?? "bg-slate-100 text-slate-700 border-slate-200"
+              }`}
+            >
+              {d}
+              <button
+                type="button"
+                onClick={() => onChange(dates.filter((x) => x !== d))}
+                className="hover:opacity-70"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

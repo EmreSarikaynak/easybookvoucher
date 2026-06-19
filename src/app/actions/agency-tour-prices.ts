@@ -19,8 +19,10 @@ export interface AgencyOwnPriceCell {
   tour_id: string;
   price_adult_eur: number;
   price_child_eur: number;
+  price_infant_eur: number;
   price_adult_try: number;
   price_child_try: number;
+  price_infant_try: number;
 }
 
 /**
@@ -56,13 +58,16 @@ export async function saveOwnAgencyPrices(
     price: number;
     price_adult: number;
     price_child: number;
+    price_infant: number;
   }> = [];
 
   for (const r of rows) {
     const adultEur = Math.max(0, Math.round(r.price_adult_eur || 0));
     const childEur = Math.max(0, Math.round(r.price_child_eur || 0));
+    const infantEur = Math.max(0, Math.round(r.price_infant_eur || 0));
     const adultTry = Math.max(0, Math.round(r.price_adult_try || 0));
     const childTry = Math.max(0, Math.round(r.price_child_try || 0));
+    const infantTry = Math.max(0, Math.round(r.price_infant_try || 0));
 
     upsertData.push({
       agency_id: agencyId,
@@ -71,6 +76,7 @@ export async function saveOwnAgencyPrices(
       price: adultEur,
       price_adult: adultEur,
       price_child: childEur,
+      price_infant: infantEur,
     });
     upsertData.push({
       agency_id: agencyId,
@@ -79,6 +85,7 @@ export async function saveOwnAgencyPrices(
       price: adultTry,
       price_adult: adultTry,
       price_child: childTry,
+      price_infant: infantTry,
     });
   }
 
@@ -101,9 +108,12 @@ export async function saveOwnAgencyPrices(
 export interface AgencyTourPriceLookup {
   price_adult: number;
   price_child: number;
+  price_infant: number;
   source: "agency" | "fallback";
   /** TRUE ise fiyat kişi başı değil rezervasyon başıdır (ör. ATV Double). */
   price_per_booking: boolean;
+  /** TRUE ise bu turda bebek fiyatlanır (tours.infant_pricing_enabled). */
+  infant_pricing_enabled: boolean;
 }
 
 /**
@@ -127,7 +137,7 @@ export async function getAgencyTourPrice(
     loadExchangeRatePairsForCalculation(),
     supabase
       .from("agency_tour_prices")
-      .select("price_adult, price_child")
+      .select("price_adult, price_child, price_infant")
       .eq("agency_id", agencyId)
       .eq("tour_id", tourId)
       .eq("currency", currency)
@@ -135,7 +145,7 @@ export async function getAgencyTourPrice(
     currency !== "EUR"
       ? supabase
           .from("agency_tour_prices")
-          .select("price_adult, price_child")
+          .select("price_adult, price_child, price_infant")
           .eq("agency_id", agencyId)
           .eq("tour_id", tourId)
           .eq("currency", "EUR")
@@ -143,7 +153,7 @@ export async function getAgencyTourPrice(
       : Promise.resolve({ data: null }),
     supabase
       .from("tours")
-      .select("price_per_booking")
+      .select("price_per_booking, infant_pricing_enabled")
       .eq("id", tourId)
       .maybeSingle(),
   ]);
@@ -152,17 +162,21 @@ export async function getAgencyTourPrice(
     currency,
     priceRes.data?.price_adult,
     priceRes.data?.price_child,
+    priceRes.data?.price_infant,
     priceEurRes.data?.price_adult,
     priceEurRes.data?.price_child,
+    priceEurRes.data?.price_infant,
     pairs
   );
 
-  if (resolved.adult != null || resolved.child != null) {
+  if (resolved.adult != null || resolved.child != null || resolved.infant != null) {
     return {
       price_adult: resolved.adult ?? 0,
       price_child: resolved.child ?? 0,
+      price_infant: resolved.infant ?? 0,
       source: "agency",
       price_per_booking: tourRes.data?.price_per_booking ?? false,
+      infant_pricing_enabled: tourRes.data?.infant_pricing_enabled ?? false,
     };
   }
 
@@ -172,8 +186,11 @@ export async function getAgencyTourPrice(
 export interface AgencyTourCostLookup {
   cost_adult: number;
   cost_child: number;
+  cost_infant: number;
   /** Maliyet kaynağı yok (EUR taban fiyat girilmemiş). */
   missing: boolean;
+  /** TRUE ise bu turda bebek fiyatlanır (tours.infant_pricing_enabled). */
+  infant_pricing_enabled: boolean;
 }
 
 /**
@@ -194,7 +211,7 @@ export async function getAgencyTourCost(
     loadExchangeRatePairsForCalculation(),
     supabase
       .from("agency_tour_prices")
-      .select("cost_adult, cost_child")
+      .select("cost_adult, cost_child, cost_infant")
       .eq("agency_id", agencyId)
       .eq("tour_id", tourId)
       .eq("currency", currency)
@@ -202,7 +219,7 @@ export async function getAgencyTourCost(
     currency !== "EUR"
       ? supabase
           .from("agency_tour_prices")
-          .select("cost_adult, cost_child")
+          .select("cost_adult, cost_child, cost_infant")
           .eq("agency_id", agencyId)
           .eq("tour_id", tourId)
           .eq("currency", "EUR")
@@ -211,7 +228,7 @@ export async function getAgencyTourCost(
     supabase
       .from("tours")
       .select(
-        "base_price_adult_eur, base_price_child_eur, base_price_adult_try, base_price_child_try"
+        "base_price_adult_eur, base_price_child_eur, base_price_infant_eur, base_price_adult_try, base_price_child_try, base_price_infant_try, infant_pricing_enabled"
       )
       .eq("id", tourId)
       .maybeSingle(),
@@ -221,8 +238,10 @@ export async function getAgencyTourCost(
     currency,
     costRes.data?.cost_adult,
     costRes.data?.cost_child,
+    costRes.data?.cost_infant,
     costEurRes.data?.cost_adult,
     costEurRes.data?.cost_child,
+    costEurRes.data?.cost_infant,
     pairs
   );
 
@@ -230,21 +249,27 @@ export async function getAgencyTourCost(
     currency,
     tourRes.data?.base_price_adult_eur,
     tourRes.data?.base_price_child_eur,
+    tourRes.data?.base_price_infant_eur,
     tourRes.data?.base_price_adult_try,
     tourRes.data?.base_price_child_try,
+    tourRes.data?.base_price_infant_try,
     pairs
   );
 
   const cost = resolvePerPaxCost(
     agencyAmounts.adult,
     agencyAmounts.child,
+    agencyAmounts.infant,
     base.adult,
-    base.child
+    base.child,
+    base.infant
   );
 
   return {
     cost_adult: cost.cost_adult,
     cost_child: cost.cost_child,
+    cost_infant: cost.cost_infant,
     missing: cost.missing_adult && cost.missing_child,
+    infant_pricing_enabled: tourRes.data?.infant_pricing_enabled ?? false,
   };
 }

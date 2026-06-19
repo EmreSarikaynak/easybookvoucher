@@ -8,9 +8,33 @@ import { parseWhatsappPhonesSetting } from "@/lib/settings-utils";
 import { normalizeStoredPhone } from "@/lib/phone";
 import { buildAgencyCatalogUrl } from "@/lib/site-url";
 import { snapshotManyToEur } from "@/lib/eur-snapshot";
+import { isTourOpenOn } from "@/lib/tour-days";
 import { getAgencyTourCost } from "./agency-tour-prices";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Tur günü kısıtlaması — sunucu tarafı garanti. İstemci kontrolü atlanabilir.
+ * tour_id varsa turun departure_days/closed_dates/open_dates'ine göre tour_date
+ * uygun değilse hata döner. tour_id yoksa kısıt uygulanmaz.
+ */
+async function assertTourOpenOnDate(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  tourId: string | null | undefined,
+  tourDate: string
+): Promise<{ error?: string }> {
+  if (!tourId) return {};
+  const { data: tour } = await supabase
+    .from("tours")
+    .select("departure_days, closed_dates, open_dates")
+    .eq("id", tourId)
+    .single();
+  if (!tour) return {};
+  if (!isTourOpenOn(tour, tourDate)) {
+    return { error: "Bu tur seçilen tarihte yapılmıyor. Lütfen uygun bir gün seçin." };
+  }
+  return {};
+}
 
 /**
  * Voucher kaydederken total_price / deposit_paid / easybook_cost'u EUR'a
@@ -94,8 +118,9 @@ async function resolveEasybookCostForVoucher(args: {
   currency: CurrencyType;
   paxAdult: number;
   paxChild: number;
+  paxInfant: number;
 }): Promise<number | null> {
-  const { agencyId, tourId, currency, paxAdult, paxChild } = args;
+  const { agencyId, tourId, currency, paxAdult, paxChild, paxInfant } = args;
   if (!agencyId || !tourId) return null;
   try {
     const supabase = await import("@/lib/supabase-server").then(m => m.createServerSupabaseClient());
@@ -108,8 +133,14 @@ async function resolveEasybookCostForVoucher(args: {
     if (pricePerBooking) {
       return round2(lookup.cost_adult);
     }
+    // Bebek maliyeti yalnızca tur için açıksa eklenir; aksi halde ücretsiz.
+    const infantCost = lookup.infant_pricing_enabled
+      ? lookup.cost_infant * (paxInfant || 0)
+      : 0;
     return round2(
-      lookup.cost_adult * (paxAdult || 0) + lookup.cost_child * (paxChild || 0)
+      lookup.cost_adult * (paxAdult || 0) +
+        lookup.cost_child * (paxChild || 0) +
+        infantCost
     );
   } catch (e) {
     console.warn("resolveEasybookCostForVoucher:", e);
@@ -155,6 +186,14 @@ export async function createVoucher(payload: VoucherPayload) {
   if (!user) {
     return { error: "Oturum açmanız gerekiyor" };
   }
+
+  // Tur günü kısıtlaması — uygun olmayan tarihe bilet kesilemez
+  const dateCheck = await assertTourOpenOnDate(
+    supabase,
+    payload.tour_id,
+    payload.tour_date
+  );
+  if (dateCheck.error) return dateCheck;
 
   // Kullanıcının profil bilgisini al (acente eşlemesi için agency_id lazım)
   const { data: profile } = await supabase
@@ -216,6 +255,7 @@ export async function createVoucher(payload: VoucherPayload) {
     currency: payload.currency,
     paxAdult: payload.pax_adult,
     paxChild: payload.pax_child,
+    paxInfant: payload.pax_infant,
   });
   const eurFields = await buildVoucherEurFields({
     total_price: payload.total_price,
@@ -334,6 +374,14 @@ export async function updateVoucher(id: string, payload: VoucherPayload) {
   payload = normalizeVoucherPayloadPhones(payload);
   const supabase = await createServerSupabaseClient();
 
+  // Tur günü kısıtlaması — uygun olmayan tarihe güncelleme engellenir
+  const dateCheck = await assertTourOpenOnDate(
+    supabase,
+    payload.tour_id,
+    payload.tour_date
+  );
+  if (dateCheck.error) return dateCheck;
+
   const { data: existing } = await supabase
     .from("vouchers")
     .select("agency_id, currency, eur_rate_snapshot, eur_rate_date")
@@ -346,6 +394,7 @@ export async function updateVoucher(id: string, payload: VoucherPayload) {
     currency: payload.currency,
     paxAdult: payload.pax_adult,
     paxChild: payload.pax_child,
+    paxInfant: payload.pax_infant,
   });
 
   const eurFields = await buildVoucherEurFields({

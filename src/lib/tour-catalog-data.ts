@@ -10,20 +10,24 @@ import type { Tour } from "@/lib/types";
 export function resolveCatalogDisplayPrice(
   storedAdult: number | null | undefined,
   storedChild: number | null | undefined,
+  storedInfant: number | null | undefined,
   baseAdult: number | null | undefined,
   baseChild: number | null | undefined
-): { price_adult: number; price_child: number } {
+): { price_adult: number; price_child: number; price_infant: number } {
   const adult = storedAdult ?? 0;
   const child = storedChild ?? 0;
+  const infant = storedInfant ?? 0;
   return {
     price_adult: adult > 0 ? Math.round(adult) : Math.round(baseAdult ?? 0),
     price_child: child > 0 ? Math.round(child) : Math.round(baseChild ?? 0),
+    // Bebek: taban fallback YOK — yalnızca acentenin girdiği değer gösterilir.
+    price_infant: infant > 0 ? Math.round(infant) : 0,
   };
 }
 
 export interface ResolvedTourPriceSet {
-  eur: { adult: number; child: number };
-  try: { adult: number; child: number };
+  eur: { adult: number; child: number; infant: number };
+  try: { adult: number; child: number; infant: number };
 }
 
 type TourPriceBase = Pick<
@@ -33,6 +37,7 @@ type TourPriceBase = Pick<
   | "base_price_child_eur"
   | "base_price_adult_try"
   | "base_price_child_try"
+  | "infant_pricing_enabled"
 >;
 
 /**
@@ -52,12 +57,13 @@ export async function fetchAgencyTourPriceMap(
     currency: string;
     price_adult: number | null;
     price_child: number | null;
+    price_infant: number | null;
   }> = [];
 
   if (agencyId && tourIds.length > 0) {
     const { data } = await supabase
       .from("agency_tour_prices")
-      .select("tour_id, currency, price_adult, price_child")
+      .select("tour_id, currency, price_adult, price_child, price_infant")
       .eq("agency_id", agencyId)
       .in("tour_id", tourIds);
     rows = data ?? [];
@@ -70,21 +76,28 @@ export async function fetchAgencyTourPriceMap(
   for (const t of tours) {
     const eurRow = findRow(t.id, "EUR");
     const tryRow = findRow(t.id, "TRY");
+    const infantOn = t.infant_pricing_enabled ?? false;
     const eur = resolveCatalogDisplayPrice(
       eurRow?.price_adult,
       eurRow?.price_child,
+      infantOn ? eurRow?.price_infant : 0,
       t.base_price_adult_eur,
       t.base_price_child_eur
     );
     const tryRes = resolveCatalogDisplayPrice(
       tryRow?.price_adult,
       tryRow?.price_child,
+      infantOn ? tryRow?.price_infant : 0,
       t.base_price_adult_try,
       t.base_price_child_try
     );
     result.set(t.id, {
-      eur: { adult: eur.price_adult, child: eur.price_child },
-      try: { adult: tryRes.price_adult, child: tryRes.price_child },
+      eur: { adult: eur.price_adult, child: eur.price_child, infant: eur.price_infant },
+      try: {
+        adult: tryRes.price_adult,
+        child: tryRes.price_child,
+        infant: tryRes.price_infant,
+      },
     });
   }
   return result;
@@ -152,7 +165,7 @@ export async function fetchCatalogPdfDataset(
 
   const { data: priceRows } = await supabase
     .from("agency_tour_prices")
-    .select("tour_id, price_adult, price_child")
+    .select("tour_id, price_adult, price_child, price_infant")
     .eq("agency_id", agencyId)
     .eq("currency", currency);
 
@@ -163,11 +176,13 @@ export async function fetchCatalogPdfDataset(
       currency === "EUR" ? tour.base_price_adult_eur : tour.base_price_adult_try;
     const baseChild =
       currency === "EUR" ? tour.base_price_child_eur : tour.base_price_child_try;
+    const row = priceByTour.get(tour.id);
     return {
       tour_id: tour.id,
       ...resolveCatalogDisplayPrice(
-        priceByTour.get(tour.id)?.price_adult,
-        priceByTour.get(tour.id)?.price_child,
+        row?.price_adult,
+        row?.price_child,
+        tour.infant_pricing_enabled ? row?.price_infant : 0,
         baseAdult,
         baseChild
       ),

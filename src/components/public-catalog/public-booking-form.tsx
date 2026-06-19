@@ -8,6 +8,7 @@ interface PublicBookingFormProps {
   tourName: string;
   adultPriceEur: number;
   childPriceEur: number;
+  infantPriceEur: number;
   pickupOptions: string[];
 }
 
@@ -17,6 +18,7 @@ export function PublicBookingForm({
   tourName,
   adultPriceEur,
   childPriceEur,
+  infantPriceEur,
   pickupOptions,
 }: PublicBookingFormProps) {
   const [name, setName] = useState("");
@@ -36,8 +38,11 @@ export function PublicBookingForm({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const total = useMemo(
-    () => paxAdult * adultPriceEur + paxChild * childPriceEur,
-    [paxAdult, paxChild, adultPriceEur, childPriceEur]
+    () =>
+      paxAdult * adultPriceEur +
+      paxChild * childPriceEur +
+      paxInfant * infantPriceEur,
+    [paxAdult, paxChild, paxInfant, adultPriceEur, childPriceEur, infantPriceEur]
   );
 
   const minDate = useMemo(() => {

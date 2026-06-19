@@ -30,7 +30,7 @@ export default async function PublicCatalogPage({ params }: PageProps) {
   const { data: tours } = await supabase
     .from("tours")
     .select(
-      "id, name, description, duration, images, departure_time, meeting_point, base_price_adult_eur, base_price_child_eur, base_price_adult_try, base_price_child_try"
+      "id, name, description, duration, images, departure_time, meeting_point, base_price_adult_eur, base_price_child_eur, base_price_adult_try, base_price_child_try, infant_pricing_enabled"
     )
     .eq("is_active", true)
     .order("name");
@@ -49,6 +49,7 @@ export default async function PublicCatalogPage({ params }: PageProps) {
       | "base_price_child_eur"
       | "base_price_adult_try"
       | "base_price_child_try"
+      | "infant_pricing_enabled"
     >
   >;
 
@@ -85,6 +86,7 @@ export default async function PublicCatalogPage({ params }: PageProps) {
               const price = priceMap.get(tour.id);
               const adultEur = price?.eur.adult ?? 0;
               const childEur = price?.eur.child ?? 0;
+              const infantEur = price?.eur.infant ?? 0;
               const cover = tour.images?.[0] ?? null;
               return (
                 <Link
@@ -133,6 +135,14 @@ export default async function PublicCatalogPage({ params }: PageProps) {
                         </div>
                       )}
                     </div>
+                    {infantEur > 0 && (
+                      <div className="flex items-baseline justify-between text-xs">
+                        <span className="text-gray-400 uppercase tracking-wide">
+                          Bebek / Infant
+                        </span>
+                        <span className="font-semibold text-gray-600">€{infantEur}</span>
+                      </div>
+                    )}
                     <div className="pt-2">
                       <span className="inline-block w-full text-center bg-blue-600 text-white text-sm font-medium py-2 rounded-md group-hover:bg-blue-700 transition">
                         Rezervasyon Yap →

@@ -11,12 +11,16 @@ interface TourRow {
   tour: Tour;
   cost_adult_eur: number;
   cost_child_eur: number;
+  cost_infant_eur: number;
   cost_adult_try: number;
   cost_child_try: number;
+  cost_infant_try: number;
   sale_adult_eur: number;
   sale_child_eur: number;
+  sale_infant_eur: number;
   sale_adult_try: number;
   sale_child_try: number;
+  sale_infant_try: number;
   isCustom: boolean;
 }
 
@@ -40,14 +44,18 @@ async function getTourCosts(agencyId: string | null): Promise<TourRow[]> {
     currency: string;
     cost_adult: number | null;
     cost_child: number | null;
+    cost_infant: number | null;
     price_adult: number | null;
     price_child: number | null;
+    price_infant: number | null;
   }> = [];
 
   if (agencyId) {
     const { data } = await supabase
       .from("agency_tour_prices")
-      .select("tour_id, currency, cost_adult, cost_child, price_adult, price_child")
+      .select(
+        "tour_id, currency, cost_adult, cost_child, cost_infant, price_adult, price_child, price_infant"
+      )
       .eq("agency_id", agencyId);
     rows = data ?? [];
   }
@@ -65,12 +73,16 @@ async function getTourCosts(agencyId: string | null): Promise<TourRow[]> {
       tour,
       cost_adult_eur: eur?.cost_adult ?? tour.base_price_adult_eur ?? 0,
       cost_child_eur: eur?.cost_child ?? tour.base_price_child_eur ?? 0,
+      cost_infant_eur: eur?.cost_infant ?? tour.base_price_infant_eur ?? 0,
       cost_adult_try: tryRow?.cost_adult ?? tour.base_price_adult_try ?? 0,
       cost_child_try: tryRow?.cost_child ?? tour.base_price_child_try ?? 0,
+      cost_infant_try: tryRow?.cost_infant ?? tour.base_price_infant_try ?? 0,
       sale_adult_eur: Number(eur?.price_adult) || 0,
       sale_child_eur: Number(eur?.price_child) || 0,
+      sale_infant_eur: Number(eur?.price_infant) || 0,
       sale_adult_try: Number(tryRow?.price_adult) || 0,
       sale_child_try: Number(tryRow?.price_child) || 0,
+      sale_infant_try: Number(tryRow?.price_infant) || 0,
       isCustom: hasEurOverride || hasTryOverride,
     };
   });
@@ -116,15 +128,20 @@ export default async function TourCostsPage() {
     tour_name: r.tour.name,
     departure_days: r.tour.departure_days ?? null,
     departure_time: r.tour.departure_time ?? null,
+    infant_pricing_enabled: r.tour.infant_pricing_enabled ?? false,
     cost_adult_eur: Math.round(r.cost_adult_eur),
     cost_child_eur: Math.round(r.cost_child_eur),
+    cost_infant_eur: Math.round(r.cost_infant_eur),
     cost_adult_try: Math.round(r.cost_adult_try),
     cost_child_try: Math.round(r.cost_child_try),
+    cost_infant_try: Math.round(r.cost_infant_try),
     // Satış girilmemişse yönetici fiyatını varsayılan göster (kaydetmeden geçerli değil)
     sale_adult_eur: Math.round(r.sale_adult_eur || r.cost_adult_eur),
     sale_child_eur: Math.round(r.sale_child_eur || r.cost_child_eur),
+    sale_infant_eur: Math.round(r.sale_infant_eur || r.cost_infant_eur),
     sale_adult_try: Math.round(r.sale_adult_try || r.cost_adult_try),
     sale_child_try: Math.round(r.sale_child_try || r.cost_child_try),
+    sale_infant_try: Math.round(r.sale_infant_try || r.cost_infant_try),
   }));
 
   return (

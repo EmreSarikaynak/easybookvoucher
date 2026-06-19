@@ -1,7 +1,14 @@
 "use client";
 
-import { useState, useTransition, useRef, useEffect, useCallback } from "react";
-import { Save, Clock, Calendar, Info, CheckCircle2, Loader2 } from "lucide-react";
+import {
+  Fragment,
+  useState,
+  useTransition,
+  useRef,
+  useEffect,
+  useCallback,
+} from "react";
+import { Save, Clock, Calendar, Info, CheckCircle2, Loader2, Baby } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { saveOwnAgencyPrices } from "@/app/actions/agency-tour-prices";
@@ -12,21 +19,28 @@ export interface AgencyPriceRow {
   tour_name: string;
   departure_days: string[] | null;
   departure_time: string | null;
+  infant_pricing_enabled: boolean;
   cost_adult_eur: number;
   cost_child_eur: number;
+  cost_infant_eur: number;
   cost_adult_try: number;
   cost_child_try: number;
+  cost_infant_try: number;
   sale_adult_eur: number;
   sale_child_eur: number;
+  sale_infant_eur: number;
   sale_adult_try: number;
   sale_child_try: number;
+  sale_infant_try: number;
 }
 
 type SaleField =
   | "sale_adult_eur"
   | "sale_child_eur"
+  | "sale_infant_eur"
   | "sale_adult_try"
-  | "sale_child_try";
+  | "sale_child_try"
+  | "sale_infant_try";
 
 interface Props {
   rows: AgencyPriceRow[];
@@ -65,8 +79,10 @@ export function AgencyPricesEditor({ rows: initialRows }: Props) {
         tour_id: r.tour_id,
         price_adult_eur: r.sale_adult_eur,
         price_child_eur: r.sale_child_eur,
+        price_infant_eur: r.infant_pricing_enabled ? r.sale_infant_eur : 0,
         price_adult_try: r.sale_adult_try,
         price_child_try: r.sale_child_try,
+        price_infant_try: r.infant_pricing_enabled ? r.sale_infant_try : 0,
       }));
 
       startTransition(async () => {
@@ -191,7 +207,8 @@ export function AgencyPricesEditor({ rows: initialRows }: Props) {
               const days = formatTurkishDays(r.departure_days);
               const time = formatDepartureTime(r.departure_time);
               return (
-                <tr key={r.tour_id} className="border-b last:border-0 hover:bg-muted/10">
+                <Fragment key={r.tour_id}>
+                <tr className="border-b hover:bg-muted/10">
                   <td className="py-3 px-4 border-r bg-muted/10">
                     <div className="font-medium">{r.tour_name}</div>
                     {(days || time) && (
@@ -250,6 +267,37 @@ export function AgencyPricesEditor({ rows: initialRows }: Props) {
                     />
                   </td>
                 </tr>
+                {r.infant_pricing_enabled && (
+                  <tr className="border-b last:border-0 bg-blue-50/30">
+                    <td className="py-2 px-4 border-r bg-muted/10 text-xs font-medium text-blue-700">
+                      <span className="flex items-center gap-1">
+                        <Baby className="h-3.5 w-3.5" />
+                        Bebek satış fiyatı
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 text-right font-mono text-xs text-blue-700 bg-blue-50/20">
+                      {r.cost_infant_eur} €
+                    </td>
+                    <td className="py-2 px-3 bg-blue-50/20" colSpan={2}>
+                      <NumberCell
+                        value={r.sale_infant_eur}
+                        onChange={(v) => update(r.tour_id, "sale_infant_eur", v)}
+                        suffix="€"
+                      />
+                    </td>
+                    <td className="py-2 px-3 text-right font-mono text-xs text-amber-800 bg-amber-50/20">
+                      {r.cost_infant_try} ₺
+                    </td>
+                    <td className="py-2 px-3 bg-amber-50/20" colSpan={2}>
+                      <NumberCell
+                        value={r.sale_infant_try}
+                        onChange={(v) => update(r.tour_id, "sale_infant_try", v)}
+                        suffix="₺"
+                      />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               );
             })}
           </tbody>
@@ -308,6 +356,20 @@ export function AgencyPricesEditor({ rows: initialRows }: Props) {
                     onChange={(v) => update(r.tour_id, "sale_child_eur", v)}
                     suffix="€"
                   />
+                  {r.infant_pricing_enabled && (
+                    <>
+                      <CostMiniRow
+                        label="Yön. Bebek"
+                        text={`${r.cost_infant_eur} €`}
+                      />
+                      <LabeledInput
+                        label="Satış — Bebek"
+                        value={r.sale_infant_eur}
+                        onChange={(v) => update(r.tour_id, "sale_infant_eur", v)}
+                        suffix="€"
+                      />
+                    </>
+                  )}
                 </div>
 
                 {/* TRY sütunu */}
@@ -331,6 +393,20 @@ export function AgencyPricesEditor({ rows: initialRows }: Props) {
                     onChange={(v) => update(r.tour_id, "sale_child_try", v)}
                     suffix="₺"
                   />
+                  {r.infant_pricing_enabled && (
+                    <>
+                      <CostMiniRow
+                        label="Yön. Bebek"
+                        text={`${r.cost_infant_try} ₺`}
+                      />
+                      <LabeledInput
+                        label="Satış — Bebek"
+                        value={r.sale_infant_try}
+                        onChange={(v) => update(r.tour_id, "sale_infant_try", v)}
+                        suffix="₺"
+                      />
+                    </>
+                  )}
                 </div>
               </div>
             </div>

@@ -234,6 +234,7 @@ export interface CatalogUiStrings {
   tourCatalog: string;
   adultPrice: string;
   childPrice: string;
+  infantPrice: string;
   pricesEur: string;
   allTours: string;
   generatedOn: string;
@@ -265,6 +266,7 @@ export const CATALOG_PAGE_UI: Record<CatalogLang, CatalogUiStrings> = {
     tourCatalog: "Tur Kataloğu 2026",
     adultPrice: "Yetişkin",
     childPrice: "Çocuk",
+    infantPrice: "Bebek",
     pricesEur: "Fiyatlar (EUR)",
     allTours: "Tüm Turlar",
     generatedOn: "Oluşturulma",
@@ -298,6 +300,7 @@ export const CATALOG_PAGE_UI: Record<CatalogLang, CatalogUiStrings> = {
     tourCatalog: "Tour Catalog 2026",
     adultPrice: "Adult",
     childPrice: "Child",
+    infantPrice: "Infant",
     pricesEur: "Prices (EUR)",
     allTours: "All Tours",
     generatedOn: "Generated",
@@ -331,6 +334,7 @@ export const CATALOG_PAGE_UI: Record<CatalogLang, CatalogUiStrings> = {
     tourCatalog: "Каталог туров 2026",
     adultPrice: "Взрослый",
     childPrice: "Ребёнок",
+    infantPrice: "Младенец",
     pricesEur: "Цены (EUR)",
     allTours: "Все туры",
     generatedOn: "Дата",
@@ -364,6 +368,7 @@ export const CATALOG_PAGE_UI: Record<CatalogLang, CatalogUiStrings> = {
     tourCatalog: "Katalog Wycieczek 2026",
     adultPrice: "Dorosły",
     childPrice: "Dziecko",
+    infantPrice: "Niemowlę",
     pricesEur: "Ceny (EUR)",
     allTours: "Wszystkie wycieczki",
     generatedOn: "Wygenerowano",

@@ -290,8 +290,6 @@ export default function WhatsAppLogsPage() {
                 const statusInfo = describeWhatsAppStatus(log.status);
                 const errorHint = explainWhatsAppError(log.error_message);
                 const isInbound = log.direction === "inbound";
-                const preview =
-                  (log.body || "").split("\n").find((l) => l.trim()) || log.body || "";
                 return (
                   <TableRow
                     key={log.id}
@@ -319,8 +317,8 @@ export default function WhatsAppLogsPage() {
                     </TableCell>
                     <TableCell className="font-mono text-xs">{log.voucher_no || "-"}</TableCell>
                     <TableCell className="max-w-xs">
-                      <div className="truncate text-sm" title={log.body}>
-                        {preview}
+                      <div className="whitespace-pre-wrap break-words text-sm">
+                        {log.body}
                       </div>
                       {log.error_message && (
                         <div className="mt-1 text-xs text-red-600">

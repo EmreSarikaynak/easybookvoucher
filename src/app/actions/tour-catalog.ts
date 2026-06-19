@@ -12,6 +12,7 @@ export interface CatalogPriceRow {
   price_id?: string;
   price_adult: number;
   price_child: number;
+  price_infant: number;
 }
 
 export interface CatalogAgencyOption {
@@ -49,12 +50,12 @@ function formatDbError(error: { message: string }): string {
 function resolveDisplayPrice(
   storedAdult: number | null | undefined,
   storedChild: number | null | undefined,
-  _baseAdult?: number | null | undefined,
-  _baseChild?: number | null | undefined
-): { price_adult: number; price_child: number } {
+  storedInfant: number | null | undefined
+): { price_adult: number; price_child: number; price_infant: number } {
   return {
     price_adult: storedAdult != null && storedAdult > 0 ? Math.round(storedAdult) : 0,
     price_child: storedChild != null && storedChild > 0 ? Math.round(storedChild) : 0,
+    price_infant: storedInfant != null && storedInfant > 0 ? Math.round(storedInfant) : 0,
   };
 }
 
@@ -113,12 +114,13 @@ export async function getCatalogPageData(
     tour_id: string;
     price_adult: number | null;
     price_child: number | null;
+    price_infant: number | null;
   }> = [];
 
   if (selectedAgencyId) {
     const { data: prices } = await supabase
       .from("agency_tour_prices")
-      .select("id, tour_id, price_adult, price_child")
+      .select("id, tour_id, price_adult, price_child, price_infant")
       .eq("agency_id", selectedAgencyId)
       .eq("currency", currency);
     priceRows = prices ?? [];
@@ -128,21 +130,15 @@ export async function getCatalogPageData(
 
   const prices: CatalogPriceRow[] = (tours ?? []).map((tour) => {
     const row = priceByTour.get(tour.id);
-    const baseAdult =
-      currency === "EUR" ? tour.base_price_adult_eur : tour.base_price_adult_try;
-    const baseChild =
-      currency === "EUR" ? tour.base_price_child_eur : tour.base_price_child_try;
-    const display = resolveDisplayPrice(
-      row?.price_adult,
-      row?.price_child,
-      baseAdult,
-      baseChild
-    );
+    // Bebek fiyatı yalnızca tur için açıksa gösterilir.
+    const storedInfant = tour.infant_pricing_enabled ? row?.price_infant : 0;
+    const display = resolveDisplayPrice(row?.price_adult, row?.price_child, storedInfant);
     return {
       tour_id: tour.id,
       price_id: row?.id,
       price_adult: display.price_adult,
       price_child: display.price_child,
+      price_infant: display.price_infant,
     };
   });
 
@@ -189,7 +185,12 @@ export async function getCatalogPageData(
 
 export async function saveCatalogPrices(
   agencyId: string,
-  rows: Array<{ tour_id: string; price_adult: number; price_child: number }>,
+  rows: Array<{
+    tour_id: string;
+    price_adult: number;
+    price_child: number;
+    price_infant?: number;
+  }>,
   currency: CatalogCurrency = "EUR"
 ): Promise<{ success?: boolean; error?: string }> {
   const profile = await getCurrentUser();
@@ -217,6 +218,7 @@ export async function saveCatalogPrices(
     price: Math.round(r.price_adult),
     price_adult: Math.round(r.price_adult),
     price_child: Math.round(r.price_child),
+    price_infant: Math.round(r.price_infant ?? 0),
   }));
 
   const { error } = await supabase

@@ -231,8 +231,16 @@ export interface AgencyTourPricingCell {
   currency: CurrencyType;
   cost_adult: number | null;
   cost_child: number | null;
+  cost_infant: number | null;
   price_adult: number | null;
   price_child: number;
+  price_infant: number | null;
+  /**
+   * Adminin elle değiştirdiği alanlar. Yalnızca bu sütunlar yazılır;
+   * böylece acentenin kendi girdiği (dokunulmayan) fiyatlar eskiye dönmez.
+   * Tanımsızsa (eski çağrılar) tüm fiyat/maliyet alanları yazılır.
+   */
+  changed?: string[];
 }
 
 export interface AgencyTourPricingMatrix {
@@ -272,8 +280,10 @@ export async function getAgencyTourPricingMatrix(
     currency: r.currency,
     cost_adult: r.cost_adult ?? null,
     cost_child: r.cost_child ?? null,
+    cost_infant: r.cost_infant ?? null,
     price_adult: r.price_adult ?? r.price ?? null,
     price_child: r.price_child ?? 0,
+    price_infant: r.price_infant ?? null,
   }));
 
   return { data: { tours: tours ?? [], cells } };
@@ -287,29 +297,60 @@ export async function saveAgencyTourPricingMatrix(
 
   const supabase = await createServerSupabaseClient();
 
-  const upsertData = cells.map((c) => {
-    const adult = c.price_adult ?? 0;
-    return {
-      ...(c.id ? { id: c.id } : {}),
-      agency_id: agencyId,
-      tour_id: c.tour_id,
-      currency: c.currency,
+  // Her hücre için YALNIZCA adminin elle değiştirdiği sütunları yaz.
+  // Böylece acentenin kendi girdiği (dokunulmayan) satış fiyatları ezilmez.
+  // changed tanımsızsa (geriye dönük) tüm fiyat+maliyet alanları yazılır.
+  const ALL_FIELDS = [
+    "cost_adult",
+    "cost_child",
+    "cost_infant",
+    "price_adult",
+    "price_child",
+    "price_infant",
+  ];
+  const errors: string[] = [];
+
+  for (const c of cells) {
+    const fields = c.changed && c.changed.length ? c.changed : ALL_FIELDS;
+    const setObj: Record<string, number | null> = {};
+
+    if (fields.includes("cost_adult")) setObj.cost_adult = c.cost_adult;
+    if (fields.includes("cost_child")) setObj.cost_child = c.cost_child;
+    if (fields.includes("cost_infant")) setObj.cost_infant = c.cost_infant;
+    if (fields.includes("price_adult")) {
+      const adult = c.price_adult ?? 0;
+      setObj.price_adult = adult;
       // Keep legacy `price` mirrored so old readers don't break.
-      price: adult,
-      price_adult: adult,
-      price_child: c.price_child ?? 0,
-      cost_adult: c.cost_adult,
-      cost_child: c.cost_child,
-    };
-  });
+      setObj.price = adult;
+    }
+    if (fields.includes("price_child")) setObj.price_child = c.price_child ?? 0;
+    if (fields.includes("price_infant")) setObj.price_infant = c.price_infant;
 
-  const { error } = await supabase
-    .from("agency_tour_prices")
-    .upsert(upsertData, { onConflict: "agency_id,tour_id,currency" });
+    if (Object.keys(setObj).length === 0) continue;
 
-  if (error) {
-    console.error("Agency tour pricing save error:", error);
-    return { error: formatDbError(error) };
+    if (c.id) {
+      // Mevcut satır: sadece değişen sütunları güncelle — diğerlerine dokunma.
+      const { error } = await supabase
+        .from("agency_tour_prices")
+        .update(setObj)
+        .eq("id", c.id);
+      if (error) errors.push(formatDbError(error));
+    } else {
+      // Yeni satır: legacy `price` NOT NULL olabilir → güvenli default.
+      const { error } = await supabase.from("agency_tour_prices").insert({
+        agency_id: agencyId,
+        tour_id: c.tour_id,
+        currency: c.currency,
+        price: setObj.price ?? 0,
+        ...setObj,
+      });
+      if (error) errors.push(formatDbError(error));
+    }
+  }
+
+  if (errors.length > 0) {
+    console.error("Agency tour pricing save error:", errors);
+    return { error: errors.join("; ") };
   }
 
   revalidatePath("/agencies");

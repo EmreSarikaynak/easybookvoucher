@@ -62,12 +62,20 @@ export interface Tour {
   created_at: string;
   tour_managers?: { name: string; phone: string }[];
   departure_days?: string[];
+  /** Istisna: departure_days icinde olsa bile bu tarihlerde tur YOK (yyyy-MM-dd). */
+  closed_dates?: string[];
+  /** Istisna: departure_days gunlerinden olmasa da bu tarihlerde tur VAR (yyyy-MM-dd). */
+  open_dates?: string[];
   departure_time?: string | null;
   meeting_point?: string | null;
   base_price_adult_eur?: number;
   base_price_child_eur?: number;
   base_price_adult_try?: number;
   base_price_child_try?: number;
+  /** TRUE ise bu tur için bebek (infant) fiyatı girilebilir ve katalogda gösterilir. */
+  infant_pricing_enabled?: boolean;
+  base_price_infant_eur?: number;
+  base_price_infant_try?: number;
   /** TRUE ise fiyat kişi başı değil rezervasyon başıdır (ör. ATV Double). */
   price_per_booking?: boolean;
 }
@@ -80,10 +88,14 @@ export interface AgencyTourPrice {
   price: number;
   price_adult: number | null;
   price_child: number;
+  /** Bebek satış fiyatı. NULL => girilmemiş. */
+  price_infant: number | null;
   /** NULL => fallback to tours.base_price_adult_* */
   cost_adult: number | null;
   /** NULL => fallback to tours.base_price_child_* */
   cost_child: number | null;
+  /** NULL => fallback to tours.base_price_infant_* */
+  cost_infant: number | null;
   currency: CurrencyType;
   created_at: string;
   updated_at: string;

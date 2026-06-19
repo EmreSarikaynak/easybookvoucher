@@ -31,7 +31,7 @@ export default async function PublicTourDetailPage({ params }: PageProps) {
   const { data: tour } = await supabase
     .from("tours")
     .select(
-      "id, name, description, duration, images, pickup_locations, departure_time, meeting_point, base_price_adult_eur, base_price_child_eur, base_price_adult_try, base_price_child_try, is_active"
+      "id, name, description, duration, images, pickup_locations, departure_time, meeting_point, base_price_adult_eur, base_price_child_eur, base_price_adult_try, base_price_child_try, infant_pricing_enabled, is_active"
     )
     .eq("id", tourId)
     .maybeSingle();
@@ -54,12 +54,14 @@ export default async function PublicTourDetailPage({ params }: PageProps) {
     | "base_price_child_eur"
     | "base_price_adult_try"
     | "base_price_child_try"
+    | "infant_pricing_enabled"
   >;
 
   const priceMap = await fetchAgencyTourPriceMap(supabase, agency.id, [tourTyped]);
   const price = priceMap.get(tourTyped.id);
   const adultEur = price?.eur.adult ?? 0;
   const childEur = price?.eur.child ?? 0;
+  const infantEur = price?.eur.infant ?? 0;
 
   const cover = tourTyped.images?.[0] ?? null;
   const pickupLocations = (tourTyped.pickup_locations ?? []) as string[];
@@ -132,7 +134,9 @@ export default async function PublicTourDetailPage({ params }: PageProps) {
             <p className="text-xs text-gray-400 uppercase tracking-wide">
               Bebek / Infant
             </p>
-            <p className="text-2xl font-bold text-gray-500">€0</p>
+            <p className="text-2xl font-bold text-gray-500">
+              {infantEur > 0 ? `€${infantEur}` : "€0"}
+            </p>
           </div>
         </div>
 
@@ -142,6 +146,7 @@ export default async function PublicTourDetailPage({ params }: PageProps) {
           tourName={tourTyped.name}
           adultPriceEur={adultEur}
           childPriceEur={childEur}
+          infantPriceEur={infantEur}
           pickupOptions={pickupLocations}
         />
       </article>

@@ -89,6 +89,7 @@ export function getIstanbulDateString(date: Date = new Date()): string {
 export interface ResolvedBasePrices {
   adult: number | null;
   child: number | null;
+  infant: number | null;
 }
 
 /** Tur taban fiyatını hedef currency'de döner. EUR/TRY direkt, USD/GBP çevirim. */
@@ -96,8 +97,10 @@ export function resolveTourBaseInCurrency(
   target: CurrencyType,
   baseAdultEur: number | null | undefined,
   baseChildEur: number | null | undefined,
+  baseInfantEur: number | null | undefined,
   baseAdultTry: number | null | undefined,
   baseChildTry: number | null | undefined,
+  baseInfantTry: number | null | undefined,
   rates: RatePair[]
 ): ResolvedBasePrices {
   const conv = (
@@ -111,28 +114,39 @@ export function resolveTourBaseInCurrency(
   };
 
   if (target === "EUR") {
-    return { adult: baseAdultEur ?? null, child: baseChildEur ?? null };
+    return {
+      adult: baseAdultEur ?? null,
+      child: baseChildEur ?? null,
+      infant: baseInfantEur ?? null,
+    };
   }
   if (target === "TRY") {
-    return { adult: baseAdultTry ?? null, child: baseChildTry ?? null };
+    return {
+      adult: baseAdultTry ?? null,
+      child: baseChildTry ?? null,
+      infant: baseInfantTry ?? null,
+    };
   }
   // USD/GBP: önce EUR üzerinden çevir, EUR yoksa TRY
-  const fromEur = baseAdultEur != null || baseChildEur != null;
+  const fromEur = baseAdultEur != null || baseChildEur != null || baseInfantEur != null;
   if (fromEur) {
     return {
       adult: conv(baseAdultEur, "EUR", target),
       child: conv(baseChildEur, "EUR", target),
+      infant: conv(baseInfantEur, "EUR", target),
     };
   }
   return {
     adult: conv(baseAdultTry, "TRY", target),
     child: conv(baseChildTry, "TRY", target),
+    infant: conv(baseInfantTry, "TRY", target),
   };
 }
 
 export interface ResolvedAgencyAmounts {
   adult: number | null;
   child: number | null;
+  infant: number | null;
 }
 
 /**
@@ -144,21 +158,31 @@ export function resolveAgencyAmountInCurrency(
   target: CurrencyType,
   directAdult: number | null | undefined,
   directChild: number | null | undefined,
+  directInfant: number | null | undefined,
   eurAdult: number | null | undefined,
   eurChild: number | null | undefined,
+  eurInfant: number | null | undefined,
   rates: RatePair[]
 ): ResolvedAgencyAmounts {
   // Hedef currency'de doğrudan satır varsa (null değilse) onu kullan.
   // 0 da geçerli bir override (admin "ücretsiz" yazmış olabilir) — > 0 kontrolü yapma.
-  if (directAdult != null || directChild != null) {
-    return { adult: directAdult ?? null, child: directChild ?? null };
+  if (directAdult != null || directChild != null || directInfant != null) {
+    return {
+      adult: directAdult ?? null,
+      child: directChild ?? null,
+      infant: directInfant ?? null,
+    };
   }
   if (target === "EUR") {
-    return { adult: eurAdult ?? null, child: eurChild ?? null };
+    return {
+      adult: eurAdult ?? null,
+      child: eurChild ?? null,
+      infant: eurInfant ?? null,
+    };
   }
   const conv = (n: number | null | undefined): number | null => {
     if (n == null) return null;
     return round2(convertPrice(n, "EUR", target, rates));
   };
-  return { adult: conv(eurAdult), child: conv(eurChild) };
+  return { adult: conv(eurAdult), child: conv(eurChild), infant: conv(eurInfant) };
 }

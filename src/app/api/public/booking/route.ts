@@ -124,7 +124,7 @@ export async function POST(request: Request) {
     const { data: tour } = await supabase
       .from("tours")
       .select(
-        "id, name, is_active, base_price_adult_eur, base_price_child_eur, base_price_adult_try, base_price_child_try, currency"
+        "id, name, is_active, base_price_adult_eur, base_price_child_eur, base_price_adult_try, base_price_child_try, infant_pricing_enabled, currency"
       )
       .eq("id", tourId)
       .maybeSingle();
@@ -138,7 +138,12 @@ export async function POST(request: Request) {
 
     const priceMap = await fetchAgencyTourPriceMap(supabase, agency.id, [tour]);
     const priceSet = priceMap.get(tour.id);
-    const eurPrice = priceSet?.eur ?? { adult: 0, child: 0 };
+    const eurPrice = priceSet?.eur ?? { adult: 0, child: 0, infant: 0 };
+    // infant fiyatı yalnızca tur için açıksa (>0) gelir; fetchAgencyTourPriceMap zaten gate'ler.
+    const totalPrice =
+      paxAdult * eurPrice.adult +
+      paxChild * eurPrice.child +
+      paxInfant * eurPrice.infant;
 
     const { data: latest } = await supabase
       .from("vouchers")
@@ -165,7 +170,7 @@ export async function POST(request: Request) {
         pax_infant: paxInfant,
         pickup_place: payload.pickupPlace?.trim() || payload.hotel?.trim() || "",
         pickup_time: null,
-        total_price: paxAdult * eurPrice.adult + paxChild * eurPrice.child,
+        total_price: totalPrice,
         currency: "EUR",
         deposit_paid: 0,
         notes: payload.notes?.trim() || "",
@@ -223,7 +228,7 @@ export async function POST(request: Request) {
       (payload.pickupPlace?.trim() ? `📍 Alış: ${payload.pickupPlace.trim()}\n` : "") +
       `👥 PAX: ${paxStr}\n` +
       `🏢 Acente Kodu: ${agency.agency_code}\n` +
-      `💶 Toplam: €${(paxAdult * eurPrice.adult + paxChild * eurPrice.child).toFixed(0)}\n\n` +
+      `💶 Toplam: €${totalPrice.toFixed(0)}\n\n` +
       `🔗 Müşteri ile iletişim: https://wa.me/${customerPhone.replace(/[^0-9]/g, "")}\n\n` +
       `Lütfen panelden PDF üretip müşteriye gönderin.`;
 

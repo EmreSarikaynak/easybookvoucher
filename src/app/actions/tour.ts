@@ -12,7 +12,7 @@ import {
   type TourTranslations,
 } from "@/lib/tour-i18n";
 import { translateTourBundle } from "@/lib/deepl";
-import type { Agency, CurrencyType } from "@/lib/types";
+import type { CurrencyType } from "@/lib/types";
 
 async function assertTourAdmin(): Promise<{ error?: string }> {
   const profile = await getCurrentUser();
@@ -127,6 +127,8 @@ interface TourPayload {
   base_price_adult_try?: number;
   base_price_child_try?: number;
   departure_days?: string[];
+  closed_dates?: string[];
+  open_dates?: string[];
   departure_time?: string | null;
   meeting_point?: string | null;
 }
@@ -226,9 +228,19 @@ function buildTourRow(payload: TourPayload) {
     base_price_adult_try: payload.base_price_adult_try ?? 0,
     base_price_child_try: payload.base_price_child_try ?? 0,
     departure_days: payload.departure_days ?? [],
+    closed_dates: dedupeSortedDates(payload.closed_dates),
+    open_dates: dedupeSortedDates(payload.open_dates),
     departure_time: payload.departure_time || null,
     meeting_point: payload.meeting_point?.trim() || null,
   };
+}
+
+/** yyyy-MM-dd tarihleri temizler, tekilleştirir ve sıralar. */
+function dedupeSortedDates(dates: string[] | null | undefined): string[] {
+  if (!dates?.length) return [];
+  return Array.from(
+    new Set(dates.map((d) => (d ?? "").slice(0, 10)).filter(Boolean))
+  ).sort();
 }
 
 export async function createTour(payload: TourPayload) {
@@ -287,102 +299,15 @@ export async function getTourById(id: string) {
   return { tour: data, error: null };
 }
 
-export interface AgencyTourPriceRow {
-  id?: string;
-  agency_id: string;
-  currency: CurrencyType;
-  /** legacy single price, kept so old UI still works */
-  price: number;
-  price_adult: number | null;
-  price_child: number;
-  cost_adult: number | null;
-  cost_child: number | null;
-}
-
-export async function getTourPricesData(
-  tourId: string,
-  agencyId?: string | null
-): Promise<{ agencies: Agency[]; pricesData: AgencyTourPriceRow[] }> {
-  const supabase = await createServerSupabaseClient();
-
-  let agencyQuery = supabase
-    .from("agencies")
-    .select("*")
-    .eq("is_active", true)
-    .order("name");
-  if (agencyId) agencyQuery = agencyQuery.eq("id", agencyId);
-  const { data: agencies } = await agencyQuery;
-  const agenciesList = agencies ?? [];
-
-  let pricesQuery = supabase.from("agency_tour_prices").select("*").eq("tour_id", tourId);
-  if (agencyId) pricesQuery = pricesQuery.eq("agency_id", agencyId);
-  const { data: pricesData } = await pricesQuery;
-
-  return {
-    agencies: agenciesList,
-    pricesData: (pricesData ?? []).map((p) => ({
-      id: p.id,
-      agency_id: p.agency_id,
-      currency: p.currency,
-      price: p.price ?? p.price_adult ?? 0,
-      price_adult: p.price_adult ?? p.price ?? null,
-      price_child: p.price_child ?? 0,
-      cost_adult: p.cost_adult ?? null,
-      cost_child: p.cost_child ?? null,
-    })),
-  };
-}
-
-export async function saveAgencyTourPrices(
-  tourId: string,
-  rows: Array<{
-    id?: string;
-    agency_id: string;
-    currency: CurrencyType;
-    price?: number;
-    price_adult?: number | null;
-    price_child?: number;
-    cost_adult?: number | null;
-    cost_child?: number | null;
-  }>
-) {
-  const supabase = await createServerSupabaseClient();
-
-  const upsertData = rows.map((r) => {
-    const adult = r.price_adult ?? r.price ?? 0;
-    return {
-      ...(r.id ? { id: r.id } : {}),
-      agency_id: r.agency_id,
-      tour_id: tourId,
-      currency: r.currency,
-      price: adult,
-      price_adult: adult,
-      price_child: r.price_child ?? 0,
-      cost_adult: r.cost_adult ?? null,
-      cost_child: r.cost_child ?? null,
-    };
-  });
-
-  const { error } = await supabase
-    .from("agency_tour_prices")
-    .upsert(upsertData, { onConflict: "agency_id,tour_id,currency" });
-
-  if (error) {
-    console.error("Agency tour prices save error:", error);
-    return { error: formatDbError(error) };
-  }
-  revalidatePath("/tours");
-  revalidatePath("/agencies");
-  revalidatePath("/tour-costs");
-  return { success: true };
-}
-
 export interface TourBasePriceUpdate {
   tour_id: string;
   base_price_adult_eur: number;
   base_price_child_eur: number;
   base_price_adult_try: number;
   base_price_child_try: number;
+  base_price_infant_eur: number;
+  base_price_infant_try: number;
+  infant_pricing_enabled: boolean;
 }
 
 export async function updateTourBasePrices(updates: TourBasePriceUpdate[]) {
@@ -402,6 +327,9 @@ export async function updateTourBasePrices(updates: TourBasePriceUpdate[]) {
         base_price_child_eur: u.base_price_child_eur,
         base_price_adult_try: u.base_price_adult_try,
         base_price_child_try: u.base_price_child_try,
+        base_price_infant_eur: u.base_price_infant_eur,
+        base_price_infant_try: u.base_price_infant_try,
+        infant_pricing_enabled: u.infant_pricing_enabled,
       })
       .eq("id", u.tour_id);
 

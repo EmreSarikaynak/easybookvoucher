@@ -171,7 +171,7 @@ export async function fetchEarningsReport(
   const { data: priceRows } = await supabase
     .from("agency_tour_prices")
     .select(
-      "agency_id, tour_id, currency, cost_adult, cost_child, price_adult, price_child"
+      "agency_id, tour_id, currency, cost_adult, cost_child, cost_infant, price_adult, price_child, price_infant"
     )
     .in("tour_id", safeTourIds)
     .in(
@@ -185,8 +185,10 @@ export async function fetchEarningsReport(
     {
       cost_adult: number | null;
       cost_child: number | null;
+      cost_infant: number | null;
       price_adult: number | null;
       price_child: number | null;
+      price_infant: number | null;
     }
   >();
   (priceRows ?? []).forEach((r) => {
@@ -194,8 +196,10 @@ export async function fetchEarningsReport(
     priceMap.set(key, {
       cost_adult: r.cost_adult ?? null,
       cost_child: r.cost_child ?? null,
+      cost_infant: r.cost_infant ?? null,
       price_adult: r.price_adult ?? null,
       price_child: r.price_child ?? null,
+      price_infant: r.price_infant ?? null,
     });
   });
 
@@ -204,7 +208,7 @@ export async function fetchEarningsReport(
     supabase
       .from("tours")
       .select(
-        "id, base_price_adult_eur, base_price_child_eur, base_price_adult_try, base_price_child_try, price_per_booking"
+        "id, base_price_adult_eur, base_price_child_eur, base_price_infant_eur, base_price_adult_try, base_price_child_try, base_price_infant_try, price_per_booking, infant_pricing_enabled"
       )
       .in("id", safeTourIds),
     loadExchangeRatePairsForCalculation(),
@@ -215,18 +219,24 @@ export async function fetchEarningsReport(
     {
       adult_eur: number | null;
       child_eur: number | null;
+      infant_eur: number | null;
       adult_try: number | null;
       child_try: number | null;
+      infant_try: number | null;
       price_per_booking: boolean;
+      infant_pricing_enabled: boolean;
     }
   >();
   (tourRows ?? []).forEach((t) => {
     baseMap.set(t.id, {
       adult_eur: t.base_price_adult_eur ?? null,
       child_eur: t.base_price_child_eur ?? null,
+      infant_eur: t.base_price_infant_eur ?? null,
       adult_try: t.base_price_adult_try ?? null,
       child_try: t.base_price_child_try ?? null,
+      infant_try: t.base_price_infant_try ?? null,
       price_per_booking: t.price_per_booking ?? false,
+      infant_pricing_enabled: t.infant_pricing_enabled ?? false,
     });
   });
 
@@ -239,6 +249,7 @@ export async function fetchEarningsReport(
     const agencyId = v.agency_id ?? "";
     const paxAdult = v.pax_adult ?? 0;
     const paxChild = v.pax_child ?? 0;
+    const paxInfant = v.pax_infant ?? 0;
     const totalPrice = v.total_price ?? 0;
     const deposit = v.deposit_paid ?? 0;
     const totalPriceEur =
@@ -255,12 +266,16 @@ export async function fetchEarningsReport(
     const pricesEur = priceMap.get(`${agencyId}__${tourId}__EUR`);
     const base = baseMap.get(tourId);
 
+    const infantOn = base?.infant_pricing_enabled ?? false;
+
     const tourBase = resolveTourBaseInCurrency(
       cur,
       base?.adult_eur,
       base?.child_eur,
+      base?.infant_eur,
       base?.adult_try,
       base?.child_try,
+      base?.infant_try,
       ratePairs
     );
 
@@ -268,30 +283,37 @@ export async function fetchEarningsReport(
       cur,
       prices?.cost_adult,
       prices?.cost_child,
+      prices?.cost_infant,
       pricesEur?.cost_adult,
       pricesEur?.cost_child,
+      pricesEur?.cost_infant,
       ratePairs
     );
 
     const cost = resolvePerPaxCost(
       agencyCost.adult,
       agencyCost.child,
+      agencyCost.infant,
       tourBase.adult,
-      tourBase.child
+      tourBase.child,
+      tourBase.infant
     );
 
     const agencyList = resolveAgencyAmountInCurrency(
       cur,
       prices?.price_adult,
       prices?.price_child,
+      prices?.price_infant,
       pricesEur?.price_adult,
       pricesEur?.price_child,
+      pricesEur?.price_infant,
       ratePairs
     );
 
     const list = resolveCatalogDisplayPrice(
       agencyList.adult,
       agencyList.child,
+      infantOn ? agencyList.infant : 0,
       tourBase.adult,
       tourBase.child
     );
@@ -299,11 +321,14 @@ export async function fetchEarningsReport(
     const earnings = computeVoucherEarnings({
       paxAdult,
       paxChild,
+      paxInfant,
       totalPrice,
       cost,
       listAdult: list.price_adult,
       listChild: list.price_child,
+      listInfant: list.price_infant,
       pricePerBooking: base?.price_per_booking ?? false,
+      infantPriced: infantOn,
     });
 
     // Tur yoksa maliyet de bilinemez.

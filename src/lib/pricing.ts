@@ -19,10 +19,13 @@ export function round2(x: number): number {
 export interface PerPaxCost {
   cost_adult: number;
   cost_child: number;
+  cost_infant: number;
   /** Yetişkin maliyeti için geçerli bir kaynak (override veya >0 taban) yok. */
   missing_adult: boolean;
   /** Çocuk maliyeti için geçerli bir kaynak yok. */
   missing_child: boolean;
+  /** Bebek maliyeti için geçerli bir kaynak yok. */
+  missing_infant: boolean;
 }
 
 /**
@@ -33,8 +36,10 @@ export interface PerPaxCost {
 export function resolvePerPaxCost(
   overrideAdult: number | null | undefined,
   overrideChild: number | null | undefined,
+  overrideInfant: number | null | undefined,
   baseAdult: number | null | undefined,
-  baseChild: number | null | undefined
+  baseChild: number | null | undefined,
+  baseInfant: number | null | undefined
 ): PerPaxCost {
   const resolve = (
     override: number | null | undefined,
@@ -51,12 +56,15 @@ export function resolvePerPaxCost(
 
   const adult = resolve(overrideAdult, baseAdult);
   const child = resolve(overrideChild, baseChild);
+  const infant = resolve(overrideInfant, baseInfant);
 
   return {
     cost_adult: adult.cost,
     cost_child: child.cost,
+    cost_infant: infant.cost,
     missing_adult: adult.missing,
     missing_child: child.missing,
+    missing_infant: infant.missing,
   };
 }
 
@@ -78,16 +86,24 @@ export interface VoucherEarnings {
 export interface ComputeVoucherEarningsInput {
   paxAdult: number;
   paxChild: number;
+  paxInfant: number;
   totalPrice: number;
   cost: PerPaxCost;
   /** Liste satış fiyatı (pax başına). */
   listAdult: number;
   listChild: number;
+  listInfant: number;
   /**
    * TRUE ise fiyat rezervasyon başıdır (ör. ATV Double).
    * Hem maliyet hem liste fiyatı pax ile çarpılmaz, 1× uygulanır.
    */
   pricePerBooking?: boolean;
+  /**
+   * TRUE ise bebek (infant) de fiyatlanır (tours.infant_pricing_enabled).
+   * FALSE/undefined ise bebek ücretsiz kabul edilir: maliyete, liste fiyatına
+   * ve missing_cost hesabına katılmaz (eski davranış korunur).
+   */
+  infantPriced?: boolean;
 }
 
 /**
@@ -99,21 +115,40 @@ export interface ComputeVoucherEarningsInput {
 export function computeVoucherEarnings(
   input: ComputeVoucherEarningsInput
 ): VoucherEarnings {
-  const { paxAdult, paxChild, totalPrice, cost, listAdult, listChild, pricePerBooking } = input;
+  const {
+    paxAdult,
+    paxChild,
+    paxInfant,
+    totalPrice,
+    cost,
+    listAdult,
+    listChild,
+    listInfant,
+    pricePerBooking,
+    infantPriced,
+  } = input;
+
+  // Bebek fiyatlanmıyorsa (tur kapalı) ücretsiz kabul edilir; toplamlara katılmaz.
+  const infantPax = infantPriced ? paxInfant : 0;
 
   const easybook_cost = pricePerBooking
     ? round2(cost.cost_adult)
-    : round2(cost.cost_adult * paxAdult + cost.cost_child * paxChild);
+    : round2(
+        cost.cost_adult * paxAdult +
+          cost.cost_child * paxChild +
+          cost.cost_infant * infantPax
+      );
   const list_price = pricePerBooking
     ? round2(listAdult)
-    : round2(listAdult * paxAdult + listChild * paxChild);
+    : round2(listAdult * paxAdult + listChild * paxChild + listInfant * infantPax);
   const standard_margin = round2(list_price - easybook_cost);
   const extra_markup = round2(totalPrice - list_price);
   const total_profit = round2(totalPrice - easybook_cost);
 
   const missing_cost =
     (paxAdult > 0 && cost.missing_adult) ||
-    (paxChild > 0 && cost.missing_child);
+    (paxChild > 0 && cost.missing_child) ||
+    (infantPax > 0 && cost.missing_infant);
 
   return {
     easybook_cost,

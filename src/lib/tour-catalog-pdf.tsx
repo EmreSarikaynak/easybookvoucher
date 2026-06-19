@@ -52,6 +52,7 @@ export interface CatalogPriceInput {
   tour_id: string;
   price_adult: number;
   price_child: number;
+  price_infant?: number;
 }
 
 // --- Font kaydı ---
@@ -688,7 +689,7 @@ interface TourCardProps {
   lang: CatalogLang;
   tour: CatalogTourInput;
   imgs: (string | null)[];
-  price: { price_adult: number; price_child: number };
+  price: { price_adult: number; price_child: number; price_infant?: number };
   currency: CatalogPdfCurrency;
 }
 
@@ -765,7 +766,8 @@ function TourCard({ lang, tour, imgs, price, currency }: TourCardProps) {
 
   const showAdult = price.price_adult > 0;
   const showChild = price.price_child > 0;
-  const hasAnyPrice = showAdult || showChild;
+  const showInfant = (price.price_infant ?? 0) > 0;
+  const hasAnyPrice = showAdult || showChild || showInfant;
 
   // wrap={false} kaldırıldı: artık içerik sertçe sınırlı, overflow:hidden ile
   // taşma clip olur. Bu sayede kart asla yeni sayfaya kaymaz, "boş sayfa"
@@ -870,6 +872,12 @@ function TourCard({ lang, tour, imgs, price, currency }: TourCardProps) {
                     <Text style={styles.priceValue}>{currency} {price.price_child}</Text>
                   </View>
                 ) : null}
+                {showInfant ? (
+                  <View style={[styles.priceRow, { marginTop: 3 }]}>
+                    <Text style={styles.priceWho}>{ui.infantPrice}</Text>
+                    <Text style={styles.priceValue}>{currency} {price.price_infant}</Text>
+                  </View>
+                ) : null}
               </>
             ) : (
               <Text style={styles.priceOnReq}>{ui.priceOnRequest}</Text>
@@ -895,7 +903,7 @@ function PageBackground({ src }: { src?: string | null }) {
 }
 
 interface TourPageProps extends HFProps {
-  pair: { tour: CatalogTourInput; imgs: (string | null)[]; price: { price_adult: number; price_child: number } }[];
+  pair: { tour: CatalogTourInput; imgs: (string | null)[]; price: { price_adult: number; price_child: number; price_infant?: number } }[];
   pageBg?: string | null;
   currency: CatalogPdfCurrency;
 }

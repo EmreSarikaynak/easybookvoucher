@@ -197,17 +197,22 @@ interface PriceRow {
   currency: string;
   cost_adult: number | null;
   cost_child: number | null;
+  cost_infant: number | null;
   price_adult: number | null;
   price_child: number | null;
+  price_infant: number | null;
 }
 
 interface BaseRow {
   id: string;
   base_price_adult_eur: number | null;
   base_price_child_eur: number | null;
+  base_price_infant_eur: number | null;
   base_price_adult_try: number | null;
   base_price_child_try: number | null;
+  base_price_infant_try: number | null;
   price_per_booking: boolean | null;
+  infant_pricing_enabled: boolean | null;
 }
 
 interface PaymentRow {
@@ -237,17 +242,21 @@ function computeRow(
   const agencyId = v.agency_id ?? "";
   const paxAdult = v.pax_adult ?? 0;
   const paxChild = v.pax_child ?? 0;
+  const paxInfant = v.pax_infant ?? 0;
 
   const prices = priceMap.get(`${agencyId}__${tourId}__${cur}`);
   const pricesEur = priceMap.get(`${agencyId}__${tourId}__EUR`);
   const base = baseMap.get(tourId);
+  const infantOn = base?.infant_pricing_enabled ?? false;
 
   const tourBase = resolveTourBaseInCurrency(
     cur,
     base?.base_price_adult_eur,
     base?.base_price_child_eur,
+    base?.base_price_infant_eur,
     base?.base_price_adult_try,
     base?.base_price_child_try,
+    base?.base_price_infant_try,
     ratePairs
   );
 
@@ -255,30 +264,37 @@ function computeRow(
     cur,
     prices?.cost_adult,
     prices?.cost_child,
+    prices?.cost_infant,
     pricesEur?.cost_adult,
     pricesEur?.cost_child,
+    pricesEur?.cost_infant,
     ratePairs
   );
 
   const cost = resolvePerPaxCost(
     agencyCost.adult,
     agencyCost.child,
+    agencyCost.infant,
     tourBase.adult,
-    tourBase.child
+    tourBase.child,
+    tourBase.infant
   );
 
   const agencyList = resolveAgencyAmountInCurrency(
     cur,
     prices?.price_adult,
     prices?.price_child,
+    prices?.price_infant,
     pricesEur?.price_adult,
     pricesEur?.price_child,
+    pricesEur?.price_infant,
     ratePairs
   );
 
   const list = resolveCatalogDisplayPrice(
     agencyList.adult,
     agencyList.child,
+    infantOn ? agencyList.infant : 0,
     tourBase.adult,
     tourBase.child
   );
@@ -286,11 +302,14 @@ function computeRow(
   const earnings = computeVoucherEarnings({
     paxAdult,
     paxChild,
+    paxInfant,
     totalPrice: v.total_price ?? 0,
     cost,
     listAdult: list.price_adult,
     listChild: list.price_child,
+    listInfant: list.price_infant,
     pricePerBooking: base?.price_per_booking ?? false,
+    infantPriced: infantOn,
   });
 
   const tourRow = (v.tour && !Array.isArray(v.tour) ? v.tour : null) as
@@ -339,13 +358,13 @@ async function loadPricingMaps(
   const [{ data: priceRows }, { data: tourRows }] = await Promise.all([
     supabase
       .from("agency_tour_prices")
-      .select("agency_id, tour_id, currency, cost_adult, cost_child, price_adult, price_child")
+      .select("agency_id, tour_id, currency, cost_adult, cost_child, cost_infant, price_adult, price_child, price_infant")
       .in("tour_id", safeTourIds)
       .in("agency_id", safeAgencyIds),
     supabase
       .from("tours")
       .select(
-        "id, base_price_adult_eur, base_price_child_eur, base_price_adult_try, base_price_child_try, price_per_booking"
+        "id, base_price_adult_eur, base_price_child_eur, base_price_infant_eur, base_price_adult_try, base_price_child_try, base_price_infant_try, price_per_booking, infant_pricing_enabled"
       )
       .in("id", safeTourIds),
   ]);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Baby } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -24,8 +24,17 @@ interface AgencyTourPricingProps {
 
 type CellKey = `${string}_${CurrencyType}`;
 
-interface DraftCell extends AgencyTourPricingCell {
-  dirty: boolean;
+type PricingField =
+  | "cost_adult"
+  | "cost_child"
+  | "cost_infant"
+  | "price_adult"
+  | "price_child"
+  | "price_infant";
+
+interface DraftCell extends Omit<AgencyTourPricingCell, "changed"> {
+  /** Adminin elle değiştirdiği alanlar — yalnızca bunlar kaydedilir (eskiye dönmeyi önler). */
+  changed: Set<PricingField>;
 }
 
 const CURRENCIES: CurrencyType[] = ["EUR", "TRY"];
@@ -33,16 +42,13 @@ const CURRENCIES: CurrencyType[] = ["EUR", "TRY"];
 const fallbackCost = (
   tour: Tour,
   currency: CurrencyType,
-  who: "adult" | "child"
+  who: "adult" | "child" | "infant"
 ): number => {
-  if (currency === "EUR") {
-    return Math.round(
-      (who === "adult" ? tour.base_price_adult_eur : tour.base_price_child_eur) ?? 0
-    );
-  }
-  return Math.round(
-    (who === "adult" ? tour.base_price_adult_try : tour.base_price_child_try) ?? 0
-  );
+  const pick = (eur: number | undefined, tryv: number | undefined) =>
+    Math.round((currency === "EUR" ? eur : tryv) ?? 0);
+  if (who === "adult") return pick(tour.base_price_adult_eur, tour.base_price_adult_try);
+  if (who === "child") return pick(tour.base_price_child_eur, tour.base_price_child_try);
+  return pick(tour.base_price_infant_eur, tour.base_price_infant_try);
 };
 
 export function AgencyTourPricing({ agencyId, onChange }: AgencyTourPricingProps) {
@@ -83,9 +89,11 @@ export function AgencyTourPricing({ agencyId, onChange }: AgencyTourPricingProps
           currency: c,
           cost_adult: existing?.cost_adult != null ? Math.round(existing.cost_adult) : null,
           cost_child: existing?.cost_child != null ? Math.round(existing.cost_child) : null,
+          cost_infant: existing?.cost_infant != null ? Math.round(existing.cost_infant) : null,
           price_adult: existing?.price_adult != null ? Math.round(existing.price_adult) : null,
           price_child: existing?.price_child != null ? Math.round(existing.price_child) : 0,
-          dirty: false,
+          price_infant: existing?.price_infant != null ? Math.round(existing.price_infant) : null,
+          changed: new Set<PricingField>(),
         };
       });
     });
@@ -99,26 +107,26 @@ export function AgencyTourPricing({ agencyId, onChange }: AgencyTourPricingProps
 
   useEffect(() => {
     const dirtyCells: AgencyTourPricingCell[] = Object.values(drafts)
-      .filter((d) => d.dirty)
-      .map(({ dirty: _dirty, ...rest }) => rest);
+      .filter((d) => d.changed.size > 0)
+      .map(({ changed, ...rest }) => ({ ...rest, changed: Array.from(changed) }));
     onChangeRef.current(dirtyCells, dirtyCells.length > 0);
   }, [drafts]);
 
-  const updateCell = (
-    key: CellKey,
-    field: "cost_adult" | "cost_child" | "price_adult" | "price_child",
-    raw: string
-  ) => {
+  const updateCell = (key: CellKey, field: PricingField, raw: string) => {
     const parsed = raw === "" ? null : parseInt(raw, 10);
     const value = parsed === null || Number.isNaN(parsed) ? null : parsed;
-    setDrafts((prev) => ({
-      ...prev,
-      [key]: {
-        ...prev[key],
-        [field]: field === "price_child" ? (value ?? 0) : value,
-        dirty: true,
-      },
-    }));
+    setDrafts((prev) => {
+      const nextChanged = new Set(prev[key].changed);
+      nextChanged.add(field);
+      return {
+        ...prev,
+        [key]: {
+          ...prev[key],
+          [field]: field === "price_child" ? (value ?? 0) : value,
+          changed: nextChanged,
+        },
+      };
+    });
   };
 
   if (loading) {
@@ -174,8 +182,10 @@ export function AgencyTourPricing({ agencyId, onChange }: AgencyTourPricingProps
               <TableHead className="min-w-[180px]">Tur</TableHead>
               <TableHead className="text-center">Maliyet (Yet)</TableHead>
               <TableHead className="text-center">Maliyet (Çoc)</TableHead>
+              <TableHead className="text-center">Maliyet (Bebek)</TableHead>
               <TableHead className="text-center">Satış (Yet)</TableHead>
               <TableHead className="text-center">Satış (Çoc)</TableHead>
+              <TableHead className="text-center">Satış (Bebek)</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -185,12 +195,17 @@ export function AgencyTourPricing({ agencyId, onChange }: AgencyTourPricingProps
               if (!cell) return null;
               const placeholderAdult = fallbackCost(tour, activeCurrency, "adult");
               const placeholderChild = fallbackCost(tour, activeCurrency, "child");
-              const dirtyClass = cell.dirty ? "border-primary" : "";
+              const placeholderInfant = fallbackCost(tour, activeCurrency, "infant");
+              const dirtyClass = cell.changed.size > 0 ? "border-primary" : "";
+              const infantOn = tour.infant_pricing_enabled ?? false;
 
               return (
                 <TableRow key={tour.id}>
                   <TableCell className="font-medium">
-                    <div>{tour.name}</div>
+                    <div className="flex items-center gap-1.5">
+                      {tour.name}
+                      {infantOn && <Baby className="h-3.5 w-3.5 text-blue-600" />}
+                    </div>
                     <div className="text-[10px] text-muted-foreground">
                       Varsayılan: {placeholderAdult} / {placeholderChild}
                     </div>
@@ -218,6 +233,21 @@ export function AgencyTourPricing({ agencyId, onChange }: AgencyTourPricingProps
                     />
                   </TableCell>
                   <TableCell className="text-center">
+                    {infantOn ? (
+                      <Input
+                        type="number"
+                        min={0}
+                        step="1"
+                        value={cell.cost_infant ?? ""}
+                        placeholder={String(placeholderInfant)}
+                        onChange={(e) => updateCell(key, "cost_infant", e.target.value)}
+                        className={`w-24 text-center ${dirtyClass}`}
+                      />
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center">
                     <Input
                       type="number"
                       min={0}
@@ -238,6 +268,21 @@ export function AgencyTourPricing({ agencyId, onChange }: AgencyTourPricingProps
                       onChange={(e) => updateCell(key, "price_child", e.target.value)}
                       className={`w-24 text-center ${dirtyClass}`}
                     />
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {infantOn ? (
+                      <Input
+                        type="number"
+                        min={0}
+                        step="1"
+                        value={cell.price_infant ?? ""}
+                        placeholder="0"
+                        onChange={(e) => updateCell(key, "price_infant", e.target.value)}
+                        className={`w-24 text-center ${dirtyClass}`}
+                      />
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                 </TableRow>
               );
