@@ -1,7 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Download, Share, Plus, Smartphone, MoreVertical } from "lucide-react";
+import {
+  Download,
+  Share,
+  Plus,
+  Smartphone,
+  MoreVertical,
+  ChevronLeft,
+  ChevronRight,
+  BookOpen,
+  Copy,
+  PlusSquare,
+  Bookmark,
+  Square,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -165,16 +178,120 @@ export function InstallAppCard() {
   );
 }
 
-function StepRow({ n, children }: { n: number; children: React.ReactNode }) {
+// Vurgulanan ikonun etrafına teal halka koyar.
+function Ring({ children }: { children: React.ReactNode }) {
   return (
-    <li className="flex items-start gap-3">
-      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-teal-100 text-teal-700 text-xs font-bold flex items-center justify-center mt-0.5">
-        {n}
-      </span>
-      <span className="flex items-center gap-1 flex-wrap leading-relaxed">
-        {children}
-      </span>
-    </li>
+    <span className="inline-flex items-center justify-center rounded-md p-0.5 ring-2 ring-teal-500 ring-offset-1">
+      {children}
+    </span>
+  );
+}
+
+// Adım 1 görseli: Paylaş düğmesi hem üst hem alt çubukta gösterilir.
+function ShareLocationMockup() {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+      <div className="mx-auto w-40 overflow-hidden rounded-2xl border-2 border-gray-300 bg-white shadow-sm">
+        {/* Üst çubuk */}
+        <div className="flex items-center gap-1.5 border-b border-gray-100 px-2 py-1.5">
+          <div className="h-3 flex-1 rounded-full bg-gray-200" />
+          <Ring>
+            <Share className="h-3.5 w-3.5 text-teal-600" />
+          </Ring>
+        </div>
+        {/* Ekran */}
+        <div className="flex h-14 items-center justify-center">
+          <span className="text-[10px] font-semibold text-gray-400">
+            Bodrumdayız
+          </span>
+        </div>
+        {/* Alt çubuk */}
+        <div className="flex items-center justify-between border-t border-gray-100 px-3 py-1.5">
+          <ChevronLeft className="h-3.5 w-3.5 text-gray-300" />
+          <ChevronRight className="h-3.5 w-3.5 text-gray-300" />
+          <Ring>
+            <Share className="h-3.5 w-3.5 text-teal-600" />
+          </Ring>
+          <BookOpen className="h-3.5 w-3.5 text-gray-300" />
+          <Square className="h-3.5 w-3.5 text-gray-300" />
+        </div>
+      </div>
+      <p className="mt-2 text-center text-[11px] text-gray-500">
+        Paylaş düğmesi <b className="text-gray-700">altta</b> ya da{" "}
+        <b className="text-gray-700">üstte</b> olabilir
+      </p>
+    </div>
+  );
+}
+
+// Adım 2 görseli: Paylaş menüsünde "Ana Ekrana Ekle" satırı vurgulanır.
+function ShareSheetMockup() {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+      <div className="mx-auto w-44 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-100 px-3 py-1.5 text-[10px] text-gray-400">
+          Paylaş
+        </div>
+        <div className="flex items-center justify-between px-3 py-2 text-[11px] text-gray-400">
+          Kopyala <Copy className="h-3.5 w-3.5" />
+        </div>
+        <div className="flex items-center justify-between bg-teal-50 px-3 py-2 text-[11px] font-semibold text-teal-700 ring-1 ring-inset ring-teal-300">
+          Ana Ekrana Ekle <PlusSquare className="h-4 w-4 text-teal-600" />
+        </div>
+        <div className="flex items-center justify-between px-3 py-2 text-[11px] text-gray-400">
+          Yer İşareti Ekle <Bookmark className="h-3.5 w-3.5" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Adım 3 görseli: Onay ekranında sağ üstteki "Ekle" butonu vurgulanır.
+function AddConfirmMockup() {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+      <div className="mx-auto w-44 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2">
+          <span className="text-[11px] text-gray-400">İptal</span>
+          <span className="text-[11px] font-semibold text-gray-700">
+            Ana Ekrana Ekle
+          </span>
+          <span className="rounded-md bg-teal-600 px-2 py-0.5 text-[11px] font-bold text-white ring-2 ring-teal-300">
+            Ekle
+          </span>
+        </div>
+        <div className="flex items-center gap-2 px-3 py-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-[9px] font-bold text-white">
+            EB
+          </div>
+          <span className="text-[11px] text-gray-600">Bodrumdayız</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Step({
+  n,
+  illustration,
+  children,
+}: {
+  n: number;
+  illustration?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-teal-100 text-xs font-bold text-teal-700">
+          {n}
+        </span>
+        <p className="flex flex-wrap items-center gap-1 text-sm leading-relaxed text-gray-700">
+          {children}
+        </p>
+      </div>
+      {illustration && <div className="mt-2 pl-9">{illustration}</div>}
+    </div>
   );
 }
 
@@ -193,7 +310,7 @@ function InstallGuideDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-h-[85vh] max-w-sm overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Smartphone className="h-5 w-5 text-teal-600" />
@@ -205,62 +322,60 @@ function InstallGuideDialog({
         </DialogHeader>
 
         {isIos && iosNeedsSafari ? (
-          <div className="space-y-3 text-sm text-gray-700">
-            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900">
+          <div className="space-y-4">
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
               Şu an Safari kullanmıyorsunuz (örn. Chrome veya Instagram/WhatsApp
               içi tarayıcı). Uygulama yalnızca <strong>Safari</strong> ile ana
               ekrana eklenebilir.
             </div>
-            <ol className="space-y-3">
-              <StepRow n={1}>
-                Sayfayı menüden{" "}
-                <span className="font-semibold">Safari&apos;de Aç</span> ya da
-                adresi Safari&apos;ye kopyalayın.
-              </StepRow>
-              <StepRow n={2}>
-                Safari&apos;de alttaki
-                <Share className="inline h-4 w-4 text-blue-600" />
-                <span className="font-semibold">Paylaş</span> →{" "}
-                <span className="font-semibold">Ana Ekrana Ekle</span> yapın.
-              </StepRow>
-            </ol>
+            <Step n={1}>
+              Sayfayı menüden{" "}
+              <span className="font-semibold">Safari&apos;de Aç</span> ya da
+              adresi Safari&apos;ye kopyalayın.
+            </Step>
+            <Step n={2} illustration={<ShareLocationMockup />}>
+              Safari&apos;de
+              <Share className="inline h-4 w-4 text-blue-600" />
+              <span className="font-semibold">Paylaş</span> →{" "}
+              <span className="font-semibold">Ana Ekrana Ekle</span> yapın.
+            </Step>
           </div>
         ) : isIos ? (
-          <ol className="space-y-3 text-sm text-gray-700">
-            <StepRow n={1}>
-              Safari&apos;de alttaki
+          <div className="space-y-4">
+            <Step n={1} illustration={<ShareLocationMockup />}>
+              Safari&apos;de <b>alt ya da üst</b> çubuktaki
               <Share className="inline h-4 w-4 text-blue-600" />
               <span className="font-semibold">Paylaş</span> simgesine dokunun.
-            </StepRow>
-            <StepRow n={2}>
+            </Step>
+            <Step n={2} illustration={<ShareSheetMockup />}>
               Açılan menüden
               <Plus className="inline h-4 w-4" />
               <span className="font-semibold">Ana Ekrana Ekle</span> seçeneğine
               dokunun.
-            </StepRow>
-            <StepRow n={3}>
+            </Step>
+            <Step n={3} illustration={<AddConfirmMockup />}>
               Sağ üst köşeden <span className="font-semibold">Ekle</span>&apos;ye
               dokunarak yükleyin.
-            </StepRow>
-          </ol>
+            </Step>
+          </div>
         ) : (
-          <ol className="space-y-3 text-sm text-gray-700">
-            <StepRow n={1}>
+          <div className="space-y-4">
+            <Step n={1}>
               Sağ üstteki
               <MoreVertical className="inline h-4 w-4" />
               <span className="font-semibold">menü</span> simgesine dokunun.
-            </StepRow>
-            <StepRow n={2}>
+            </Step>
+            <Step n={2}>
               Açılan menüden{" "}
               <span className="font-semibold">Uygulamayı yükle</span> veya{" "}
               <span className="font-semibold">Ana ekrana ekle</span> seçeneğine
               dokunun.
-            </StepRow>
-            <StepRow n={3}>
+            </Step>
+            <Step n={3}>
               Onay penceresinde <span className="font-semibold">Yükle</span>
               &apos;ye dokunun.
-            </StepRow>
-          </ol>
+            </Step>
+          </div>
         )}
 
         <Button

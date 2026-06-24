@@ -259,7 +259,7 @@ export function InstallPrompt() {
                                         2
                                     </span>
                                     <span className="flex items-center gap-1 flex-wrap">
-                                        Safari&apos;de alttaki
+                                        Safari&apos;de alt ya da üst çubuktaki
                                         <Share className="inline h-4 w-4 text-blue-600" />
                                         <span className="font-semibold">
                                             Paylaş
@@ -282,7 +282,7 @@ export function InstallPrompt() {
                                         1
                                     </span>
                                     <span className="flex items-center gap-1 flex-wrap">
-                                        Safari&apos;de alttaki
+                                        Safari&apos;de alt ya da üst çubuktaki
                                         <Share className="inline h-4 w-4 text-blue-600" />
                                         <span className="font-semibold">
                                             Paylaş
