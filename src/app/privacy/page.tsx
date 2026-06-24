@@ -4,8 +4,8 @@ import { ArrowLeft } from 'lucide-react';
 
 export default function PrivacyPage() {
     return (
-        <div className="min-h-screen gradient-bg-login p-4 md:p-8">
-            <div className="max-w-4xl mx-auto">
+        <div className="min-h-screen gradient-bg-login flex flex-col">
+            <div className="flex-1 p-4 md:p-8 max-w-4xl mx-auto w-full">
                 {/* Back to Login */}
                 <Link
                     href="/login"

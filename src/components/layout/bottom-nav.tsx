@@ -2,56 +2,63 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, PlusCircle, BarChart3, Settings, MapPin } from "lucide-react";
+import { PlusCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { Profile } from "@/lib/types";
+import { getBottomNavItems } from "@/lib/dashboard-nav";
 
-const navigation = [
-  { name: "Ana Sayfa", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Biletler", href: "/vouchers", icon: FileText },
-  { name: "Yeni", href: "/vouchers/new", icon: PlusCircle, primary: true },
-  { name: "Tur M.", href: "/tour-costs", icon: MapPin },
-  { name: "Ayarlar", href: "/settings", icon: Settings },
-];
+interface BottomNavProps {
+  profile?: Profile | null;
+}
 
-export function BottomNav() {
+export function BottomNav({ profile = null }: BottomNavProps) {
   const pathname = usePathname();
+  const items = getBottomNavItems(profile);
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-white lg:hidden safe-area-bottom">
-      <div className="flex h-16 items-center justify-around px-2">
-        {navigation.map((item) => {
+      <div className="flex h-16 items-center justify-around px-1">
+        {items.map((item) => {
           const isActive =
             pathname === item.href ||
             (item.href !== "/dashboard" && pathname.startsWith(item.href));
+          const isPrimary = item.href === "/vouchers/new";
 
-          if (item.primary) {
+          if (isPrimary) {
             return (
               <Link
-                key={item.name}
+                key={item.href}
                 href={item.href}
-                className="flex flex-col items-center justify-center -mt-5"
+                className="flex flex-col items-center justify-center -mt-5 min-w-[56px]"
               >
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg">
-                  <item.icon className="h-6 w-6" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg">
+                  <PlusCircle className="h-6 w-6" />
                 </div>
-                <span className="mt-1 text-[10px] font-medium text-primary">
-                  {item.name}
+                <span className="mt-0.5 text-[9px] font-medium text-primary truncate max-w-[56px]">
+                  Yeni
                 </span>
               </Link>
             );
           }
 
+          const shortName =
+            item.name.length > 8
+                ? item.name.slice(0, 7) + "…"
+                : item.name;
+
           return (
             <Link
-              key={item.name}
+              key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-w-[64px]",
+                "flex flex-col items-center justify-center gap-0.5 px-1 py-2 min-w-[52px] max-w-[72px]",
                 isActive ? "text-primary" : "text-muted-foreground"
               )}
             >
-              <item.icon className={cn("h-5 w-5", isActive && "text-primary")} />
-              <span className="text-[10px] font-medium">{item.name}</span>
+              <item.icon className={cn("h-5 w-5 shrink-0", isActive && "text-primary")} />
+              <span className="text-[9px] font-medium text-center leading-tight">
+                {shortName}
+              </span>
             </Link>
           );
         })}

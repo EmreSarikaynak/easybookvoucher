@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { VoucherList } from "@/components/voucher/voucher-list";
+import { VouchersByAgency } from "@/components/voucher/vouchers-by-agency";
 import { VoucherFilters } from "@/components/voucher/voucher-filters";
 import { NewVoucherButton } from "@/components/voucher/new-voucher-button";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
@@ -7,15 +8,28 @@ import { getCurrentUser } from "@/lib/auth-helpers";
 import type { Voucher } from "@/lib/types";
 
 interface PageProps {
-  searchParams: {
+  searchParams: Promise<{
     search?: string;
     status?: string;
     date?: string;
-  };
+    sort?: string;
+  }>;
 }
 
-async function getVouchers(searchParams: PageProps["searchParams"], currentUser: any): Promise<Voucher[]> {
-  const supabase = createServerSupabaseClient();
+async function getVouchers(searchParams: { search?: string; status?: string; date?: string; sort?: string }, currentUser: any): Promise<Voucher[]> {
+  const supabase = await createServerSupabaseClient();
+
+  const sortMap: Record<string, { col: string; asc: boolean }> = {
+    date_desc:     { col: "tour_date",     asc: false },
+    date_asc:      { col: "tour_date",     asc: true  },
+    created_desc:  { col: "created_at",    asc: false },
+    created_asc:   { col: "created_at",    asc: true  },
+    customer_asc:  { col: "customer_name", asc: true  },
+    customer_desc: { col: "customer_name", asc: false },
+    price_desc:    { col: "total_price",   asc: false },
+    price_asc:     { col: "total_price",   asc: true  },
+  };
+  const { col, asc } = sortMap[searchParams.sort ?? ""] ?? { col: "created_at", asc: false };
 
   let query = supabase
     .from("vouchers")
@@ -25,7 +39,7 @@ async function getVouchers(searchParams: PageProps["searchParams"], currentUser:
       sales_person:profiles!vouchers_sales_person_id_fkey(*),
       agency:agencies(*)
     `)
-    .order("created_at", { ascending: false });
+    .order(col, { ascending: asc });
 
   if (currentUser?.role !== "super_admin" && currentUser?.role !== "admin") {
     if (currentUser?.agency_id) {
@@ -60,8 +74,9 @@ async function getVouchers(searchParams: PageProps["searchParams"], currentUser:
 }
 
 export default async function VouchersPage({ searchParams }: PageProps) {
+  const resolvedSearchParams = await searchParams;
   const currentUser = await getCurrentUser();
-  const vouchers = await getVouchers(searchParams, currentUser);
+  const vouchers = await getVouchers(resolvedSearchParams, currentUser);
 
   const isAdmin = currentUser?.role === "super_admin" || currentUser?.role === "admin";
   const pageTitle = isAdmin ? "Tüm Biletler" : "Biletlerim";
@@ -86,7 +101,11 @@ export default async function VouchersPage({ searchParams }: PageProps) {
         <VoucherFilters />
       </Suspense>
 
-      <VoucherList vouchers={vouchers} loading={false} userRole={currentUser?.role} />
+      {isAdmin ? (
+        <VouchersByAgency vouchers={vouchers} searchTerm={resolvedSearchParams.search} />
+      ) : (
+        <VoucherList vouchers={vouchers} loading={false} userRole={currentUser?.role} searchTerm={resolvedSearchParams.search} />
+      )}
     </div>
   );
 }

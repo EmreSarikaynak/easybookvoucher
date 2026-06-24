@@ -8,7 +8,7 @@ export async function getOccupancyMatrix(
     startDate: string,
     endDate: string
 ): Promise<{ data: OccupancyCalendar[] | null; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         const { data, error } = await supabase
@@ -35,7 +35,7 @@ export async function updateOccupancy(
     date: string,
     status: OccupancyStatus
 ): Promise<{ success: boolean; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         const { error } = await supabase
@@ -63,7 +63,7 @@ export async function blockDates(
     endDate: string,
     reason?: string
 ): Promise<{ success: boolean; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         const { error } = await supabase
@@ -93,7 +93,7 @@ export async function blockDates(
 export async function getAvailableBoatsForDate(
     date: string
 ): Promise<{ data: any[] | null; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         const { data, error } = await supabase
@@ -121,7 +121,7 @@ export async function generateOccupancyForBoat(
     startDate: string,
     endDate: string
 ): Promise<{ count: number; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         const { data, error } = await supabase.rpc("generate_occupancy_for_boat", {

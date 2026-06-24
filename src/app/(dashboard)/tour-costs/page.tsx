@@ -1,108 +1,160 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { getCurrentUser, isAdmin } from "@/lib/auth-helpers";
+import { TourCostsEditor } from "@/components/tour/tour-costs-editor";
+import {
+  AgencyPricesEditor,
+  type AgencyPriceRow,
+} from "@/components/tour/agency-prices-editor";
 import type { Tour } from "@/lib/types";
-import { CURRENCY_SYMBOLS } from "@/lib/types";
 
-async function getActiveTours(): Promise<Tour[]> {
-  const supabase = createServerSupabaseClient();
+interface TourRow {
+  tour: Tour;
+  cost_adult_eur: number;
+  cost_child_eur: number;
+  cost_infant_eur: number;
+  cost_adult_try: number;
+  cost_child_try: number;
+  cost_infant_try: number;
+  sale_adult_eur: number;
+  sale_child_eur: number;
+  sale_infant_eur: number;
+  sale_adult_try: number;
+  sale_child_try: number;
+  sale_infant_try: number;
+  isCustom: boolean;
+}
 
-  const { data, error } = await supabase
+async function getTourCosts(agencyId: string | null): Promise<TourRow[]> {
+  const supabase = await createServerSupabaseClient();
+
+  const { data: tours, error: toursError } = await supabase
     .from("tours")
     .select("*")
     .eq("is_active", true)
     .order("name");
 
-  if (error) {
-    console.error("Tours fetch error:", error);
+  if (toursError || !tours) {
+    console.error("Tours fetch error:", toursError);
     return [];
   }
 
+  // Per-agency cost overrides + saved sale prices (only when agency user)
+  let rows: Array<{
+    tour_id: string;
+    currency: string;
+    cost_adult: number | null;
+    cost_child: number | null;
+    cost_infant: number | null;
+    price_adult: number | null;
+    price_child: number | null;
+    price_infant: number | null;
+  }> = [];
+
+  if (agencyId) {
+    const { data } = await supabase
+      .from("agency_tour_prices")
+      .select(
+        "tour_id, currency, cost_adult, cost_child, cost_infant, price_adult, price_child, price_infant"
+      )
+      .eq("agency_id", agencyId);
+    rows = data ?? [];
+  }
+
+  const findRow = (tourId: string, currency: "EUR" | "TRY") =>
+    rows.find((o) => o.tour_id === tourId && o.currency === currency);
+
+  return tours.map((tour) => {
+    const eur = findRow(tour.id, "EUR");
+    const tryRow = findRow(tour.id, "TRY");
+    const hasEurOverride = eur?.cost_adult != null || eur?.cost_child != null;
+    const hasTryOverride = tryRow?.cost_adult != null || tryRow?.cost_child != null;
+
+    return {
+      tour,
+      cost_adult_eur: eur?.cost_adult ?? tour.base_price_adult_eur ?? 0,
+      cost_child_eur: eur?.cost_child ?? tour.base_price_child_eur ?? 0,
+      cost_infant_eur: eur?.cost_infant ?? tour.base_price_infant_eur ?? 0,
+      cost_adult_try: tryRow?.cost_adult ?? tour.base_price_adult_try ?? 0,
+      cost_child_try: tryRow?.cost_child ?? tour.base_price_child_try ?? 0,
+      cost_infant_try: tryRow?.cost_infant ?? tour.base_price_infant_try ?? 0,
+      sale_adult_eur: Number(eur?.price_adult) || 0,
+      sale_child_eur: Number(eur?.price_child) || 0,
+      sale_infant_eur: Number(eur?.price_infant) || 0,
+      sale_adult_try: Number(tryRow?.price_adult) || 0,
+      sale_child_try: Number(tryRow?.price_child) || 0,
+      sale_infant_try: Number(tryRow?.price_infant) || 0,
+      isCustom: hasEurOverride || hasTryOverride,
+    };
+  });
+}
+
+async function getActiveTours(): Promise<Tour[]> {
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase
+    .from("tours")
+    .select("*")
+    .eq("is_active", true)
+    .order("name");
   return data ?? [];
 }
 
 export default async function TourCostsPage() {
-  const tours = await getActiveTours();
+  const profile = await getCurrentUser();
+  const admin = isAdmin(profile);
+  const agencyId = !admin && profile?.agency_id ? profile.agency_id : null;
+
+  if (admin) {
+    const tours = await getActiveTours();
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Tur Maliyetleri</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            EasyBook tur standart taban fiyatları. Buradan girdiğiniz değerler acente
+            düzenle ekranında varsayılan olarak görünür.
+          </p>
+        </div>
+        <TourCostsEditor tours={tours} />
+      </div>
+    );
+  }
+
+  const rows = await getTourCosts(agencyId);
+
+  // İTur editörü: satış alanı boşsa yönetici fiyatını varsayılan olarak göster.
+  // Bu varsayılan ekranda görünür ama kayıt yapmadan geçerli olmaz.
+  const editorRows: AgencyPriceRow[] = rows.map((r) => ({
+    tour_id: r.tour.id,
+    tour_name: r.tour.name,
+    departure_days: r.tour.departure_days ?? null,
+    departure_time: r.tour.departure_time ?? null,
+    infant_pricing_enabled: r.tour.infant_pricing_enabled ?? false,
+    cost_adult_eur: Math.round(r.cost_adult_eur),
+    cost_child_eur: Math.round(r.cost_child_eur),
+    cost_infant_eur: Math.round(r.cost_infant_eur),
+    cost_adult_try: Math.round(r.cost_adult_try),
+    cost_child_try: Math.round(r.cost_child_try),
+    cost_infant_try: Math.round(r.cost_infant_try),
+    // Satış girilmemişse yönetici fiyatını varsayılan göster (kaydetmeden geçerli değil)
+    sale_adult_eur: Math.round(r.sale_adult_eur || r.cost_adult_eur),
+    sale_child_eur: Math.round(r.sale_child_eur || r.cost_child_eur),
+    sale_infant_eur: Math.round(r.sale_infant_eur || r.cost_infant_eur),
+    sale_adult_try: Math.round(r.sale_adult_try || r.cost_adult_try),
+    sale_child_try: Math.round(r.sale_child_try || r.cost_child_try),
+    sale_infant_try: Math.round(r.sale_infant_try || r.cost_infant_try),
+  }));
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Tur Maliyetleri</h1>
+        <h1 className="text-2xl font-bold">iTur Fiyat</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          EasyBook tur taban fiyatları (sadece okuma)
+          Satış fiyatlarınızı belirleyin. Kaydettiğiniz fiyatlar Tur Kataloğu,
+          katalog PDF'i ve yeni bilet oluştururken otomatik kullanılır.
         </p>
       </div>
 
-      <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
-        {/* Desktop table */}
-        <div className="hidden sm:block">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="text-left py-3 px-4 font-semibold">Tur Adı</th>
-                <th className="text-right py-3 px-4 font-semibold">EUR Fiyat (Yet/Çoc)</th>
-                <th className="text-right py-3 px-4 font-semibold">TL Fiyat (Yet/Çoc)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tours.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="py-8 text-center text-muted-foreground">
-                    Henüz aktif tur bulunmuyor
-                  </td>
-                </tr>
-              ) : (
-                tours.map((tour) => (
-                  <tr key={tour.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                    <td className="py-3 px-4 font-medium">{tour.name}</td>
-                    <td className="py-3 px-4 text-right font-mono font-semibold text-blue-700">
-                      <div className="flex flex-col gap-1 items-end">
-                        <span>{(tour.base_price_adult_eur ?? 0).toFixed(2)} € <span className="text-[10px] text-muted-foreground font-sans font-normal">(Yet)</span></span>
-                        <span className="text-blue-500/80">{(tour.base_price_child_eur ?? 0).toFixed(2)} € <span className="text-[10px] text-muted-foreground font-sans font-normal">(Çoc)</span></span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono text-muted-foreground">
-                      <div className="flex flex-col gap-1 items-end">
-                        <span>{(tour.base_price_adult_try ?? 0).toFixed(2)} ₺ <span className="text-[10px] font-sans font-normal">(Yet)</span></span>
-                        <span className="text-muted-foreground/60">{(tour.base_price_child_try ?? 0).toFixed(2)} ₺ <span className="text-[10px] font-sans font-normal">(Çoc)</span></span>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile cards */}
-        <div className="sm:hidden divide-y">
-          {tours.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">
-              Henüz aktif tur bulunmuyor
-            </div>
-          ) : (
-            tours.map((tour) => (
-              <div key={tour.id} className="p-4 space-y-2">
-                <div className="font-medium text-sm">{tour.name}</div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">EUR (Yet/Çoc)</span>
-                  <div className="flex items-center gap-2 font-mono font-semibold text-blue-700">
-                    <span>{(tour.base_price_adult_eur ?? 0).toFixed(2)} €</span>
-                    <span className="text-muted-foreground font-sans font-normal text-xs">/</span>
-                    <span className="text-blue-500/80">{(tour.base_price_child_eur ?? 0).toFixed(2)} €</span>
-                  </div>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">TL (Yet/Çoc)</span>
-                  <div className="flex items-center gap-2 font-mono text-muted-foreground">
-                    <span>{(tour.base_price_adult_try ?? 0).toFixed(2)} ₺</span>
-                    <span className="font-sans font-normal text-xs">/</span>
-                    <span className="text-muted-foreground/60">{(tour.base_price_child_try ?? 0).toFixed(2)} ₺</span>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+      <AgencyPricesEditor rows={editorRows} />
     </div>
   );
 }

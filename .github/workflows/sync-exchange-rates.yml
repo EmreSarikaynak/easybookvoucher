@@ -1,0 +1,50 @@
+name: Sync TCMB Exchange Rates
+
+# Her gün 21:00 UTC = 00:00 Europe/Istanbul (yaz/kış saati farkı yok, Türkiye sabit UTC+3).
+# Manuel tetikleme için workflow_dispatch da etkin.
+on:
+  schedule:
+    - cron: "0 21 * * *"
+  workflow_dispatch:
+
+# Eşzamanlı çalışmaları engelle — aynı anda iki senkron çalışmasın.
+concurrency:
+  group: sync-exchange-rates
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call sync endpoint
+        env:
+          ENDPOINT_URL: ${{ secrets.EXCHANGE_RATES_SYNC_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ENDPOINT_URL}" ] || [ -z "${CRON_SECRET}" ]; then
+            echo "::error::EXCHANGE_RATES_SYNC_URL veya CRON_SECRET secret'ı tanımsız"
+            exit 1
+          fi
+
+          echo "Endpoint: ${ENDPOINT_URL}"
+          # -f → 4xx/5xx'te exit code != 0, -sS → progress yok ama hata gösterir.
+          # Cevap body'sini hem stdout'a hem run özetine yaz.
+          response=$(curl -fsS \
+            --max-time 60 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Accept: application/json" \
+            "${ENDPOINT_URL}")
+
+          echo "Response: ${response}"
+          {
+            echo "### TCMB Sync Result"
+            echo ""
+            echo '```json'
+            echo "${response}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

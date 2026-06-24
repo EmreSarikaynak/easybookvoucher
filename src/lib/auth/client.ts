@@ -1,4 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr';
+import { resolveEmailFromIdentifier } from '@/app/actions/auth';
 
 export interface LoginRequest {
     identifier: string; // email or phone
@@ -47,15 +48,25 @@ export async function loginAction(data: LoginRequest): Promise<LoginResponse> {
             process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
         );
 
-        // Determine if identifier is email or phone
-        const isEmail = data.identifier.includes('@');
+        // Telefonla giriş için önce e-postaya çöz (kullanıcılar Supabase Auth'a
+        // yalnızca e-posta ile kayıtlı; telefon profiles tablosunda). E-posta ise
+        // olduğu gibi kullanılır.
+        const loginEmail = await resolveEmailFromIdentifier(data.identifier);
+        if (!loginEmail) {
+            return {
+                success: false,
+                error: {
+                    code: 'AUTH_ERROR',
+                    message: 'E-posta/telefon veya şifreniz hatalı. Lütfen kontrol edip tekrar deneyin.',
+                },
+            };
+        }
 
-        // Supabase sign in
+        // Supabase sign in (her zaman e-posta ile)
         const { data: authData, error } = await supabase.auth.signInWithPassword({
-            email: isEmail ? data.identifier : undefined,
-            phone: !isEmail ? data.identifier : undefined,
+            email: loginEmail,
             password: data.password,
-        } as any);
+        });
 
         if (error) {
             return {

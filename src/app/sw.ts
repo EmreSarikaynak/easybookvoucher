@@ -1,6 +1,6 @@
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { Serwist } from "serwist";
+import { Serwist, NetworkFirst, NetworkOnly } from "serwist";
 
 declare global {
     interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -11,17 +11,59 @@ declare global {
 // Service worker global scope type
 declare const self: WorkerGlobalScope & typeof globalThis;
 
+// Custom runtime caching: Supabase storage + other cross-origin URLs
+// Use NetworkOnly so failures don't throw no-response errors
+const customCaching = [
+    // Sayfa navigasyonlarını cache'leme: deploy sonrası eski JS, yeni server action
+    // ID'leriyle uyuşmayınca "Server Action was not found" hatası oluşuyordu.
+    {
+        matcher: ({ request, sameOrigin }: { request: Request; sameOrigin: boolean }) =>
+            sameOrigin && request.mode === "navigate",
+        handler: new NetworkOnly(),
+    },
+    // API cevapları her zaman canlı olmalı.
+    {
+        matcher: ({ url, sameOrigin }: { url: URL; sameOrigin: boolean }) =>
+            sameOrigin && url.pathname.startsWith("/api/"),
+        handler: new NetworkOnly(),
+    },
+    // Supabase storage images — NetworkFirst, silently fail offline
+    {
+        matcher: ({ url }: { url: URL }) =>
+            url.hostname.endsWith(".supabase.co") &&
+            url.pathname.startsWith("/storage/"),
+        handler: new NetworkFirst({
+            cacheName: "supabase-storage",
+            networkTimeoutSeconds: 8,
+            plugins: [],
+        }),
+    },
+    // All other cross-origin requests — NetworkOnly (no cache, no error)
+    {
+        matcher: ({ sameOrigin }: { sameOrigin: boolean }) => !sameOrigin,
+        handler: new NetworkOnly(),
+    },
+    // Deploy sonrası eski CSS/JS önbelleği stil kaybına yol açmasın — her zaman ağdan al
+    {
+        matcher: ({ url, sameOrigin }: { url: URL; sameOrigin: boolean }) =>
+            sameOrigin && url.pathname.startsWith("/_next/static/"),
+        handler: new NetworkOnly(),
+    },
+    // Google font vb. — defaultCache'in geri kalanı
+    ...defaultCache,
+];
+
 const serwist = new Serwist({
     precacheEntries: self.__SW_MANIFEST,
     skipWaiting: true,
     clientsClaim: true,
     navigationPreload: true,
-    runtimeCaching: defaultCache,
+    runtimeCaching: customCaching,
     fallbacks: {
         entries: [
             {
                 url: "/offline",
-                matcher({ request }) {
+                matcher({ request }: { request: Request }) {
                     return request.destination === "document";
                 },
             },
@@ -31,21 +73,59 @@ const serwist = new Serwist({
 
 serwist.addEventListeners();
 
-// Push notification event handler
+// Push notification event handler — zil sesli + titreşimli uyarı + foreground broadcast
 self.addEventListener("push", ((event: any) => {
     const data = event.data?.json() ?? {};
     const title = data.title || "EasyBook Bildirim";
-    const options: NotificationOptions = {
-        body: data.body || "Yeni bir bildiriminiz var",
+    const url = data.url || data.data?.url || "/dashboard";
+    // Tag'i her bildirimde unique yap: OS notification stack'inde ayrı görünür,
+    // renotify:true ile aynı kategoride üst üste gelse bile ses tekrar tetiklenir.
+    const baseTag = data.tag || "notif";
+    const uniqueTag = `${baseTag}-${Date.now()}`;
+    const body = data.body || "Yeni bir bildiriminiz var";
+
+    const options: NotificationOptions & {
+        vibrate?: number[];
+        renotify?: boolean;
+        sound?: string;
+    } = {
+        body,
         icon: "/icons/icon-192x192.png",
         badge: "/icons/icon-192x192.png",
-        data: data.data || {},
-        tag: data.tag || "default",
-        requireInteraction: data.requireInteraction || false,
+        data: { ...(data.data || {}), url },
+        tag: uniqueTag,
+        // requireInteraction: kullanıcı kapatana kadar gözüksün
+        requireInteraction: data.requireInteraction ?? true,
+        // silent:false — sistem varsayılan bildirim sesini çalsın
+        silent: false,
+        // Android/Chrome'da titreşim deseni (uzun, fark edilir)
+        vibrate: [300, 100, 300, 100, 300, 100, 600],
+        // Aynı tag'le tekrar gelirse yeni bildirim olarak gözüksün (ses tekrar çalsın)
+        renotify: true,
     };
 
     event.waitUntil(
-        (self as any).registration.showNotification(title, options)
+        Promise.all([
+            (self as any).registration.showNotification(title, options),
+            // Foreground'daki açık sekmelere "ses çal" sinyali gönder.
+            // notification-audio.tsx bu mesajı yakalayıp /sounds/notification.* çalar.
+            (self as any).clients
+                .matchAll({ type: "window", includeUncontrolled: true })
+                .then((clientList: any[]) => {
+                    for (const client of clientList) {
+                        try {
+                            client.postMessage({
+                                type: "play-notification-sound",
+                                title,
+                                body,
+                                url,
+                            });
+                        } catch {
+                            // tek client başarısız olursa diğerleri devam
+                        }
+                    }
+                }),
+        ])
     );
 }) as EventListener);
 

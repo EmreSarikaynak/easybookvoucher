@@ -7,9 +7,10 @@ import BoatEditForm from "./boat-edit-form";
 export default async function EditBoatPage({
     params,
 }: {
-    params: { id: string };
+    params: Promise<{ id: string }>;
 }) {
-    const { data: boat, error } = await getBoatById(params.id);
+    const resolvedParams = await params;
+    const { data: boat, error } = await getBoatById(resolvedParams.id);
 
     if (error || !boat) {
         notFound();

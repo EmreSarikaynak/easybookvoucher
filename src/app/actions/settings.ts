@@ -2,9 +2,10 @@
 
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
+import { parseWhatsappPhonesSetting } from "@/lib/settings-utils";
 
 export async function getSetting(key: string) {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
         .from("settings")
         .select("value")
@@ -16,7 +17,7 @@ export async function getSetting(key: string) {
 }
 
 export async function updateSetting(key: string, value: any) {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     // Check auth
     const { data: { user } } = await supabase.auth.getUser();
@@ -24,12 +25,18 @@ export async function updateSetting(key: string, value: any) {
         return { error: "Yetkisiz işlem" };
     }
 
-    // Upsert the setting
+    let storedValue = value;
+    // Admin WhatsApp numaraları: tek string, virgüllü string veya dizi olarak
+    // gelebilir; normalize edilmiş bir dizi olarak (JSONB) saklanır.
+    if (key === "admin_whatsapp_phone") {
+        storedValue = parseWhatsappPhonesSetting(value);
+    }
+
     const { error } = await supabase
         .from("settings")
         .upsert({
             key,
-            value,
+            value: storedValue,
             updated_at: new Date().toISOString()
         });
 
@@ -43,7 +50,7 @@ export async function updateSetting(key: string, value: any) {
 }
 
 export async function uploadLogo(formData: FormData) {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     const file = formData.get("file") as File;
 
     if (!file) return { error: "Dosya seçilmedi" };

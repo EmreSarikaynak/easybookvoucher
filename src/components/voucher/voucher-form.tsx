@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,8 +14,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { generateVoucherNo } from "@/lib/utils";
-import { createVoucher, updateVoucher } from "@/app/actions/voucher";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { tr } from "date-fns/locale";
+import { generateVoucherNo, cn } from "@/lib/utils";
+import { isTourOpenOn, getDisabledMatcher, toLocalDateKey } from "@/lib/tour-days";
+import { useAuth } from "@/hooks/useAuth";
+import { getAgencyTourPrice } from "@/app/actions/agency-tour-prices";
 import type { Tour, CurrencyType, Voucher } from "@/lib/types";
 import { SELF_PICKUP, encodeSelfPickup, parseSelfPickup } from "@/lib/constants";
 
@@ -74,7 +81,91 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
     notes: voucher?.notes ?? "",
   });
 
+  const { profile } = useAuth();
+  const agencyId = profile?.agency_id ?? null;
+
+  // Seçili tur — tur günü kısıtlaması için. Tur seçiliyken bilet yalnızca turun
+  // açık olduğu günlere kesilebilir (isTourOpenOn). Tur seçili değilken kısıt yok.
+  const selectedTour = tours.find((t) => t.id === formData.tour_id) ?? null;
+  const [dateWarning, setDateWarning] = useState<string | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
+  // Tur değişince mevcut tarih artık uygun değilse temizle + uyar.
+  const handleTourChange = (tourId: string) => {
+    const tour = tours.find((t) => t.id === tourId) ?? null;
+    setFormData((prev) => {
+      if (tour && prev.tour_date && !isTourOpenOn(tour, prev.tour_date)) {
+        setDateWarning("Bu tur seçilen günde yapılmıyor, lütfen tarih seçin.");
+        return { ...prev, tour_id: tourId, tour_date: "" };
+      }
+      setDateWarning(null);
+      return { ...prev, tour_id: tourId };
+    });
+  };
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+    setDateWarning(null);
+    setFormData((prev) => ({ ...prev, tour_date: toLocalDateKey(date) }));
+    setCalendarOpen(false);
+  };
+
+  // Otomatik fiyat hesaplama:
+  // - Tüm para birimleri; EUR taban + güncel kurla USD/GBP türetilir.
+  // - Kullanıcı total_price'a elle dokunduktan sonra üzerine yazılmaz.
+  // - Düzenleme modunda otomatik tetiklenmez (kullanıcı kayıtlı değeri korumak ister).
+  const [manuallyEditedTotal, setManuallyEditedTotal] = useState(isEditing);
+  const [autoPriceSource, setAutoPriceSource] = useState<
+    "agency" | "fallback" | null
+  >(null);
+  const lastAutoKey = useRef<string>("");
+
+  useEffect(() => {
+    if (manuallyEditedTotal) return;
+    if (!agencyId) return;
+    if (!formData.tour_id) return;
+    const adult = formData.pax_adult === "" ? 0 : Number(formData.pax_adult);
+    const child = formData.pax_child === "" ? 0 : Number(formData.pax_child);
+    const infant = formData.pax_infant === "" ? 0 : Number(formData.pax_infant);
+    const key = `${formData.tour_id}|${formData.currency}|${adult}|${child}|${infant}`;
+    if (key === lastAutoKey.current) return;
+    lastAutoKey.current = key;
+
+    let cancelled = false;
+    (async () => {
+      const result = await getAgencyTourPrice(
+        agencyId,
+        formData.tour_id,
+        formData.currency
+      );
+      if (cancelled || !result) return;
+      // price_per_booking: fiyat kişi başı değil rezervasyon başı (ör. ATV Double)
+      // Bebek yalnızca tur için açıksa toplama eklenir.
+      const infantTotal = result.infant_pricing_enabled
+        ? infant * result.price_infant
+        : 0;
+      const total = result.price_per_booking
+        ? result.price_adult
+        : adult * result.price_adult + child * result.price_child + infantTotal;
+      setFormData((prev) => ({ ...prev, total_price: Math.round(total) }));
+      setAutoPriceSource(result.source);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    agencyId,
+    formData.tour_id,
+    formData.pax_adult,
+    formData.pax_child,
+    formData.pax_infant,
+    formData.currency,
+    manuallyEditedTotal,
+  ]);
+
+
   const handleChange = (field: string, value: string | number) => {
+    if (field === "total_price") setManuallyEditedTotal(true);
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -89,6 +180,17 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Tur günü kısıtlaması — boş tarih veya turun yapılmadığı gün engellenir.
+    if (!formData.tour_date) {
+      setError("Lütfen tur tarihi seçin.");
+      return;
+    }
+    if (selectedTour && !isTourOpenOn(selectedTour, formData.tour_date)) {
+      setError("Bu tur seçilen tarihte yapılmıyor. Lütfen uygun bir gün seçin.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -112,19 +214,34 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
         notes: formData.notes,
       };
 
-      let result;
-      if (isEditing && voucher) {
-        result = await updateVoucher(voucher.id, payload);
-      } else {
-        result = await createVoucher(payload);
-      }
+      const response = await fetch("/api/vouchers/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: isEditing && voucher ? voucher.id : undefined,
+          payload,
+        }),
+      });
 
-      if (result.error) {
-        setError(result.error);
+      const result = (await response.json()) as {
+        success?: boolean;
+        voucherId?: string;
+        error?: string;
+      };
+
+      if (!response.ok || result.error) {
+        setError(result.error || `Bilet kaydedilemedi (HTTP ${response.status})`);
         return;
       }
 
-      router.push("/vouchers");
+      const voucherId = result.voucherId;
+      if (!isEditing && voucherId) {
+        router.push(`/vouchers/${voucherId}?new=1`);
+      } else if (isEditing && voucher) {
+        router.push(`/vouchers/${voucher.id}?revised=1`);
+      } else {
+        router.push("/vouchers");
+      }
       router.refresh();
     } catch (err: unknown) {
       const message =
@@ -186,7 +303,7 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
             <Label htmlFor="tour_id" className="shrink-0 w-36">Tur</Label>
             <Select
               value={formData.tour_id}
-              onValueChange={(val) => handleChange("tour_id", val)}
+              onValueChange={handleTourChange}
             >
               <SelectTrigger className="flex-1">
                 <SelectValue placeholder="Tur seçin">
@@ -204,17 +321,61 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center gap-3">
-            <Label htmlFor="tour_date" className="shrink-0 w-36">Tur Tarihi</Label>
-            <Input
-              id="tour_date"
-              type="date"
-              value={formData.tour_date}
-              onChange={(e) => handleChange("tour_date", e.target.value)}
-              required
-              min={new Date().toISOString().split("T")[0]}
-              className="flex-1"
-            />
+          <div className="flex items-start gap-3">
+            <Label htmlFor="tour_date" className="shrink-0 w-36 pt-2">Tur Tarihi</Label>
+            <div className="flex-1 space-y-1">
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="tour_date"
+                    type="button"
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !formData.tour_date && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formData.tour_date
+                      ? format(
+                          new Date(`${formData.tour_date}T00:00:00`),
+                          "d MMMM yyyy, EEEE",
+                          { locale: tr }
+                        )
+                      : "Tarih seçin"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={
+                      formData.tour_date
+                        ? new Date(`${formData.tour_date}T00:00:00`)
+                        : undefined
+                    }
+                    onSelect={handleDateSelect}
+                    disabled={
+                      selectedTour
+                        ? getDisabledMatcher(selectedTour, { disablePast: true })
+                        : { before: new Date() }
+                    }
+                    defaultMonth={
+                      formData.tour_date
+                        ? new Date(`${formData.tour_date}T00:00:00`)
+                        : new Date()
+                    }
+                    autoFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              {dateWarning ? (
+                <p className="text-xs text-red-600">{dateWarning}</p>
+              ) : selectedTour && (selectedTour.departure_days?.length || selectedTour.open_dates?.length) ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Sadece turun yapıldığı günler seçilebilir.
+                </p>
+              ) : null}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -392,25 +553,46 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
           </div>
           <div className="flex items-center gap-3">
             <Label htmlFor="total_price" className="shrink-0 w-36">Toplam Fiyat</Label>
-            <Input
-              id="total_price"
-              type="number"
-              min={0}
-              step="0.01"
-              value={formData.total_price === "" ? "" : formData.total_price}
-              onChange={(e) =>
-                handleChange("total_price", e.target.value === "" ? "" : parseFloat(e.target.value) || 0)
-              }
-              onFocus={() => clearOnFocus("total_price")}
-              onBlur={() => blurNum("total_price", 0)}
-              className="flex-1"
-            />
+            <div className="flex-1 space-y-1">
+              <Input
+                id="total_price"
+                type="number"
+                min={0}
+                step="1"
+                value={formData.total_price === "" ? "" : formData.total_price}
+                onChange={(e) =>
+                  handleChange("total_price", e.target.value === "" ? "" : parseInt(e.target.value, 10) || 0)
+                }
+                onFocus={() => clearOnFocus("total_price")}
+                onBlur={() => blurNum("total_price", 0)}
+              />
+              {manuallyEditedTotal ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Manuel girildi.{" "}
+                  <button
+                    type="button"
+                    className="text-primary underline"
+                    onClick={() => {
+                      lastAutoKey.current = "";
+                      setManuallyEditedTotal(false);
+                    }}
+                  >
+                    Otomatiğe dön
+                  </button>
+                </p>
+              ) : autoPriceSource === "agency" ? (
+                <p className="text-[11px] text-emerald-700">
+                  Otomatik hesaplandı (iTur satış fiyatı)
+                </p>
+              ) : null}
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <Label htmlFor="currency" className="shrink-0 w-36">Para Birimi</Label>
             <Select
               value={formData.currency}
               onValueChange={(val) => handleChange("currency", val)}
+              disabled={isEditing}
             >
               <SelectTrigger className="flex-1">
                 <SelectValue />
@@ -423,16 +605,26 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
               </SelectContent>
             </Select>
           </div>
+          {isEditing && (
+            <p className="text-[11px] text-muted-foreground -mt-1 ml-[9.25rem]">
+              Para birimi düzenlenemez; cari hesap için bilet oluşturulduğu kurda kilitli kalır.
+            </p>
+          )}
+          {!isEditing && formData.currency !== "EUR" && (
+            <p className="text-[11px] text-muted-foreground -mt-1 ml-[9.25rem]">
+              Bilet müşteriye seçtiğiniz para biriminde verilir. Cari hesabınıza EUR olarak yansır.
+            </p>
+          )}
           <div className="flex items-center gap-3">
             <Label htmlFor="deposit_paid" className="shrink-0 w-36">Ön Ödeme</Label>
             <Input
               id="deposit_paid"
               type="number"
               min={0}
-              step="0.01"
+              step="1"
               value={formData.deposit_paid === "" ? "" : formData.deposit_paid}
               onChange={(e) =>
-                handleChange("deposit_paid", e.target.value === "" ? "" : parseFloat(e.target.value) || 0)
+                handleChange("deposit_paid", e.target.value === "" ? "" : parseInt(e.target.value, 10) || 0)
               }
               onFocus={() => clearOnFocus("deposit_paid")}
               onBlur={() => blurNum("deposit_paid", 0)}
@@ -447,7 +639,7 @@ export function VoucherForm({ voucher, tours = [] }: VoucherFormProps) {
                 const total = num(formData.total_price);
                 const paid = num(formData.deposit_paid);
                 const rest = total - paid;
-                return rest > 0 ? rest.toFixed(2) : "0.00";
+                return rest > 0 ? String(Math.round(rest)) : "0";
               })()}
               readOnly
               className="flex-1 bg-muted font-mono font-semibold text-orange-600"

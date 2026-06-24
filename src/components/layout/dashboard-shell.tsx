@@ -5,14 +5,28 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { BottomNav } from "@/components/layout/bottom-nav";
+import { NotificationPrompt } from "@/components/pwa/notification-prompt";
+import { PushSubscriptionSync } from "@/components/pwa/push-subscription-sync";
+import { NotificationAudio } from "@/components/pwa/notification-audio";
+import { PlatformFooter } from "@/components/layout/platform-footer";
+import { SecestaFooter } from "@/components/layout/secesta-footer";
+import type { HelpNavLink } from "@/lib/help/types";
 import type { Profile } from "@/lib/types";
 
 interface DashboardShellProps {
   children: React.ReactNode;
   profile: Profile | null;
+  footerLinks?: {
+    featured: HelpNavLink[];
+    quick: HelpNavLink[];
+  };
 }
 
-export function DashboardShell({ children, profile }: DashboardShellProps) {
+export function DashboardShell({
+  children,
+  profile,
+  footerLinks,
+}: DashboardShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
@@ -29,11 +43,33 @@ export function DashboardShell({ children, profile }: DashboardShellProps) {
           onMenuClick={() => setMobileNavOpen(true)} 
           profile={profile}
         />
-        <main className="p-4 pb-24 sm:p-6 lg:p-8 lg:pb-8">{children}</main>
+        <main className="p-4 pb-4 sm:p-6 lg:p-8 flex flex-col min-h-[calc(100vh-4rem)]">
+          <div className="flex-1 pb-20 lg:pb-0">{children}</div>
+          <PlatformFooter
+            variant="compact"
+            className="mt-8 -mx-4 sm:-mx-6 lg:-mx-8 rounded-none"
+            featuredLinks={footerLinks?.featured}
+            quickLinks={footerLinks?.quick}
+          />
+          <SecestaFooter
+            variant="compact"
+            showPlatformNote={false}
+            className="mb-16 lg:mb-0 -mx-4 sm:-mx-6 lg:-mx-8 rounded-none border-t-0"
+          />
+        </main>
       </div>
 
       {/* Mobil Alt Navigasyon */}
-      <BottomNav />
+      <BottomNav profile={profile} />
+
+      {/* Bildirim İzin Banner'ı */}
+      <NotificationPrompt />
+
+      {/* İzin verilmişse subscription'ı 24 saatte bir sessizce yenile */}
+      <PushSubscriptionSync />
+
+      {/* SW'den gelen "play-notification-sound" sinyalini yakalayıp in-app ses çalar */}
+      <NotificationAudio />
     </div>
   );
 }

@@ -2,24 +2,27 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, MapPin } from "lucide-react";
+import { Plus, MapPin, BookOpen } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { TourCard } from "./tour-card";
 import { TourForm } from "./tour-form";
-import { TourPrices } from "./tour-prices";
 import { deleteTour } from "@/app/actions/tour";
 import type { Tour } from "@/lib/types";
+import type { ResolvedTourPriceSet } from "@/lib/tour-catalog-data";
 
 interface ToursContentProps {
   initialTours: Tour[];
   isAdmin: boolean;
-  userAgencyId: string | null;
+  priceMap?: Record<string, ResolvedTourPriceSet>;
+  agencyCode?: string | null;
 }
 
 export function ToursContent({
   initialTours,
   isAdmin,
-  userAgencyId,
+  priceMap = {},
+  agencyCode,
 }: ToursContentProps) {
   const router = useRouter();
   const [tours, setTours] = useState<Tour[]>(initialTours);
@@ -29,10 +32,7 @@ export function ToursContent({
   }, [initialTours]);
 
   const [formOpen, setFormOpen] = useState(false);
-  const [pricesOpen, setPricesOpen] = useState(false);
   const [editingTour, setEditingTour] = useState<Tour | null>(null);
-  const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
-
 
   const handleNewTour = () => {
     setEditingTour(null);
@@ -56,11 +56,6 @@ export function ToursContent({
     }
   };
 
-  const handleManagePrices = (tour: Tour) => {
-    setSelectedTour(tour);
-    setPricesOpen(true);
-  };
-
   const activeTours = tours.filter((t) => t.is_active);
   const inactiveTours = tours.filter((t) => !t.is_active);
 
@@ -71,16 +66,24 @@ export function ToursContent({
           <h1 className="text-2xl font-bold">Turlar</h1>
           <p className="text-muted-foreground">
             {isAdmin
-              ? "Tur yönetimi ve fiyatlandırma"
-              : "Turları görüntüle ve fiyatlarını düzenle"}
+              ? "Tur ekleme, düzenleme ve yönetim"
+              : "Turları görüntüleyin, müşteri URL ve PDF broşür indirin"}
           </p>
         </div>
-        {isAdmin && (
-          <Button onClick={handleNewTour}>
-            <Plus className="mr-2 h-4 w-4" />
-            Yeni Tur
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/tours/catalog">
+              <BookOpen className="mr-2 h-4 w-4" />
+              Tur Kataloğu
+            </Link>
           </Button>
-        )}
+          {isAdmin && (
+            <Button onClick={handleNewTour}>
+              <Plus className="mr-2 h-4 w-4" />
+              Yeni Tur
+            </Button>
+          )}
+        </div>
       </div>
 
       {tours.length === 0 ? (
@@ -95,23 +98,20 @@ export function ToursContent({
         </div>
       ) : (
         <>
-          {/* Active Tours */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {activeTours.map((tour) => (
               <TourCard
                 key={tour.id}
                 tour={tour}
                 isAdmin={isAdmin}
-                onEdit={handleEditTour}
-                onDelete={handleDeleteTour}
-                onManagePrices={
-                  isAdmin || userAgencyId ? handleManagePrices : undefined
-                }
+                prices={priceMap[tour.id]}
+                agencyCode={agencyCode}
+                onEdit={isAdmin ? handleEditTour : undefined}
+                onDelete={isAdmin ? handleDeleteTour : undefined}
               />
             ))}
           </div>
 
-          {/* Inactive Tours (Admin only) */}
           {isAdmin && inactiveTours.length > 0 && (
             <div className="mt-8">
               <h2 className="text-lg font-semibold text-muted-foreground mb-4">
@@ -123,6 +123,8 @@ export function ToursContent({
                     key={tour.id}
                     tour={tour}
                     isAdmin={isAdmin}
+                    prices={priceMap[tour.id]}
+                    agencyCode={agencyCode}
                     onEdit={handleEditTour}
                     onDelete={handleDeleteTour}
                   />
@@ -133,22 +135,14 @@ export function ToursContent({
         </>
       )}
 
-      {/* Tour Form Dialog */}
-      <TourForm
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        tour={editingTour}
-        onSave={() => router.refresh()}
-      />
-
-      {/* Tour Prices Dialog */}
-      <TourPrices
-        open={pricesOpen}
-        onOpenChange={setPricesOpen}
-        tour={selectedTour}
-        agencyId={isAdmin ? null : userAgencyId}
-        isAdmin={isAdmin}
-      />
+      {isAdmin && (
+        <TourForm
+          open={formOpen}
+          onOpenChange={setFormOpen}
+          tour={editingTour}
+          onSave={() => router.refresh()}
+        />
+      )}
     </div>
   );
 }

@@ -8,7 +8,7 @@ export async function getBoats(filters?: {
     status?: BoatStatus;
     search?: string;
 }): Promise<{ data: Boat[] | null; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         let query = supabase
@@ -41,7 +41,7 @@ export async function getBoats(filters?: {
 export async function getBoatById(
     id: string
 ): Promise<{ data: Boat | null; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         const { data, error } = await supabase
@@ -65,7 +65,7 @@ export async function getBoatById(
 export async function createBoat(
     boat: Omit<Boat, "id" | "created_at" | "updated_at">
 ): Promise<{ data: Boat | null; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         const { data, error } = await supabase
@@ -93,7 +93,7 @@ export async function updateBoat(
     id: string,
     updates: Partial<Omit<Boat, "id" | "created_at" | "updated_at">>
 ): Promise<{ data: Boat | null; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         const { data, error } = await supabase
@@ -122,7 +122,7 @@ export async function updateBoat(
 export async function deleteBoat(
     id: string
 ): Promise<{ success: boolean; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         const { error } = await supabase.from("boats").delete().eq("id", id);
@@ -150,7 +150,7 @@ export async function getBoatsByAvailability(
         currency?: string;
     }
 ): Promise<{ data: Boat[] | null; error: string | null }> {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     try {
         // Get boats that are available on the specified date

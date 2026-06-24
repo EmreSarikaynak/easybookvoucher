@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import Image from "next/image";
-import { X, Upload, GripVertical } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,156 +19,155 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { createTour, updateTour, uploadTourImages } from "@/app/actions/tour";
+import { createTour, updateTour } from "@/app/actions/tour";
+import { isStaleServerActionError, recoverFromStaleDeploy } from "@/lib/stale-action";
+import { TourTranslationTabs } from "./tour-translation-tabs";
+import { TourMediaSection } from "./tour-media-section";
 import {
   DURATION_OPTIONS,
   CURRENCY_OPTIONS,
   type Tour,
   type CurrencyType,
 } from "@/lib/types";
-import { DEFAULT_TOUR_URL } from "@/lib/constants";
+import {
+  buildTourPublicUrl,
+  normalizeTourTranslations,
+  primaryTranslationName,
+  type TourTranslations,
+} from "@/lib/tour-i18n";
 
 interface TourFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tour?: Tour | null;
-  onSave: () => void;
+  onSave: (tourId?: string) => void;
+  /** Full-page mode: no dialog wrapper */
+  variant?: "dialog" | "page";
 }
 
-export function TourForm({ open, onOpenChange, tour, onSave }: TourFormProps) {
+export function TourForm({
+  open,
+  onOpenChange,
+  tour,
+  onSave,
+  variant = "dialog",
+}: TourFormProps) {
   const isEditing = !!tour;
+  const isPage = variant === "page";
+  const visible = isPage || open;
 
   const [loading, setLoading] = useState(false);
-  const [uploadingImages, setUploadingImages] = useState(false);
+  const [saveResult, setSaveResult] = useState<
+    { type: "success" | "error"; text: string } | null
+  >(null);
   const [formData, setFormData] = useState({
-    name: "",
-    description: "",
     duration: "",
     default_price: 0,
     currency: "EUR" as CurrencyType,
     pickup_locations: [] as string[],
     images: [] as string[],
-    tour_url: DEFAULT_TOUR_URL,
+    videos: [] as string[],
+    translations: {} as TourTranslations,
+    tour_url: "",
     is_active: true,
     tour_managers: [] as { name: string; phone: string }[],
     base_price_adult_eur: 0,
     base_price_child_eur: 0,
     base_price_adult_try: 0,
     base_price_child_try: 0,
+    departure_days: [] as string[],
+    closed_dates: [] as string[],
+    open_dates: [] as string[],
+    departure_time: "" as string,
+    meeting_point: "" as string,
+    pickup_zones: [] as { region: string; time: string; meeting_point: string }[],
   });
 
-  // Reset form when tour changes or dialog opens
   useEffect(() => {
-    if (open) {
-      if (tour) {
-        setFormData({
-          name: tour.name,
-          description: tour.description ?? "",
-          duration: tour.duration ?? "",
-          default_price: tour.default_price,
-          currency: tour.currency,
-          pickup_locations: tour.pickup_locations ?? [],
-          images: tour.images ?? [],
-          tour_url: tour.tour_url ?? "",
-          is_active: tour.is_active,
-          tour_managers: tour.tour_managers ?? [],
-          base_price_adult_eur: tour.base_price_adult_eur ?? 0,
-          base_price_child_eur: tour.base_price_child_eur ?? 0,
-          base_price_adult_try: tour.base_price_adult_try ?? 0,
-          base_price_child_try: tour.base_price_child_try ?? 0,
-        });
-      } else {
-        setFormData({
-          name: "",
-          description: "",
-          duration: "",
-          default_price: 0,
-          currency: "EUR",
-          pickup_locations: [],
-          images: [],
-          tour_url: DEFAULT_TOUR_URL,
-          is_active: true,
-          tour_managers: [],
-          base_price_adult_eur: 0,
-          base_price_child_eur: 0,
-          base_price_adult_try: 0,
-          base_price_child_try: 0,
-        });
-      }
+    if (!visible) return;
+    setSaveResult(null);
+    if (tour) {
+      const translations = normalizeTourTranslations(
+        tour.translations,
+        tour.name,
+        tour.description
+      );
+      setFormData({
+        duration: tour.duration ?? "",
+        default_price: tour.default_price,
+        currency: tour.currency,
+        pickup_locations: tour.pickup_locations ?? [],
+        images: tour.images ?? [],
+        videos: tour.videos ?? [],
+        translations,
+        tour_url: tour.tour_url ?? buildTourPublicUrl(tour.id),
+        is_active: tour.is_active,
+        tour_managers: tour.tour_managers ?? [],
+        base_price_adult_eur: tour.base_price_adult_eur ?? 0,
+        base_price_child_eur: tour.base_price_child_eur ?? 0,
+        base_price_adult_try: tour.base_price_adult_try ?? 0,
+        base_price_child_try: tour.base_price_child_try ?? 0,
+        departure_days: tour.departure_days ?? [],
+        closed_dates: (tour.closed_dates ?? []).map((d) => d.slice(0, 10)),
+        open_dates: (tour.open_dates ?? []).map((d) => d.slice(0, 10)),
+        departure_time: tour.departure_time ?? "",
+        meeting_point: tour.meeting_point ?? "",
+        pickup_zones: (tour.pickup_zones ?? []).map((z) => ({
+          region: z?.region ?? "",
+          time: z?.time ?? "",
+          meeting_point: z?.meeting_point ?? "",
+        })),
+      });
+    } else {
+      setFormData({
+        duration: "",
+        default_price: 0,
+        currency: "EUR",
+        pickup_locations: [],
+        images: [],
+        videos: [],
+        translations: normalizeTourTranslations(null, "", null),
+        tour_url: "",
+        is_active: true,
+        tour_managers: [],
+        base_price_adult_eur: 0,
+        base_price_child_eur: 0,
+        base_price_adult_try: 0,
+        base_price_child_try: 0,
+        departure_days: [],
+        closed_dates: [],
+        open_dates: [],
+        departure_time: "",
+        meeting_point: "",
+        pickup_zones: [],
+      });
     }
-  }, [open, tour]);
-
-  const handleImageUpload = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (!files || files.length === 0) return;
-
-      setUploadingImages(true);
-
-      try {
-        const formDataUpload = new FormData();
-        for (const file of Array.from(files)) {
-          formDataUpload.append("files", file);
-        }
-
-        // Clear input after processing files to FormData
-        e.target.value = "";
-
-        const result = await uploadTourImages(formDataUpload);
-
-        if (result.error) {
-          alert(result.error);
-          return;
-        }
-
-        if (result.urls?.length) {
-          setFormData((prev) => ({
-            ...prev,
-            images: [...prev.images, ...(result.urls || [])],
-          }));
-        }
-      } catch (error) {
-        console.error("Image upload error:", error);
-        alert("Resim yüklenirken bir hata oluştu. Lütfen tekrar deneyin.");
-      } finally {
-        setUploadingImages(false);
-      }
-    },
-    []
-  );
-
-  const removeImage = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      images: prev.images.filter((_, i) => i !== index),
-    }));
-  };
-
-  const moveImage = (fromIndex: number, toIndex: number) => {
-    setFormData((prev) => {
-      const newImages = [...prev.images];
-      const [removed] = newImages.splice(fromIndex, 1);
-      newImages.splice(toIndex, 0, removed);
-      return { ...prev, images: newImages };
-    });
-  };
+  }, [visible, tour]);
 
   const handleSubmit = async () => {
-    if (!formData.name.trim()) {
-      alert("Tur adı zorunludur!");
+    const primaryName = primaryTranslationName(formData.translations);
+    if (!primaryName.trim()) {
+      setSaveResult({
+        type: "error",
+        text: "En az bir dilde tur adı zorunludur (Türkçe önerilir).",
+      });
       return;
     }
 
     setLoading(true);
+    setSaveResult(null);
     try {
+      const trDesc = formData.translations.tr?.description?.trim() || null;
       const payload = {
-        name: formData.name,
-        description: formData.description || null,
+        name: primaryName,
+        description: trDesc,
         duration: formData.duration || null,
         default_price: formData.default_price,
         currency: formData.currency,
         pickup_locations: formData.pickup_locations,
         images: formData.images,
+        videos: formData.videos,
+        translations: formData.translations,
         tour_url: formData.tour_url || null,
         is_active: formData.is_active,
         tour_managers: formData.tour_managers,
@@ -177,387 +175,531 @@ export function TourForm({ open, onOpenChange, tour, onSave }: TourFormProps) {
         base_price_child_eur: formData.base_price_child_eur,
         base_price_adult_try: formData.base_price_adult_try,
         base_price_child_try: formData.base_price_child_try,
+        departure_days: formData.departure_days,
+        closed_dates: formData.closed_dates,
+        open_dates: formData.open_dates,
+        departure_time: formData.departure_time || null,
+        meeting_point: formData.meeting_point || null,
+        pickup_zones: formData.pickup_zones,
       };
 
-      const result = isEditing && tour
-        ? await updateTour(tour.id, payload)
-        : await createTour(payload);
+      const result =
+        isEditing && tour ? await updateTour(tour.id, payload) : await createTour(payload);
 
       if (result.error) {
-        alert(result.error);
+        setSaveResult({ type: "error", text: result.error });
         return;
       }
 
-      onSave();
-      onOpenChange(false);
+      const newId = "id" in result && result.id ? result.id : tour?.id;
+      if (!isEditing && newId && !formData.tour_url) {
+        await updateTour(newId, {
+          ...payload,
+          tour_url: buildTourPublicUrl(newId),
+        });
+      }
+
+      setSaveResult({
+        type: "success",
+        text: isEditing
+          ? "Değişiklikler başarıyla kaydedildi ✓"
+          : "Tur başarıyla oluşturuldu ✓",
+      });
+      onSave(newId);
+      // Dialog modunda 1sn sonra kapansın ki kullanıcı yeşil onayı görebilsin
+      if (!isPage) {
+        setTimeout(() => onOpenChange(false), 1000);
+      }
     } catch (error) {
       console.error("Save error:", error);
-      alert("Kaydetme sırasında bir hata oluştu!");
+      if (isStaleServerActionError(error)) {
+        setSaveResult({
+          type: "error",
+          text: "Yeni bir sürüm yayınlandı. Sayfa otomatik yenileniyor…",
+        });
+        await recoverFromStaleDeploy();
+        return;
+      }
+      setSaveResult({ type: "error", text: "Kaydetme sırasında bir hata oluştu!" });
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{isEditing ? "Tur Düzenle" : "Yeni Tur"}</DialogTitle>
-        </DialogHeader>
+  const formBody = (
+    <div className="space-y-6">
+      <TourTranslationTabs
+        translations={formData.translations}
+        onChange={(translations) => setFormData((p) => ({ ...p, translations }))}
+      />
 
-        <div className="space-y-4">
-          {/* Tour Name */}
-          <div className="space-y-2">
-            <Label htmlFor="name">Tur Adı *</Label>
+      <TourMediaSection
+        images={formData.images}
+        videos={formData.videos}
+        onImagesChange={(images) => setFormData((p) => ({ ...p, images }))}
+        onVideosChange={(videos) => setFormData((p) => ({ ...p, videos }))}
+      />
+
+      <div className="space-y-2">
+        <Label htmlFor="tour_url">
+          Müşteri Sayfası URL{" "}
+          <span className="text-xs text-muted-foreground">(QR kod / paylaşım)</span>
+        </Label>
+        <Input
+          id="tour_url"
+          type="url"
+          value={formData.tour_url}
+          onChange={(e) => setFormData((p) => ({ ...p, tour_url: e.target.value }))}
+          placeholder={tour ? buildTourPublicUrl(tour.id) : "Kayıt sonrası otomatik oluşur"}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="duration">
+            Süre{" "}
+            <span className="text-xs text-muted-foreground">
+              (listeden seç veya elle yaz)
+            </span>
+          </Label>
+          <Input
+            id="duration"
+            list="duration-options"
+            value={formData.duration}
+            onChange={(e) =>
+              setFormData((p) => ({ ...p, duration: e.target.value }))
+            }
+            placeholder="Örn: 1 Saat, 5 Saat, Yarım Gün"
+          />
+          <datalist id="duration-options">
+            {DURATION_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.label} />
+            ))}
+          </datalist>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="default_price">Varsayılan Fiyat</Label>
+          <div className="flex gap-2">
             <Input
-              id="name"
-              value={formData.name}
+              id="default_price"
+              type="number"
+              min={0}
+              step="1"
+              placeholder="0"
+              value={formData.default_price === 0 ? "" : formData.default_price}
               onChange={(e) =>
-                setFormData((p) => ({ ...p, name: e.target.value }))
+                setFormData((p) => ({
+                  ...p,
+                  default_price: parseInt(e.target.value, 10) || 0,
+                }))
               }
-              placeholder="Ör: Efes Antik Kenti Turu"
-              required
+              className="flex-1"
             />
-          </div>
-
-          {/* Description */}
-          <div className="space-y-2">
-            <Label htmlFor="description">Açıklama</Label>
-            <textarea
-              id="description"
-              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              value={formData.description}
-              onChange={(e) =>
-                setFormData((p) => ({ ...p, description: e.target.value }))
+            <Select
+              value={formData.currency}
+              onValueChange={(val) =>
+                setFormData((p) => ({ ...p, currency: val as CurrencyType }))
               }
-              placeholder="Tur açıklaması..."
-            />
-          </div>
-
-          {/* Tour URL */}
-          <div className="space-y-2">
-            <Label htmlFor="tour_url">
-              Tur Detay URL{" "}
-              <span className="text-xs text-muted-foreground">
-                (Bilet üzerinde QR kod olarak görünecek)
-              </span>
-            </Label>
-            <Input
-              id="tour_url"
-              type="url"
-              value={formData.tour_url}
-              onChange={(e) =>
-                setFormData((p) => ({ ...p, tour_url: e.target.value }))
-              }
-              placeholder={DEFAULT_TOUR_URL}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              ℹ️ Alan boş bırakılırsa bilet QR kodu varsayılan olarak YouTube kanalımıza yönlendirilir.
-            </p>
-          </div>
-
-          {/* Duration & Price */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="duration">Süre</Label>
-              <Select
-                value={formData.duration}
-                onValueChange={(val) =>
-                  setFormData((p) => ({ ...p, duration: val }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Süre seçin" />
-                </SelectTrigger>
-                <SelectContent>
-                  {DURATION_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="default_price">Varsayılan Fiyat</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="default_price"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={formData.default_price}
-                  onChange={(e) =>
-                    setFormData((p) => ({
-                      ...p,
-                      default_price: parseFloat(e.target.value) || 0,
-                    }))
-                  }
-                  className="flex-1"
-                />
-                <Select
-                  value={formData.currency}
-                  onValueChange={(val) =>
-                    setFormData((p) => ({
-                      ...p,
-                      currency: val as CurrencyType,
-                    }))
-                  }
-                >
-                  <SelectTrigger className="w-24">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CURRENCY_OPTIONS.map((curr) => (
-                      <SelectItem key={curr} value={curr}>
-                        {curr}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-
-          {/* EasyBook Base Prices */}
-          <div className="space-y-2">
-            <Label>
-              EasyBook Taban Fiyatları{" "}
-              <span className="text-xs text-muted-foreground">
-                (Acente borç hesabında kullanılır)
-              </span>
-            </Label>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label htmlFor="base_price_adult_eur" className="text-xs text-blue-700">Yetişkin EUR</Label>
-                <Input
-                  id="base_price_adult_eur"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={formData.base_price_adult_eur}
-                  onChange={(e) =>
-                    setFormData((p) => ({
-                      ...p,
-                      base_price_adult_eur: parseFloat(e.target.value) || 0,
-                    }))
-                  }
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="base_price_child_eur" className="text-xs text-blue-700">Çocuk EUR</Label>
-                <Input
-                  id="base_price_child_eur"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={formData.base_price_child_eur}
-                  onChange={(e) =>
-                    setFormData((p) => ({
-                      ...p,
-                      base_price_child_eur: parseFloat(e.target.value) || 0,
-                    }))
-                  }
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="base_price_adult_try" className="text-xs text-muted-foreground">Yetişkin TL</Label>
-                <Input
-                  id="base_price_adult_try"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={formData.base_price_adult_try}
-                  onChange={(e) =>
-                    setFormData((p) => ({
-                      ...p,
-                      base_price_adult_try: parseFloat(e.target.value) || 0,
-                    }))
-                  }
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="base_price_child_try" className="text-xs text-muted-foreground">Çocuk TL</Label>
-                <Input
-                  id="base_price_child_try"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={formData.base_price_child_try}
-                  onChange={(e) =>
-                    setFormData((p) => ({
-                      ...p,
-                      base_price_child_try: parseFloat(e.target.value) || 0,
-                    }))
-                  }
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Tour Managers */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Tur Sorumluları (Opsiyonel)</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setFormData((p) => ({
-                    ...p,
-                    tour_managers: [...p.tour_managers, { name: "", phone: "" }],
-                  }))
-                }
-              >
-                + Sorumlu Ekle
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {formData.tour_managers.map((manager, index) => (
-                <div key={index} className="flex gap-2 items-start">
-                  <Input
-                    placeholder="Ad Soyad"
-                    value={manager.name}
-                    onChange={(e) => {
-                      const newManagers = [...formData.tour_managers];
-                      newManagers[index].name = e.target.value;
-                      setFormData((p) => ({ ...p, tour_managers: newManagers }));
-                    }}
-                    className="flex-1"
-                  />
-                  <Input
-                    placeholder="Telefon (Ör: +90 536 602 93 97)"
-                    value={manager.phone}
-                    onChange={(e) => {
-                      const newManagers = [...formData.tour_managers];
-                      newManagers[index].phone = e.target.value;
-                      setFormData((p) => ({ ...p, tour_managers: newManagers }));
-                    }}
-                    className="flex-1"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    className="shrink-0"
-                    onClick={() => {
-                      const newManagers = formData.tour_managers.filter((_, i) => i !== index);
-                      setFormData((p) => ({ ...p, tour_managers: newManagers }));
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Images */}
-          <div className="space-y-2">
-            <Label>
-              Tur Resimleri{" "}
-              <span className="text-xs text-muted-foreground">
-                (İlk resim kapak fotoğrafıdır)
-              </span>
-            </Label>
-
-            {/* Image Preview */}
-            {formData.images.length > 0 && (
-              <div className="grid grid-cols-4 gap-2">
-                {formData.images.map((img, index) => (
-                  <div
-                    key={img}
-                    className={`relative aspect-video rounded-lg overflow-hidden border-2 ${index === 0 ? "border-primary" : "border-transparent"
-                      }`}
-                  >
-                    <Image
-                      src={img}
-                      alt={`Tur resmi ${index + 1}`}
-                      fill
-                      className="object-cover"
-                    />
-                    {index === 0 && (
-                      <div className="absolute top-1 left-1 bg-primary text-primary-foreground text-xs px-1 rounded">
-                        Kapak
-                      </div>
-                    )}
-                    <div className="absolute top-1 right-1 flex gap-1">
-                      {index > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => moveImage(index, 0)}
-                          className="bg-white/80 hover:bg-white p-1 rounded"
-                          title="Kapak yap"
-                        >
-                          <GripVertical className="h-3 w-3" />
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => removeImage(index)}
-                        className="bg-white/80 hover:bg-white p-1 rounded"
-                      >
-                        <X className="h-3 w-3 text-destructive" />
-                      </button>
-                    </div>
-                  </div>
+            >
+              <SelectTrigger className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CURRENCY_OPTIONS.map((curr) => (
+                  <SelectItem key={curr} value={curr}>
+                    {curr}
+                  </SelectItem>
                 ))}
-              </div>
-            )}
-
-            {/* Upload Button - birden fazla resim seçilebilir */}
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="cursor-pointer">
-                <input
-                  type="file"
-                  accept=".jpg,.jpeg,.png,.webp"
-                  multiple
-                  onChange={handleImageUpload}
-                  className="hidden"
-                  disabled={uploadingImages}
-                />
-                <div className="flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-muted transition-colors disabled:opacity-50">
-                  <Upload className="h-4 w-4" />
-                  <span className="text-sm">
-                    {uploadingImages ? "Yükleniyor..." : "Resim Yükle (JPG, PNG, WEBP)"}
-                  </span>
-                </div>
-              </label>
-              <span className="text-xs text-muted-foreground">
-                Birden fazla resim seçebilirsiniz (dosya seçerken Ctrl veya Cmd ile çoklu seçim).
-              </span>
-            </div>
+              </SelectContent>
+            </Select>
           </div>
+        </div>
+      </div>
 
-          {/* Active Status */}
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="is_active"
-              checked={formData.is_active}
+      <div className="space-y-3 rounded-md border p-3 bg-slate-50">
+        <Label className="text-sm font-semibold">Kalkış & Buluşma (Katalog PDF)</Label>
+        <div className="space-y-2">
+          <Label className="text-xs">Kalkış Günleri</Label>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["monday", "Pzt"],
+                ["tuesday", "Sal"],
+                ["wednesday", "Çar"],
+                ["thursday", "Per"],
+                ["friday", "Cum"],
+                ["saturday", "Cmt"],
+                ["sunday", "Paz"],
+              ] as const
+            ).map(([key, label]) => {
+              const active = formData.departure_days.includes(key);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() =>
+                    setFormData((p) => ({
+                      ...p,
+                      departure_days: active
+                        ? p.departure_days.filter((d) => d !== key)
+                        : [...p.departure_days, key],
+                    }))
+                  }
+                  className={`px-3 py-1 rounded-full text-xs border transition ${
+                    active
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="departure_time" className="text-xs">
+              Kalkış Saati
+            </Label>
+            <Input
+              id="departure_time"
+              type="time"
+              value={formData.departure_time}
               onChange={(e) =>
-                setFormData((p) => ({ ...p, is_active: e.target.checked }))
+                setFormData((p) => ({ ...p, departure_time: e.target.value }))
               }
-              className="h-4 w-4"
             />
-            <Label htmlFor="is_active">Aktif</Label>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="meeting_point" className="text-xs">
+              Buluşma Noktası
+            </Label>
+            <Input
+              id="meeting_point"
+              placeholder="Bodrum Marina Liman Girişi"
+              value={formData.meeting_point}
+              onChange={(e) =>
+                setFormData((p) => ({ ...p, meeting_point: e.target.value }))
+              }
+            />
           </div>
         </div>
 
-        <DialogFooter>
+        {/* Tarih istisnalari: bilet sadece turun acik oldugu gunlere kesilebilir.
+             closed_dates = haftalik acik ama o gun kapali; open_dates = ekstra acik gun. */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 pt-1">
+          <DateListEditor
+            label="Kapalı Günler"
+            hint="Haftalık günlerden olsa bile bu tarihlerde tur yok"
+            dates={formData.closed_dates}
+            chipClassName="bg-red-100 text-red-700 border-red-200"
+            onChange={(closed_dates) =>
+              setFormData((p) => ({ ...p, closed_dates }))
+            }
+          />
+          <DateListEditor
+            label="Ekstra Açık Günler"
+            hint="Haftalık günlerden olmasa da bu tarihlerde tur var"
+            dates={formData.open_dates}
+            chipClassName="bg-green-100 text-green-700 border-green-200"
+            onChange={(open_dates) =>
+              setFormData((p) => ({ ...p, open_dates }))
+            }
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>EasyBook Taban Fiyatları</Label>
+        <div className="grid grid-cols-2 gap-4">
+          {(
+            [
+              ["base_price_adult_eur", "Yetişkin EUR"],
+              ["base_price_child_eur", "Çocuk EUR"],
+              ["base_price_adult_try", "Yetişkin TL"],
+              ["base_price_child_try", "Çocuk TL"],
+            ] as const
+          ).map(([key, label]) => (
+            <div key={key} className="space-y-1">
+              <Label className="text-xs">{label}</Label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="0"
+                value={formData[key] === 0 ? "" : formData[key]}
+                onChange={(e) =>
+                  setFormData((p) => ({
+                    ...p,
+                    [key]: parseInt(e.target.value, 10) || 0,
+                  }))
+                }
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Alış Bölgeleri (Pickup Zones) — bölgeye göre saat + buluşma noktası tablosu.
+           Rafting gibi çoğu noktadan transfer yapan turlarda kullanılır; boş bırakılırsa
+           yukarıdaki "Buluşma Noktası" + "Kalkış Saati" alanları geçerli kalır. */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <Label>Alış Bölgeleri</Label>
+            <p className="text-xs text-muted-foreground">
+              Bölgeye göre farklı kalkış saati ve buluşma noktası — örn. Rafting transferi
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              setFormData((p) => ({
+                ...p,
+                pickup_zones: [
+                  ...p.pickup_zones,
+                  { region: "", time: "", meeting_point: "" },
+                ],
+              }))
+            }
+          >
+            + Bölge Ekle
+          </Button>
+        </div>
+        {formData.pickup_zones.length > 0 && (
+          <div className="grid grid-cols-[1fr_110px_1.4fr_40px] gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground px-1">
+            <span>Bölge</span>
+            <span>Saat</span>
+            <span>Buluşma Yeri</span>
+            <span />
+          </div>
+        )}
+        {formData.pickup_zones.map((zone, index) => (
+          <div
+            key={index}
+            className="grid grid-cols-[1fr_110px_1.4fr_40px] gap-2"
+          >
+            <Input
+              placeholder="Bodrum Merkez"
+              value={zone.region}
+              onChange={(e) => {
+                const zs = [...formData.pickup_zones];
+                zs[index] = { ...zs[index], region: e.target.value };
+                setFormData((p) => ({ ...p, pickup_zones: zs }));
+              }}
+            />
+            <Input
+              type="time"
+              value={zone.time}
+              onChange={(e) => {
+                const zs = [...formData.pickup_zones];
+                zs[index] = { ...zs[index], time: e.target.value };
+                setFormData((p) => ({ ...p, pickup_zones: zs }));
+              }}
+            />
+            <Input
+              placeholder="Otel Önü"
+              value={zone.meeting_point}
+              onChange={(e) => {
+                const zs = [...formData.pickup_zones];
+                zs[index] = { ...zs[index], meeting_point: e.target.value };
+                setFormData((p) => ({ ...p, pickup_zones: zs }));
+              }}
+            />
+            <Button
+              type="button"
+              variant="destructive"
+              size="icon"
+              onClick={() =>
+                setFormData((p) => ({
+                  ...p,
+                  pickup_zones: p.pickup_zones.filter((_, i) => i !== index),
+                }))
+              }
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label>Tur Sorumluları</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              setFormData((p) => ({
+                ...p,
+                tour_managers: [...p.tour_managers, { name: "", phone: "" }],
+              }))
+            }
+          >
+            + Sorumlu Ekle
+          </Button>
+        </div>
+        {formData.tour_managers.map((manager, index) => (
+          <div key={index} className="flex gap-2">
+            <Input
+              placeholder="Ad Soyad"
+              value={manager.name}
+              onChange={(e) => {
+                const m = [...formData.tour_managers];
+                m[index].name = e.target.value;
+                setFormData((p) => ({ ...p, tour_managers: m }));
+              }}
+              className="flex-1"
+            />
+            <Input
+              placeholder="Telefon"
+              value={manager.phone}
+              onChange={(e) => {
+                const m = [...formData.tour_managers];
+                m[index].phone = e.target.value;
+                setFormData((p) => ({ ...p, tour_managers: m }));
+              }}
+              className="flex-1"
+            />
+            <Button
+              type="button"
+              variant="destructive"
+              size="icon"
+              onClick={() =>
+                setFormData((p) => ({
+                  ...p,
+                  tour_managers: p.tour_managers.filter((_, i) => i !== index),
+                }))
+              }
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="is_active"
+          checked={formData.is_active}
+          onChange={(e) => setFormData((p) => ({ ...p, is_active: e.target.checked }))}
+          className="h-4 w-4"
+        />
+        <Label htmlFor="is_active">Aktif</Label>
+      </div>
+
+      {saveResult ? (
+        <div
+          className={`rounded-md border px-3 py-2 text-sm ${
+            saveResult.type === "success"
+              ? "border-green-300 bg-green-50 text-green-800"
+              : "border-red-300 bg-red-50 text-red-800"
+          }`}
+        >
+          {saveResult.text}
+        </div>
+      ) : null}
+
+      <div className="flex justify-end gap-2 pt-4 border-t">
+        {!isPage && (
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             İptal
           </Button>
-          <Button onClick={handleSubmit} disabled={loading}>
-            {loading ? "Kaydediliyor..." : "Kaydet"}
-          </Button>
-        </DialogFooter>
+        )}
+        <Button onClick={handleSubmit} disabled={loading}>
+          {loading ? "Kaydediliyor..." : "Kaydet"}
+        </Button>
+      </div>
+    </div>
+  );
+
+  if (isPage) {
+    if (!visible) return null;
+    return formBody;
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isEditing ? "Tur Düzenle" : "Yeni Tur"}</DialogTitle>
+        </DialogHeader>
+        {formBody}
+        <DialogFooter className="hidden" />
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * yyyy-MM-dd tarih listesi düzenleyici: date input + Ekle butonu + chip listesi.
+ * Kalkış günü istisnaları (kapalı / ekstra açık) için kullanılır.
+ */
+function DateListEditor({
+  label,
+  hint,
+  dates,
+  chipClassName,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  dates: string[];
+  chipClassName?: string;
+  onChange: (dates: string[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+
+  const add = () => {
+    const v = draft.slice(0, 10);
+    if (!v || dates.includes(v)) {
+      setDraft("");
+      return;
+    }
+    onChange([...dates, v].sort());
+    setDraft("");
+  };
+
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      {hint ? <p className="text-[11px] text-muted-foreground">{hint}</p> : null}
+      <div className="flex gap-2">
+        <Input
+          type="date"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          className="flex-1"
+        />
+        <Button type="button" variant="outline" size="sm" onClick={add}>
+          Ekle
+        </Button>
+      </div>
+      {dates.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {dates.map((d) => (
+            <span
+              key={d}
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${
+                chipClassName ?? "bg-slate-100 text-slate-700 border-slate-200"
+              }`}
+            >
+              {d}
+              <button
+                type="button"
+                onClick={() => onChange(dates.filter((x) => x !== d))}
+                className="hover:opacity-70"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

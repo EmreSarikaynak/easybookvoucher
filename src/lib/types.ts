@@ -1,10 +1,10 @@
+import type { TourTranslations } from "./tour-i18n";
+
 export type UserRole = "super_admin" | "admin" | "agency_admin" | "sales";
 
 export type CurrencyType = "TRY" | "EUR" | "USD" | "GBP";
 
 export type VoucherStatus = "active" | "cancelled" | "completed";
-
-export type PaymentStatus = "pending" | "paid";
 
 export type PaymentMethod = "cash" | "credit_card" | "bank_transfer" | "other";
 
@@ -26,9 +26,17 @@ export interface Agency {
   name: string;
   phone: string | null;
   email: string | null;
-  commission_rate: number;
   is_active: boolean;
   created_at: string;
+}
+
+export interface PickupZone {
+  /** Bölge/semt — örn. "Bodrum Merkez", "Gümbet", "Yalı Kavak" */
+  region: string;
+  /** HH:mm — örn. "06:10" */
+  time: string;
+  /** Buluşma noktası — örn. "Otel Önü", "Torba Kavşak Köprü Altı" */
+  meeting_point: string;
 }
 
 export interface Tour {
@@ -39,22 +47,55 @@ export interface Tour {
   currency: CurrencyType;
   duration: string | null;
   pickup_locations: string[];
+  /**
+   * Bölgeye göre alış tablosu (saat + buluşma noktası).
+   * Rafting gibi çoğu noktadan transfer yapan turlarda kullanılır.
+   * Yapılı tablo gerekmiyorsa NULL/boş — eski 'meeting_point'/'departure_time'
+   * alanlarına geri düşülür.
+   */
+  pickup_zones?: PickupZone[] | null;
   images: string[];
+  videos?: string[];
+  translations?: TourTranslations;
   tour_url: string | null;
   is_active: boolean;
   created_at: string;
   tour_managers?: { name: string; phone: string }[];
+  departure_days?: string[];
+  /** Istisna: departure_days icinde olsa bile bu tarihlerde tur YOK (yyyy-MM-dd). */
+  closed_dates?: string[];
+  /** Istisna: departure_days gunlerinden olmasa da bu tarihlerde tur VAR (yyyy-MM-dd). */
+  open_dates?: string[];
+  departure_time?: string | null;
+  meeting_point?: string | null;
   base_price_adult_eur?: number;
   base_price_child_eur?: number;
   base_price_adult_try?: number;
   base_price_child_try?: number;
+  /** TRUE ise bu tur için bebek (infant) fiyatı girilebilir ve katalogda gösterilir. */
+  infant_pricing_enabled?: boolean;
+  base_price_infant_eur?: number;
+  base_price_infant_try?: number;
+  /** TRUE ise fiyat kişi başı değil rezervasyon başıdır (ör. ATV Double). */
+  price_per_booking?: boolean;
 }
 
 export interface AgencyTourPrice {
   id: string;
   agency_id: string;
   tour_id: string;
+  /** @deprecated use price_adult / price_child */
   price: number;
+  price_adult: number | null;
+  price_child: number;
+  /** Bebek satış fiyatı. NULL => girilmemiş. */
+  price_infant: number | null;
+  /** NULL => fallback to tours.base_price_adult_* */
+  cost_adult: number | null;
+  /** NULL => fallback to tours.base_price_child_* */
+  cost_child: number | null;
+  /** NULL => fallback to tours.base_price_infant_* */
+  cost_infant: number | null;
   currency: CurrencyType;
   created_at: string;
   updated_at: string;
@@ -104,34 +145,22 @@ export interface Voucher {
   sales_person_id: string;
   agency_id: string | null;
   status: VoucherStatus;
-  agency_payment_status: PaymentStatus;
-  agency_payment_date: string | null;
   notes: string | null;
   photo_url: string | null;
   pdf_url: string | null;
-  exchange_rate_snapshot: ExchangeRateSnapshot | null; // Snapshot of rates at creation
-  agent_owes_easybook_eur: number;
+  exchange_rate_snapshot: ExchangeRateSnapshot | null; // Snapshot of rates at creation (legacy)
+  /** EUR snapshot — voucher kayıt anındaki kur ile kilitlenir. Cari hesap EUR cinsinden. */
+  total_price_eur: number | null;
+  deposit_paid_eur: number | null;
+  easybook_cost_eur: number | null;
+  eur_rate_snapshot: number | null;
+  eur_rate_date: string | null;
   created_at: string;
   updated_at: string;
   // Joined fields
   tour?: Tour;
   sales_person?: Profile;
   agency?: Agency;
-}
-
-export interface AgentPayment {
-  id: string;
-  agent_id: string;
-  payment_amount: number;
-  payment_currency: CurrencyType;
-  payment_date: string;
-  related_voucher_id: string | null;
-  notes: string | null;
-  created_by: string | null;
-  created_at: string;
-  // Joined fields
-  agency?: Agency;
-  voucher?: Voucher;
 }
 
 export interface VoucherTemplate {
@@ -185,10 +214,14 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 export const DURATION_OPTIONS = [
   { value: "half_day", label: "Yarım Gün" },
   { value: "full_day", label: "Tam Gün" },
+  { value: "1_hour", label: "1 Saat" },
   { value: "2_hours", label: "2 Saat" },
   { value: "3_hours", label: "3 Saat" },
   { value: "4_hours", label: "4 Saat" },
+  { value: "5_hours", label: "5 Saat" },
+  { value: "6_hours", label: "6 Saat" },
   { value: "7_hours", label: "7 Saat" },
+  { value: "8_hours", label: "8 Saat" },
   { value: "multi_day", label: "Çok Günlü" },
 ] as const;
 
@@ -397,6 +430,58 @@ export const DEPARTURE_PORTS = [
   "Bitez Sahili",
   "Torba Körfezi",
 ] as const;
+
+// ========================  SUPPORT TICKET TYPES  ========================
+
+export type SupportTicketStatus = "open" | "in_progress" | "resolved" | "closed";
+export type SupportTicketPriority = "low" | "normal" | "high" | "urgent";
+
+export interface SupportTicket {
+  id: string;
+  agency_id: string | null;
+  user_id: string;
+  subject: string;
+  message: string;
+  status: SupportTicketStatus;
+  priority: SupportTicketPriority;
+  admin_reply: string | null;
+  replied_at: string | null;
+  replied_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  user?: Profile;
+  agency?: Agency;
+  replied_by_profile?: Profile;
+}
+
+export const SUPPORT_STATUS_LABELS: Record<SupportTicketStatus, string> = {
+  open: "Açık",
+  in_progress: "İşlemde",
+  resolved: "Çözüldü",
+  closed: "Kapalı",
+};
+
+export const SUPPORT_PRIORITY_LABELS: Record<SupportTicketPriority, string> = {
+  low: "Düşük",
+  normal: "Normal",
+  high: "Yüksek",
+  urgent: "Acil",
+};
+
+export const SUPPORT_STATUS_COLORS: Record<SupportTicketStatus, string> = {
+  open: "bg-blue-100 text-blue-800",
+  in_progress: "bg-yellow-100 text-yellow-800",
+  resolved: "bg-green-100 text-green-800",
+  closed: "bg-gray-100 text-gray-700",
+};
+
+export const SUPPORT_PRIORITY_COLORS: Record<SupportTicketPriority, string> = {
+  low: "bg-gray-100 text-gray-600",
+  normal: "bg-blue-100 text-blue-700",
+  high: "bg-orange-100 text-orange-700",
+  urgent: "bg-red-100 text-red-700",
+};
 
 // ========================  WHATSAPP LOG TYPES  ========================
 

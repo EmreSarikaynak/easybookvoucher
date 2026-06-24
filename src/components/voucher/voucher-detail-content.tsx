@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Edit, XCircle } from "lucide-react";
+import { ArrowLeft, Edit, XCircle, RefreshCcw, Trash2, Copy, ExternalLink, Check, ImageIcon, Loader2, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +18,7 @@ import { formatDateShort, formatCurrency } from "@/lib/utils";
 import { STATUS_LABELS } from "@/lib/types";
 import { VoucherActions } from "@/components/voucher/voucher-actions";
 import type { Voucher, VoucherStatus } from "@/lib/types";
+import { getVoucherJpegUrl } from "@/lib/voucher-assets";
 
 const statusVariant: Record<VoucherStatus, "success" | "destructive" | "secondary"> = {
   active: "success",
@@ -27,23 +28,123 @@ const statusVariant: Record<VoucherStatus, "success" | "destructive" | "secondar
 
 interface VoucherDetailContentProps {
   voucher: Voucher;
+  isAdmin?: boolean;
+  isNewVoucher?: boolean;
+  isRevisedVoucher?: boolean;
 }
 
-export function VoucherDetailContent({ voucher: initialVoucher }: VoucherDetailContentProps) {
+export function VoucherDetailContent({ voucher: initialVoucher, isAdmin, isNewVoucher, isRevisedVoucher }: VoucherDetailContentProps) {
   const router = useRouter();
   const supabase = createClient();
   const [voucher, setVoucher] = useState<Voucher>(initialVoucher);
+  const [copied, setCopied] = useState(false);
+  const [copiedJpeg, setCopiedJpeg] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [jpegLoadFailed, setJpegLoadFailed] = useState(false);
+  // Revize sonrası aynı URL'de yeni JPEG var; updated_at ile cache bust et.
+  // Eski biletlerde updated_at olmayabilir; o zaman saf URL kullan.
+  const baseJpegUrl = getVoucherJpegUrl(voucher.pdf_url);
+  const jpegUrl = baseJpegUrl
+    ? voucher.updated_at
+      ? `${baseJpegUrl}?v=${encodeURIComponent(voucher.updated_at)}`
+      : baseJpegUrl
+    : null;
+  // Voucher değişirse (revize yüklendi) hata durumunu sıfırla.
+  useEffect(() => {
+    setJpegLoadFailed(false);
+  }, [jpegUrl]);
+
+  const handleCopyLink = () => {
+    if (!voucher.pdf_url) return;
+    navigator.clipboard.writeText(voucher.pdf_url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyJpegLink = () => {
+    if (!jpegUrl) return;
+    navigator.clipboard.writeText(jpegUrl);
+    setCopiedJpeg(true);
+    setTimeout(() => setCopiedJpeg(false), 2000);
+  };
 
   const handleCancel = async () => {
-    if (!confirm("Bu bileti iptal etmek istediğinize emin misiniz?")) return;
+    if (
+      !confirm(
+        "Bu bileti iptal etmek istediğinize emin misiniz?\n\n" +
+          "Müşteri, acente ve admin'lere WhatsApp bildirimi gönderilecektir."
+      )
+    )
+      return;
+
+    setIsCancelling(true);
+    try {
+      const res = await fetch("/api/vouchers/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voucherId: voucher.id }),
+      });
+
+      let result: {
+        success?: boolean;
+        sent?: number;
+        failed?: number;
+        error?: string;
+        notificationsError?: string;
+      };
+      try {
+        result = await res.json();
+      } catch {
+        result = { success: false, error: `HTTP ${res.status}` };
+      }
+
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || `HTTP ${res.status}`);
+      }
+
+      setVoucher({ ...voucher, status: "cancelled" });
+
+      const sentMsg =
+        typeof result.sent === "number"
+          ? ` ${result.sent} WhatsApp bildirimi gönderildi${result.failed && result.failed > 0 ? `, ${result.failed} başarısız` : ""}.`
+          : "";
+      const warning = result.notificationsError
+        ? `\n\nUyarı: bazı bildirimler iletilemedi (${result.notificationsError}).`
+        : "";
+      alert(`Bilet iptal edildi.${sentMsg}${warning}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert("İptal sırasında hata: " + msg);
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleActivate = async () => {
+    if (!confirm("Bu bileti tekrar aktif etmek istediğinize emin misiniz?")) return;
 
     const { error } = await supabase
       .from("vouchers")
-      .update({ status: "cancelled" })
+      .update({ status: "active" })
       .eq("id", voucher.id);
 
     if (!error) {
-      setVoucher({ ...voucher, status: "cancelled" });
+      setVoucher({ ...voucher, status: "active" });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("Bu bileti SİLMEK istediğinize emin misiniz? Bu işlem geri alınamaz!")) return;
+
+    const { error } = await supabase
+      .from("vouchers")
+      .delete()
+      .eq("id", voucher.id);
+
+    if (!error) {
+      router.push("/vouchers");
+    } else {
+      alert("Silinirken bir hata oluştu!");
     }
   };
 
@@ -70,18 +171,160 @@ export function VoucherDetailContent({ voucher: initialVoucher }: VoucherDetailC
             </Link>
           </Button>
           {voucher.status === "active" && (
-            <Button variant="destructive" size="sm" onClick={handleCancel}>
-              <XCircle className="mr-2 h-4 w-4" />
-              İptal Et
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleCancel}
+              disabled={isCancelling}
+            >
+              {isCancelling ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <XCircle className="mr-2 h-4 w-4" />
+              )}
+              {isCancelling ? "İptal Ediliyor..." : "İptal Et"}
+            </Button>
+          )}
+          {voucher.status === "cancelled" && isAdmin && (
+            <Button variant="default" size="sm" onClick={handleActivate} className="bg-green-600 hover:bg-green-700">
+              <RefreshCcw className="mr-2 h-4 w-4" />
+              Aktif Et
+            </Button>
+          )}
+          {isAdmin && (
+            <Button variant="destructive" size="sm" onClick={handleDelete} className="bg-red-700 hover:bg-red-800">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Sil
             </Button>
           )}
         </div>
       </div>
 
       {/* Bilet ve Paylaşım Butonları */}
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold mb-4">Bilet Önizleme</h2>
-        <VoucherActions voucher={voucher} />
+      <div className="mt-8 space-y-4">
+        <h2 className="text-lg font-semibold">Bilet Önizleme</h2>
+        
+        {/* PDF Link Card */}
+        {voucher.pdf_url && (
+          <Card className="border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20 overflow-hidden shadow-sm">
+            <CardContent className="p-4 sm:p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="space-y-1.5 flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                    <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                      PDF Bilet URL
+                    </span>
+                  </div>
+                  <p className="text-sm font-mono text-muted-foreground select-all truncate bg-white dark:bg-zinc-900/50 border dark:border-zinc-800 p-2 rounded-md">
+                    {voucher.pdf_url}
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Button variant="outline" size="sm" onClick={handleCopyLink} className="flex items-center gap-1.5 h-9">
+                    {copied ? (
+                      <>
+                        <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        Kopyalandı!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4" />
+                        PDF Kopyala
+                      </>
+                    )}
+                  </Button>
+                  <Button variant="default" size="sm" asChild className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5 h-9">
+                    <a href={voucher.pdf_url} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-4 w-4" />
+                      PDF Gör
+                    </a>
+                  </Button>
+                </div>
+              </div>
+
+              {jpegUrl && (
+                <div className="grid gap-3 lg:grid-cols-[1fr_220px]">
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <ImageIcon className="h-4 w-4 text-green-600" />
+                      <span className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wider">
+                        WhatsApp JPEG Görsel URL
+                      </span>
+                    </div>
+                    <p className="text-sm font-mono text-muted-foreground select-all truncate bg-white dark:bg-zinc-900/50 border dark:border-zinc-800 p-2 rounded-md">
+                      {jpegUrl}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={handleCopyJpegLink}>
+                        {copiedJpeg ? (
+                          <>
+                            <Check className="mr-1.5 h-4 w-4 text-green-600" />
+                            Kopyalandı!
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="mr-1.5 h-4 w-4" />
+                            JPEG Kopyala
+                          </>
+                        )}
+                      </Button>
+                      <Button variant="outline" size="sm" asChild>
+                        <a href={jpegUrl} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="mr-1.5 h-4 w-4" />
+                          JPEG Olarak Göster
+                        </a>
+                      </Button>
+                    </div>
+                    {jpegLoadFailed && (
+                      <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          Bu bilet için JPEG görseli henüz oluşturulmamış. Aşağıdaki
+                          “TR PDF / EN PDF” butonlarına basarak yeni PDF + JPEG
+                          oluşturabilir, paylaşımı yenileyebilirsiniz.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {jpegLoadFailed ? (
+                    <div className="flex h-full min-h-[100px] flex-col items-center justify-center gap-1 overflow-hidden rounded-lg border border-dashed border-amber-300 bg-amber-50/60 p-3 text-center dark:border-amber-900 dark:bg-amber-950/20">
+                      <ImageIcon className="h-6 w-6 text-amber-500" />
+                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                        JPEG bulunamadı
+                      </p>
+                      <p className="text-[10px] leading-tight text-amber-700/80 dark:text-amber-300/80">
+                        Aşağıdaki önizlemeden yeniden üretebilirsiniz.
+                      </p>
+                    </div>
+                  ) : (
+                    <a
+                      href={jpegUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block overflow-hidden rounded-lg border bg-white"
+                    >
+                      <img
+                        src={jpegUrl}
+                        alt="Bilet JPEG önizleme"
+                        className="h-auto w-full object-contain"
+                        loading="lazy"
+                        onError={() => setJpegLoadFailed(true)}
+                      />
+                    </a>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        <VoucherActions 
+          voucher={voucher} 
+          autoSend={isNewVoucher || isRevisedVoucher} 
+          isRevised={isRevisedVoucher} 
+          onPdfUploaded={(url) => setVoucher(prev => ({ ...prev, pdf_url: url }))}
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

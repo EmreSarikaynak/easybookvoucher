@@ -4,11 +4,12 @@ import { VoucherDetailContent } from "@/components/voucher/voucher-detail-conten
 import type { Voucher } from "@/lib/types";
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ new?: string; revised?: string }>;
 }
 
 async function getVoucher(id: string): Promise<Voucher | null> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("vouchers")
@@ -31,9 +32,12 @@ async function getVoucher(id: string): Promise<Voucher | null> {
 
 import { getCurrentUser } from "@/lib/auth-helpers";
 
-export default async function VoucherDetailPage({ params }: PageProps) {
+export default async function VoucherDetailPage({ params, searchParams }: PageProps) {
+  const resolvedParams = await params;
+  const resolvedSearchParams = await searchParams;
+
   const [voucher, currentUser] = await Promise.all([
-    getVoucher(params.id),
+    getVoucher(resolvedParams.id),
     getCurrentUser(),
   ]);
 
@@ -53,5 +57,15 @@ export default async function VoucherDetailPage({ params }: PageProps) {
     }
   }
 
-  return <VoucherDetailContent voucher={voucher} />;
+  const isNewVoucher = resolvedSearchParams?.new === "1";
+  const isRevisedVoucher = resolvedSearchParams?.revised === "1";
+
+  return (
+    <VoucherDetailContent 
+      voucher={voucher} 
+      isAdmin={isAdmin} 
+      isNewVoucher={isNewVoucher} 
+      isRevisedVoucher={isRevisedVoucher} 
+    />
+  );
 }

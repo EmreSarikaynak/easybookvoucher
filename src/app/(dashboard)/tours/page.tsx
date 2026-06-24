@@ -1,14 +1,22 @@
+import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { canManageTours, canViewTours } from "@/lib/auth-helpers";
 import { ToursContent } from "@/components/tour/tours-content";
+import {
+  fetchAgencyTourPriceMap,
+  type ResolvedTourPriceSet,
+} from "@/lib/tour-catalog-data";
 import type { Tour } from "@/lib/types";
 
-async function getTours(): Promise<Tour[]> {
-  const supabase = createServerSupabaseClient();
+async function getTours(isAdmin: boolean): Promise<Tour[]> {
+  const supabase = await createServerSupabaseClient();
 
-  const { data, error } = await supabase
-    .from("tours")
-    .select("*")
-    .order("name");
+  let query = supabase.from("tours").select("*").order("name");
+  if (!isAdmin) {
+    query = query.eq("is_active", true);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("Tours fetch error:", error);
@@ -18,40 +26,52 @@ async function getTours(): Promise<Tour[]> {
   return data ?? [];
 }
 
-async function getToursPageData() {
-  const supabase = createServerSupabaseClient();
+export default async function ToursPage() {
+  const supabase = await createServerSupabaseClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!user) {
-    return { userRole: null, userAgencyId: null };
-  }
+  if (!user) redirect("/");
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, agency_id")
+    .select("*")
     .eq("id", user.id)
     .single();
 
-  return {
-    userRole: profile?.role ?? null,
-    userAgencyId: profile?.agency_id ?? null,
-  };
-}
+  if (!canViewTours(profile)) {
+    redirect("/dashboard");
+  }
 
-export default async function ToursPage() {
-  const [tours, { userRole, userAgencyId }] = await Promise.all([
-    getTours(),
-    getToursPageData(),
-  ]);
-
-  const isAdmin = userRole === "super_admin" || userRole === "admin";
+  const isAdmin = canManageTours(profile);
+  const tours = await getTours(isAdmin);
+  let agencyCode: string | null = null;
+  if (profile?.agency_id) {
+    const { data: agency } = await supabase
+      .from("agencies")
+      .select("agency_code")
+      .eq("id", profile.agency_id)
+      .maybeSingle();
+    agencyCode = agency?.agency_code ?? null;
+  }
+  const priceMap = await fetchAgencyTourPriceMap(
+    supabase,
+    profile?.agency_id ?? null,
+    tours
+  );
+  const priceRecord: Record<string, ResolvedTourPriceSet> = {};
+  priceMap.forEach((v, k) => {
+    priceRecord[k] = v;
+  });
 
   return (
     <ToursContent
       initialTours={tours}
       isAdmin={isAdmin}
-      userAgencyId={userAgencyId}
+      priceMap={priceRecord}
+      agencyCode={agencyCode}
     />
   );
 }
