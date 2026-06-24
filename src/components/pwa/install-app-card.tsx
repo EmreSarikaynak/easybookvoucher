@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Download, Share, Plus, Smartphone } from "lucide-react";
+import { Download, Share, Plus, Smartphone, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,6 +10,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 type Platform = "android" | "ios" | "desktop" | "other";
 
@@ -37,12 +44,19 @@ function isRealIOSSafari(): boolean {
   return /Safari/i.test(ua) && /Version\//i.test(ua);
 }
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
 export function InstallAppCard() {
   const [platform, setPlatform] = useState<Platform>("other");
   const [isInstalled, setIsInstalled] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<Event | null>(null);
+  const [deferredPrompt, setDeferredPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
   const [installing, setInstalling] = useState(false);
   const [iosNeedsSafari, setIosNeedsSafari] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   useEffect(() => {
     const p = detectPlatform();
@@ -55,23 +69,42 @@ export function InstallAppCard() {
 
     const handler = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
     window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+
+    const installedHandler = () => {
+      setIsInstalled(true);
+      setDeferredPrompt(null);
+      setGuideOpen(false);
+    };
+    window.addEventListener("appinstalled", installedHandler);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handler);
+      window.removeEventListener("appinstalled", installedHandler);
+    };
   }, []);
 
-  const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    setInstalling(true);
-    const promptEvent = deferredPrompt as BeforeInstallPromptEvent;
-    await promptEvent.prompt();
-    const { outcome } = await promptEvent.userChoice;
-    if (outcome === "accepted") {
-      setIsInstalled(true);
+  // Android / masaüstünde tarayıcı native yükleme olayını verdiyse doğrudan kur.
+  const handleNativeInstall = async () => {
+    if (!deferredPrompt) {
+      // Native olay yoksa elle yönergeleri göster.
+      setGuideOpen(true);
+      return;
     }
-    setDeferredPrompt(null);
-    setInstalling(false);
+    setInstalling(true);
+    try {
+      await deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") setIsInstalled(true);
+    } catch {
+      /* prompt çağrılamadı, yönergeleri göster */
+      setGuideOpen(true);
+    } finally {
+      setDeferredPrompt(null);
+      setInstalling(false);
+    }
   };
 
   if (isInstalled) {
@@ -90,88 +123,153 @@ export function InstallAppCard() {
     );
   }
 
+  // Native yükleme olayı varsa (Android/masaüstü Chrome-Edge) tek tıkla kurar,
+  // aksi halde (özellikle iOS) yönerge modali açan tek bir buton gösteririz.
+  const canNativeInstall = !!deferredPrompt;
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <Download className="h-4 w-4" />
-          Uygulamayı Yükle
-        </CardTitle>
-        <CardDescription>
-          Daha hızlı erişim için EasyBook&apos;u cihazınıza uygulama olarak
-          ekleyin.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {platform === "android" && deferredPrompt ? (
-          <Button onClick={handleInstall} disabled={installing}>
-            <Download className="mr-2 h-4 w-4" />
-            {installing ? "Yükleniyor..." : "Uygulamayı Yükle"}
-          </Button>
-        ) : platform === "ios" ? (
-          <div className="space-y-3 text-sm text-muted-foreground">
-            {iosNeedsSafari && (
-              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900">
-                <p className="font-medium">Önce Safari&apos;de açın</p>
-                <p className="mt-1">
-                  Şu an Safari kullanmıyorsunuz (örn. Chrome veya
-                  Instagram/WhatsApp içi tarayıcı). Uygulama yalnızca{" "}
-                  <strong>Safari</strong> ile ana ekrana eklenebilir. Bu sayfayı
-                  Safari&apos;de açıp aşağıdaki adımları izleyin.
-                </p>
-              </div>
-            )}
-            <p className="font-medium text-foreground">
-              iOS&apos;a Eklemek İçin:
-            </p>
-            <ol className="space-y-2 list-none">
-              <li className="flex items-start gap-2">
-                <Share className="h-4 w-4 mt-0.5 shrink-0 text-blue-500" />
-                <span>
-                  Safari&apos;de alt çubuktaki{" "}
-                  <strong>Paylaş (□↑)</strong> butonuna dokunun
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Plus className="h-4 w-4 mt-0.5 shrink-0 text-blue-500" />
-                <span>
-                  <strong>&#34;Ana Ekrana Ekle&#34;</strong> seçeneğine dokunun
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Download className="h-4 w-4 mt-0.5 shrink-0 text-blue-500" />
-                <span>
-                  Sağ üst köşedeki <strong>&#34;Ekle&#34;</strong> butonuna dokunun
-                </span>
-              </li>
-            </ol>
-          </div>
-        ) : platform === "desktop" ? (
-          <div className="space-y-3">
-            {deferredPrompt ? (
-              <Button onClick={handleInstall} disabled={installing}>
-                <Download className="mr-2 h-4 w-4" />
-                {installing ? "Yükleniyor..." : "Uygulamayı Yükle"}
-              </Button>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Tarayıcı adres çubuğundaki yükleme simgesini kullanarak
-                uygulamayı masaüstünüze ekleyebilirsiniz.
-              </p>
-            )}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Bu tarayıcıda otomatik yükleme desteklenmiyor. Tarayıcı
-            menüsünden &quot;Ana Ekrana Ekle&quot; seçeneğini deneyin.
-          </p>
-        )}
-      </CardContent>
-    </Card>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Uygulamayı Yükle
+          </CardTitle>
+          <CardDescription>
+            Daha hızlı erişim için EasyBook&apos;u cihazınıza uygulama olarak
+            ekleyin.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {canNativeInstall ? (
+            <Button onClick={handleNativeInstall} disabled={installing}>
+              <Download className="mr-2 h-4 w-4" />
+              {installing ? "Yükleniyor..." : "Uygulamayı Yükle"}
+            </Button>
+          ) : (
+            <Button onClick={() => setGuideOpen(true)}>
+              <Download className="mr-2 h-4 w-4" />
+              {platform === "ios" ? "Ana Ekrana Ekle" : "Nasıl Yüklenir?"}
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      <InstallGuideDialog
+        open={guideOpen}
+        onOpenChange={setGuideOpen}
+        platform={platform}
+        iosNeedsSafari={iosNeedsSafari}
+      />
+    </>
   );
 }
 
-interface BeforeInstallPromptEvent extends Event {
-  prompt(): Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+function StepRow({ n, children }: { n: number; children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-3">
+      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-teal-100 text-teal-700 text-xs font-bold flex items-center justify-center mt-0.5">
+        {n}
+      </span>
+      <span className="flex items-center gap-1 flex-wrap leading-relaxed">
+        {children}
+      </span>
+    </li>
+  );
+}
+
+function InstallGuideDialog({
+  open,
+  onOpenChange,
+  platform,
+  iosNeedsSafari,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  platform: Platform;
+  iosNeedsSafari: boolean;
+}) {
+  const isIos = platform === "ios";
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Smartphone className="h-5 w-5 text-teal-600" />
+            {isIos && iosNeedsSafari ? "Önce Safari'de Açın" : "Ana Ekrana Ekle"}
+          </DialogTitle>
+          <DialogDescription>
+            EasyBook&apos;u cihazınıza uygulama olarak ekleyin.
+          </DialogDescription>
+        </DialogHeader>
+
+        {isIos && iosNeedsSafari ? (
+          <div className="space-y-3 text-sm text-gray-700">
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900">
+              Şu an Safari kullanmıyorsunuz (örn. Chrome veya Instagram/WhatsApp
+              içi tarayıcı). Uygulama yalnızca <strong>Safari</strong> ile ana
+              ekrana eklenebilir.
+            </div>
+            <ol className="space-y-3">
+              <StepRow n={1}>
+                Sayfayı menüden{" "}
+                <span className="font-semibold">Safari&apos;de Aç</span> ya da
+                adresi Safari&apos;ye kopyalayın.
+              </StepRow>
+              <StepRow n={2}>
+                Safari&apos;de alttaki
+                <Share className="inline h-4 w-4 text-blue-600" />
+                <span className="font-semibold">Paylaş</span> →{" "}
+                <span className="font-semibold">Ana Ekrana Ekle</span> yapın.
+              </StepRow>
+            </ol>
+          </div>
+        ) : isIos ? (
+          <ol className="space-y-3 text-sm text-gray-700">
+            <StepRow n={1}>
+              Safari&apos;de alttaki
+              <Share className="inline h-4 w-4 text-blue-600" />
+              <span className="font-semibold">Paylaş</span> simgesine dokunun.
+            </StepRow>
+            <StepRow n={2}>
+              Açılan menüden
+              <Plus className="inline h-4 w-4" />
+              <span className="font-semibold">Ana Ekrana Ekle</span> seçeneğine
+              dokunun.
+            </StepRow>
+            <StepRow n={3}>
+              Sağ üst köşeden <span className="font-semibold">Ekle</span>&apos;ye
+              dokunarak yükleyin.
+            </StepRow>
+          </ol>
+        ) : (
+          <ol className="space-y-3 text-sm text-gray-700">
+            <StepRow n={1}>
+              Sağ üstteki
+              <MoreVertical className="inline h-4 w-4" />
+              <span className="font-semibold">menü</span> simgesine dokunun.
+            </StepRow>
+            <StepRow n={2}>
+              Açılan menüden{" "}
+              <span className="font-semibold">Uygulamayı yükle</span> veya{" "}
+              <span className="font-semibold">Ana ekrana ekle</span> seçeneğine
+              dokunun.
+            </StepRow>
+            <StepRow n={3}>
+              Onay penceresinde <span className="font-semibold">Yükle</span>
+              &apos;ye dokunun.
+            </StepRow>
+          </ol>
+        )}
+
+        <Button
+          onClick={() => onOpenChange(false)}
+          className="w-full bg-teal-600 hover:bg-teal-700"
+        >
+          Anladım
+        </Button>
+      </DialogContent>
+    </Dialog>
+  );
 }
